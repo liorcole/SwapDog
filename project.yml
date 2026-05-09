@@ -1,0 +1,74 @@
+name: SwapDog
+
+# ── Global options ─────────────────────────────────────────────────────────────
+options:
+  bundleIdPrefix: com.ari
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "15.2"        # minimum Xcode version required
+  swiftVersion: "5.9"
+  createIntermediateGroups: true   # mirrors folder structure in Navigator
+  groupSortPosition: top
+
+# ── Swift Package Manager dependencies ────────────────────────────────────────
+packages:
+  FirebaseSDK:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "10.0.0"
+
+# ── Targets ────────────────────────────────────────────────────────────────────
+targets:
+
+  # ── App target ──────────────────────────────────────────────────────────────
+  SwapDog:
+    type: application
+    platform: iOS
+
+    # Source folders – XcodeGen adds all .swift files recursively;
+    # .xcassets inside Resources/ are auto-detected as bundle resources.
+    sources:
+      - path: App
+      - path: Core
+      - path: DesignSystem
+      - path: Features
+      - path: Mocks
+      - path: Resources     # contains Assets.xcassets
+
+    # Use the hand-crafted Info.plist at the repo root
+    info:
+      path: Info.plist
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ari.SwapDog
+        SWIFT_VERSION: "5.9"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        DEVELOPMENT_TEAM: ""          # fill in your Apple Team ID before archiving
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_STRICT_CONCURRENCY: complete   # mirrors Package.swift setting
+        ENABLE_PREVIEWS: YES
+
+    # Firebase SPM products
+    dependencies:
+      - package: FirebaseSDK
+        product: FirebaseAuth
+      - package: FirebaseSDK
+        product: FirebaseFirestore
+      - package: FirebaseSDK
+        product: FirebaseStorage
+      - package: FirebaseSDK
+        product: FirebaseMessaging
+
+  # ── Unit-test target ─────────────────────────────────────────────────────────
+  SwapDogTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/UnitTests
+    dependencies:
+      - target: SwapDog
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ari.SwapDogTests
+        SWIFT_VERSION: "5.9"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"

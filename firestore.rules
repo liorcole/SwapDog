@@ -1,0 +1,216 @@
+rules_version = '2';
+//
+//  firestore.rules
+//  SwapDog
+//
+//  Firestore Security Rules for the SwapDog app.
+//
+//  Collection layout:
+//    users/{userId}
+//    users/{userId}/dogs/{dogId}
+//    swap_requests/{requestId}
+//    conversations/{convId}
+//    conversations/{convId}/messages/{msgId}
+//    reviews/{reviewId}
+//
+//  Field names mirror the snake_case CodingKeys defined in each Swift model.
+//  Every numeric limit here must stay in sync with ValidationService.swift.
+//
+//  Last updated: 2026-05-08
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper Functions ──────────────────────────────────────────────────────
+
+    /// Returns true when the caller has a valid Firebase Auth session.
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    /// Returns true when the caller's UID matches the given userId.
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ─── users/{userId} ────────────────────────────────────────────────────────
+    //
+    //  Read   → any authenticated user (discovery feed, profile viewing)
+    //  Create → the document owner only, with valid data
+    //  Update → the document owner only, with valid data
+    //  Delete → the document owner only
+
+    match /users/{userId} {
+      allow read:   if isAuthenticated();
+      allow create: if isOwner(userId) && validateUser();
+      allow update: if isOwner(userId) && validateUser();
+      allow delete: if isOwner(userId);
+
+      /// Validates that required User fields are present and within bounds.
+      /// Mirrors ValidationService.validateDisplayName / validateBio / validateEmail.
+      function validateUser() {
+        let d = request.resource.data;
+        return d.display_name is string
+            && d.display_name.size() > 0
+            && d.display_name.size() <= 50
+            && d.bio is string
+            && d.bio.size() <= 500
+            && d.email is string
+            && d.email.size() > 0;
+      }
+
+      // ─── users/{userId}/dogs/{dogId} ────────────────────────────────────────
+      //
+      //  Read   → any authenticated user (discovery, detail views)
+      //  Create → owner only, with valid data
+      //  Update → owner only, with valid data
+      //  Delete → owner only
+
+      match /dogs/{dogId} {
+        allow read:          if isAuthenticated();
+        allow create, update: if isOwner(userId) && validateDog();
+        allow delete:        if isOwner(userId);
+
+        /// Validates that required Dog fields are present and within bounds.
+        /// Mirrors ValidationService.validateDogName / validateBreed / validateDogPhotos.
+        function validateDog() {
+          let d = request.resource.data;
+          return d.name is string
+              && d.name.size() > 0
+              && d.name.size() <= 50
+              && d.breed is string
+              && d.breed.size() > 0
+              && d.photos is list
+              && d.photos.size() <= 5
+              && d.age in ['puppy', 'young', 'adult', 'senior']
+              && d.size in ['small', 'medium', 'large', 'extra_large']
+              && d.energy_level in ['low', 'moderate', 'high'];
+        }
+      }
+    }
+
+    // ─── swap_requests/{requestId} ────────────────────────────────────────────
+    //
+    //  Read   → requester or recipient only
+    //  Create → any authenticated user (they become the requester)
+    //  Update → requester or recipient only (status transitions)
+    //  Delete → not allowed (immutable audit trail)
+
+    match /swap_requests/{requestId} {
+      allow read: if isAuthenticated()
+          && (resource.data.requester_id == request.auth.uid
+              || resource.data.recipient_id == request.auth.uid);
+
+      allow create: if isAuthenticated() && validateSwapRequest();
+
+      allow update: if isAuthenticated()
+          && isSwapParticipant()
+          && validateSwapRequestUpdate();
+
+      allow delete: if false;
+
+      /// Returns true when the caller is either party of the swap.
+      function isSwapParticipant() {
+        return resource.data.requester_id == request.auth.uid
+            || resource.data.recipient_id == request.auth.uid;
+      }
+
+      /// Validates a new swap request document.
+      /// Mirrors ValidationService.validateDateRange.
+      function validateSwapRequest() {
+        let d = request.resource.data;
+        return d.start_date is timestamp
+            && d.end_date is timestamp
+            && d.start_date < d.end_date
+            && d.status in ['pending', 'accepted', 'declined', 'completed', 'cancelled']
+            && d.requester_id == request.auth.uid;
+      }
+
+      /// Validates that an update only changes the status to a legal value.
+      /// Mirrors ValidationService valid status values.
+      function validateSwapRequestUpdate() {
+        let d = request.resource.data;
+        return d.status in ['pending', 'accepted', 'declined', 'completed', 'cancelled'];
+      }
+    }
+
+    // ─── conversations/{convId} ───────────────────────────────────────────────
+    //
+    //  Read   → participants only
+    //  Create → any authenticated user (they add themselves as participant)
+    //  Update → participants only
+    //  Delete → not allowed
+
+    match /conversations/{convId} {
+      allow read: if isAuthenticated()
+          && request.auth.uid in resource.data.participant_ids;
+
+      allow create: if isAuthenticated();
+
+      allow update: if isAuthenticated()
+          && request.auth.uid in resource.data.participant_ids;
+
+      allow delete: if false;
+
+      // ─── conversations/{convId}/messages/{msgId} ──────────────────────────
+      //
+      //  Read   → conversation participants only
+      //  Create → conversation participants only, with valid message data
+      //  Update / Delete → not allowed (messages are immutable)
+
+      match /messages/{msgId} {
+        allow read: if isAuthenticated()
+            && request.auth.uid in
+               get(/databases/$(database)/documents/conversations/$(convId))
+               .data.participant_ids;
+
+        allow create: if isAuthenticated()
+            && request.auth.uid in
+               get(/databases/$(database)/documents/conversations/$(convId))
+               .data.participant_ids
+            && validateMessage();
+
+        allow update, delete: if false;
+
+        /// Validates message text length and confirms the sender field matches the caller.
+        /// Mirrors ValidationService.validateMessageText.
+        function validateMessage() {
+          let d = request.resource.data;
+          return d.text is string
+              && d.text.size() > 0
+              && d.text.size() <= 2000
+              && d.sender_id == request.auth.uid;
+        }
+      }
+    }
+
+    // ─── reviews/{reviewId} ───────────────────────────────────────────────────
+    //
+    //  Read   → any authenticated user (public ratings)
+    //  Create → authenticated user who is the reviewer (reviewer_id == auth.uid)
+    //  Update / Delete → not allowed (reviews are immutable after submission)
+
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated()
+          && validateReview()
+          && request.resource.data.reviewer_id == request.auth.uid;
+
+      allow update, delete: if false;
+
+      /// Validates rating bounds and review text length.
+      /// Mirrors ValidationService.validateRating / validateReviewText.
+      function validateReview() {
+        let d = request.resource.data;
+        return d.rating is int
+            && d.rating >= 1
+            && d.rating <= 5
+            && d.text is string
+            && d.text.size() > 0
+            && d.text.size() <= 1000;
+      }
+    }
+
+  }
+}

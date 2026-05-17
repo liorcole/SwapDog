@@ -193,7 +193,7 @@ final class ConversationsViewModel: ObservableObject {
             userCache[id] = user
             return user
         } catch {
-            logger.error("Failed to resolve user \(id, privacy: .private): \(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to resolve user \(id): \(error.localizedDescription)")
             return nil
         }
     }

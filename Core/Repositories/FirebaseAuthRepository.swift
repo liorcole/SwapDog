@@ -33,7 +33,7 @@ final class FirebaseAuthRepository: AuthRepositoryProtocol {
     // MARK: - AuthRepositoryProtocol
 
     func signUp(email: String, password: String) async throws -> User {
-        logger.info("signUp called for email: \(email, privacy: .private)")
+        logger.info("signUp called for email: \(email)")
         do {
             let result = try await Auth.auth().createUser(withEmail: email, password: password)
             let firebaseUser = result.user
@@ -46,26 +46,26 @@ final class FirebaseAuthRepository: AuthRepositoryProtocol {
                 rating: 0, reviewCount: 0, dogs: [], swapCount: 0
             )
         } catch let error as SwapDogError {
-            logger.error("signUp failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("signUp failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("signUp unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("signUp unexpected error: \(error.localizedDescription)")
             throw SwapDogError.accountCreationFailed(error.localizedDescription)
         }
     }
 
     func signIn(email: String, password: String) async throws -> User {
-        logger.info("signIn called for email: \(email, privacy: .private)")
+        logger.info("signIn called for email: \(email)")
         do {
             let result = try await Auth.auth().signIn(withEmail: email, password: password)
             let uid = result.user.uid
             // (fetch User from Firestore via UserRepository or return minimal struct)
             throw SwapDogError.unknown(NSError(domain: "FirebaseNotConfigured", code: -1))
         } catch let error as SwapDogError {
-            logger.error("signIn failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("signIn failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("signIn unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("signIn unexpected error: \(error.localizedDescription)")
             throw SwapDogError.unauthorized
         }
     }
@@ -75,7 +75,7 @@ final class FirebaseAuthRepository: AuthRepositoryProtocol {
         do {
             try Auth.auth().signOut()
         } catch {
-            logger.error("signOut failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("signOut failed: \(error.localizedDescription)")
             throw SwapDogError.unknown(error)
         }
     }
@@ -103,10 +103,10 @@ final class FirebaseAuthRepository: AuthRepositoryProtocol {
             }
             try await user.delete()
         } catch let error as SwapDogError {
-            logger.error("deleteAccount failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("deleteAccount failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("deleteAccount unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("deleteAccount unexpected error: \(error.localizedDescription)")
             throw SwapDogError.unknown(error)
         }
     }

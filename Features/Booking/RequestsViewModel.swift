@@ -105,9 +105,9 @@ final class RequestsViewModel: ObservableObject {
             outgoingRequests = all
                 .filter { $0.requesterID == currentUserID }
                 .sorted { $0.createdAt > $1.createdAt }
-            logger.info("Loaded \(all.count) requests for user \(self.currentUserID, privacy: .private)")
+            logger.info("Loaded \(all.count) requests for user \(self.currentUserID)")
         } catch {
-            logger.error("loadRequests failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("loadRequests failed: \(error.localizedDescription)")
             errorMessage = (error as? SwapDogError)?.errorDescription
                 ?? "Failed to load requests."
         }
@@ -124,7 +124,7 @@ final class RequestsViewModel: ObservableObject {
         try validateTransition(request: request, to: .accepted)
         try await swapRepository.updateRequestStatus(id: requestID, status: .accepted)
         analyticsService.track(.swapAccepted(requestID: requestID))
-        logger.info("Accepted request \(requestID, privacy: .private)")
+        logger.info("Accepted request \(requestID)")
         await loadRequests()
     }
 
@@ -135,7 +135,7 @@ final class RequestsViewModel: ObservableObject {
         let request = try findRequest(id: requestID)
         try validateTransition(request: request, to: .declined)
         try await swapRepository.updateRequestStatus(id: requestID, status: .declined)
-        logger.info("Declined request \(requestID, privacy: .private)")
+        logger.info("Declined request \(requestID)")
         await loadRequests()
     }
 
@@ -146,7 +146,7 @@ final class RequestsViewModel: ObservableObject {
         let request = try findRequest(id: requestID)
         try validateTransition(request: request, to: .cancelled)
         try await swapRepository.updateRequestStatus(id: requestID, status: .cancelled)
-        logger.info("Cancelled request \(requestID, privacy: .private)")
+        logger.info("Cancelled request \(requestID)")
         await loadRequests()
     }
 
@@ -167,7 +167,7 @@ final class RequestsViewModel: ObservableObject {
         try await swapRepository.updateRequestStatus(id: requestID, status: .completed)
         await incrementSwapCounts(for: request)
         analyticsService.track(.swapCompleted(requestID: requestID))
-        logger.info("Marked request \(requestID, privacy: .private) as complete")
+        logger.info("Marked request \(requestID) as complete")
         await loadRequests()
     }
 
@@ -197,7 +197,7 @@ final class RequestsViewModel: ObservableObject {
             createdAt: Date()
         )
         try await reviewRepository.createReview(review)
-        logger.info("Submitted review for request \(requestID, privacy: .private)")
+        logger.info("Submitted review for request \(requestID)")
     }
 
     // MARK: - Private Helpers
@@ -245,7 +245,7 @@ final class RequestsViewModel: ObservableObject {
             user.swapCount += 1
             try await userRepository.updateUser(user)
         } catch {
-            logger.error("incrementCount failed for \(userID, privacy: .private): \(error.localizedDescription, privacy: .public)")
+            logger.error("incrementCount failed for \(userID): \(error.localizedDescription)")
         }
     }
 }

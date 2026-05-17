@@ -160,7 +160,7 @@ private struct ConversationRow: View {
     // MARK: Subviews
 
     private var avatarView: some View {
-        CachedAsyncImage(url: URL(string: item.otherUser?.profileImageURL ?? ""))
+        CachedAsyncImage(urlString: item.otherUser?.profileImageURL ?? "")
             .frame(width: 52, height: 52)
             .clipShape(Circle())
             .overlay(Circle().stroke(Theme.Colors.surface, lineWidth: 1.5))

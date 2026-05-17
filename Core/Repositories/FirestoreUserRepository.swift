@@ -8,6 +8,8 @@
 
 import Foundation
 import os
+import FirebaseAuth
+import FirebaseAuth
 import FirebaseFirestore
 import FirebaseStorage
 
@@ -32,23 +34,23 @@ final class FirestoreUserRepository: UserRepositoryProtocol {
     // MARK: - UserRepositoryProtocol
 
     func createUser(_ user: User) async throws {
-        logger.info("createUser id=\(user.id, privacy: .private)")
+        logger.info("createUser id=\(user.id)")
         do {
             try await db
                 .collection(FirestorePaths.users)
                 .document(user.id)
                 .setData(user.firestoreData)
         } catch let error as SwapDogError {
-            logger.error("createUser failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("createUser failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("createUser unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("createUser unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }
 
     func getUser(id: String) async throws -> User {
-        logger.info("getUser id=\(id, privacy: .private)")
+        logger.info("getUser id=\(id)")
         do {
             let snapshot = try await db
                 .collection(FirestorePaths.users)
@@ -59,26 +61,26 @@ final class FirestoreUserRepository: UserRepositoryProtocol {
             }
             return try decode(User.self, from: data)
         } catch let error as SwapDogError {
-            logger.error("getUser failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("getUser failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("getUser unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("getUser unexpected error: \(error.localizedDescription)")
             throw SwapDogError.decodingError
         }
     }
 
     func updateUser(_ user: User) async throws {
-        logger.info("updateUser id=\(user.id, privacy: .private)")
+        logger.info("updateUser id=\(user.id)")
         do {
             try await db
                 .collection(FirestorePaths.users)
                 .document(user.id)
                 .updateData(user.firestoreData)
         } catch let error as SwapDogError {
-            logger.error("updateUser failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("updateUser failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("updateUser unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("updateUser unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }
@@ -96,10 +98,10 @@ final class FirestoreUserRepository: UserRepositoryProtocol {
                 .getDocuments()
             return try snapshot.documents.compactMap { try decode(User.self, from: $0.data()) }
         } catch let error as SwapDogError {
-            logger.error("getNearbyUsers failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("getNearbyUsers failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("getNearbyUsers unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("getNearbyUsers unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }
@@ -108,7 +110,7 @@ final class FirestoreUserRepository: UserRepositoryProtocol {
         guard let userID = currentUserID() else {
             throw SwapDogError.unauthorized
         }
-        logger.info("uploadProfileImage userID=\(userID, privacy: .private) bytes=\(data.count)")
+        logger.info("uploadProfileImage userID=\(userID) bytes=\(data.count)")
         do {
             let path = FirestorePaths.profileImagePath(userID: userID)
             let ref = storage.reference().child(path)
@@ -116,10 +118,10 @@ final class FirestoreUserRepository: UserRepositoryProtocol {
             let url = try await ref.downloadURL()
             return url.absoluteString
         } catch let error as SwapDogError {
-            logger.error("uploadProfileImage failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("uploadProfileImage failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("uploadProfileImage unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("uploadProfileImage unexpected error: \(error.localizedDescription)")
             throw SwapDogError.uploadFailed
         }
     }

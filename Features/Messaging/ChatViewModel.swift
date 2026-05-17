@@ -187,11 +187,11 @@ final class ChatViewModel: ObservableObject {
             try await messagingRepository.sendMessage(message)
             rateLimitService.recordAction(.message)
             analyticsService.track(.messageSent(conversationID: conversationID))
-            logger.info("sendMessage success id=\(message.id, privacy: .private)")
+            logger.info("sendMessage success id=\(message.id)")
         } catch {
             sendErrorMessage = (error as? SwapDogError)?.errorDescription
                 ?? "Failed to send message. Tap to retry."
-            logger.error("sendMessage failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("sendMessage failed: \(error.localizedDescription)")
             // Restore the draft text so the user can retry.
             messageText = text
         }
@@ -210,7 +210,7 @@ final class ChatViewModel: ObservableObject {
             )
         } catch {
             // Non-fatal — badge will self-correct on next stream update.
-            logger.warning("markAsRead failed (non-fatal): \(error.localizedDescription, privacy: .public)")
+            logger.warning("markAsRead failed (non-fatal): \(error.localizedDescription)")
         }
     }
 

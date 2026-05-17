@@ -74,7 +74,7 @@ struct ChatView: View {
     private var navBarContent: some ToolbarContent {
         ToolbarItem(placement: .principal) {
             HStack(spacing: Theme.Spacing.sm) {
-                CachedAsyncImage(url: URL(string: viewModel.otherUserImageURL ?? ""))
+                CachedAsyncImage(urlString: viewModel.otherUserImageURL ?? "")
                     .frame(width: 32, height: 32)
                     .clipShape(Circle())
                     .accessibilityHidden(true)

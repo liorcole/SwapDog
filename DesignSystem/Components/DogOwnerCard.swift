@@ -76,7 +76,7 @@ struct DogOwnerCard: View {
     }
 
     private var profilePhoto: some View {
-        CachedAsyncImage(url: URL(string: user.profileImageURL ?? ""))
+        CachedAsyncImage(urlString: user.profileImageURL ?? "")
             .frame(width: Layout.profilePhotoSize, height: Layout.profilePhotoSize)
             .clipShape(Circle())
             .overlay(
@@ -149,7 +149,7 @@ struct DogOwnerCard: View {
                     dogPhotoPlaceholder
                 } else {
                     ForEach(dogPhotos, id: \.self) { urlString in
-                        CachedAsyncImage(url: URL(string: urlString))
+                        CachedAsyncImage(urlString: urlString)
                             .frame(width: Layout.dogPhotoSize, height: Layout.dogPhotoSize)
                             .clipShape(
                                 RoundedRectangle(

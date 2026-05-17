@@ -32,7 +32,7 @@ final class FirestoreMessagingRepository: MessagingRepositoryProtocol {
     // MARK: - MessagingRepositoryProtocol
 
     func sendMessage(_ message: Message) async throws {
-        logger.info("sendMessage id=\(message.id, privacy: .private) conversationID=\(message.conversationID, privacy: .private)")
+        logger.info("sendMessage id=\(message.id) conversationID=\(message.conversationID)")
         do {
             // 1. Write the message document
             try await db
@@ -49,23 +49,23 @@ final class FirestoreMessagingRepository: MessagingRepositoryProtocol {
                     "last_message_timestamp": message.timestamp
                 ])
         } catch let error as SwapDogError {
-            logger.error("sendMessage failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("sendMessage failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("sendMessage unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("sendMessage unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }
 
     func getMessages(conversationID: String) -> AsyncStream<[Message]> {
-        logger.info("getMessages conversationID=\(conversationID, privacy: .private) — attaching listener")
+        logger.info("getMessages conversationID=\(conversationID) — attaching listener")
         return AsyncStream { [logger] continuation in
             let listener = Firestore.firestore()
                 .collection(FirestorePaths.messages(conversationID: conversationID))
                 .order(by: "timestamp", descending: false)
                 .addSnapshotListener { snapshot, error in
                     if let error {
-                        logger.error("getMessages listener error: \(error.localizedDescription, privacy: .public)")
+                        logger.error("getMessages listener error: \(error.localizedDescription)")
                         continuation.yield([])
                         return
                     }
@@ -80,7 +80,7 @@ final class FirestoreMessagingRepository: MessagingRepositoryProtocol {
     }
 
     func getConversations(userID: String) -> AsyncStream<[Conversation]> {
-        logger.info("getConversations userID=\(userID, privacy: .private) — attaching listener")
+        logger.info("getConversations userID=\(userID) — attaching listener")
         return AsyncStream { [logger] continuation in
             let listener = Firestore.firestore()
                 .collection(FirestorePaths.conversations)
@@ -88,7 +88,7 @@ final class FirestoreMessagingRepository: MessagingRepositoryProtocol {
                 .order(by: "last_message_timestamp", descending: true)
                 .addSnapshotListener { snapshot, error in
                     if let error {
-                        logger.error("getConversations listener error: \(error.localizedDescription, privacy: .public)")
+                        logger.error("getConversations listener error: \(error.localizedDescription)")
                         continuation.yield([])
                         return
                     }
@@ -103,17 +103,17 @@ final class FirestoreMessagingRepository: MessagingRepositoryProtocol {
     }
 
     func markAsRead(conversationID: String, userID: String) async throws {
-        logger.info("markAsRead conversationID=\(conversationID, privacy: .private) userID=\(userID, privacy: .private)")
+        logger.info("markAsRead conversationID=\(conversationID) userID=\(userID)")
         do {
             try await db
                 .collection(FirestorePaths.conversations)
                 .document(conversationID)
                 .updateData(["unread_count.\(userID)": 0])
         } catch let error as SwapDogError {
-            logger.error("markAsRead failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("markAsRead failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("markAsRead unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("markAsRead unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }

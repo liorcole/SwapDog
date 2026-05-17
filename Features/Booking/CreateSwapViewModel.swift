@@ -179,10 +179,10 @@ final class CreateSwapViewModel: ObservableObject {
             rateLimitService.recordAction(.swapRequest)
             analyticsService.track(.swapRequested(recipientID: request.recipientID))
 
-            logger.info("SwapRequest created: \(request.id, privacy: .private)")
+            logger.info("SwapRequest created: \(request.id)")
             didSubmitSuccessfully = true
         } catch {
-            logger.error("createRequest failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("createRequest failed: \(error.localizedDescription)")
             errorMessage = (error as? SwapDogError)?.errorDescription
                 ?? "Something went wrong. Please try again."
         }
@@ -209,10 +209,10 @@ final class CreateSwapViewModel: ObservableObject {
 
     /// Looks for an existing conversation and creates one if it doesn't exist.
     private func ensureConversationExists() async {
-        let stream = messagingRepository.getConversations(userID: currentUser.id)
+        let stream = messagingRepository.getConversations(userID: self.currentUser.id)
         var found = false
         for await conversations in stream {
-            let pair: Set<String> = [currentUser.id, recipient.id]
+            let pair: Set<String> = [self.currentUser.id, self.recipient.id]
             found = conversations.contains {
                 Set($0.participantIDs) == pair
             }
@@ -238,9 +238,9 @@ final class CreateSwapViewModel: ObservableObject {
         )
         do {
             try await messagingRepository.sendMessage(systemMessage)
-            logger.info("Auto-created conversation: \(conversation.id, privacy: .private)")
+            logger.info("Auto-created conversation: \(conversation.id)")
         } catch {
-            logger.warning("Failed to auto-create conversation: \(error.localizedDescription, privacy: .public)")
+            logger.warning("Failed to auto-create conversation: \(error.localizedDescription)")
         }
     }
 
@@ -248,7 +248,7 @@ final class CreateSwapViewModel: ObservableObject {
     private func stubPushNotification(for request: SwapRequest) {
         logger.info(
             """
-            [PUSH-STUB] Would send notification to \(request.recipientID, privacy: .private): \
+            [PUSH-STUB] Would send notification to \(request.recipientID): \
             '\(currentUser.displayName) sent you a swap request.'
             """
         )

@@ -31,7 +31,7 @@ final class FirestoreReviewRepository: ReviewRepositoryProtocol {
     // MARK: - ReviewRepositoryProtocol
 
     func createReview(_ review: Review) async throws {
-        logger.info("createReview id=\(review.id, privacy: .private) revieweeID=\(review.revieweeID, privacy: .private)")
+        logger.info("createReview id=\(review.id) revieweeID=\(review.revieweeID)")
         do {
             try await db
                 .collection(FirestorePaths.reviews)
@@ -50,16 +50,16 @@ final class FirestoreReviewRepository: ReviewRepositoryProtocol {
                 return nil
             }
         } catch let error as SwapDogError {
-            logger.error("createReview failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("createReview failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("createReview unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("createReview unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }
 
     func getReviews(userID: String) async throws -> [Review] {
-        logger.info("getReviews userID=\(userID, privacy: .private)")
+        logger.info("getReviews userID=\(userID)")
         do {
             let snapshot = try await db
                 .collection(FirestorePaths.reviews)
@@ -68,10 +68,10 @@ final class FirestoreReviewRepository: ReviewRepositoryProtocol {
                 .getDocuments()
             return try snapshot.documents.compactMap { try decode(Review.self, from: $0.data()) }
         } catch let error as SwapDogError {
-            logger.error("getReviews failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("getReviews failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("getReviews unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("getReviews unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }

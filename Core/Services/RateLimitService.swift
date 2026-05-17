@@ -120,7 +120,7 @@ final class RateLimitService: RateLimitServiceProtocol, @unchecked Sendable {
         let count = activeTimestamps(for: action).count
         let allowed = count < action.maxCount
         logger.debug(
-            "canPerformAction \(action.rawValue, privacy: .public): \(count)/\(action.maxCount) → \(allowed ? "allowed" : "blocked", privacy: .public)"
+            "canPerformAction \(action.rawValue): \(count)/\(action.maxCount) → \(allowed ? "allowed" : "blocked")"
         )
         return allowed
     }
@@ -131,7 +131,7 @@ final class RateLimitService: RateLimitServiceProtocol, @unchecked Sendable {
         let encoded = timestamps.map { ISO8601DateFormatter().string(from: $0) }
         defaults.set(encoded, forKey: action.storageKey)
         logger.info(
-            "Recorded \(action.rawValue, privacy: .public) — window count now \(timestamps.count)/\(action.maxCount)"
+            "Recorded \(action.rawValue) — window count now \(timestamps.count)/\(action.maxCount)"
         )
     }
 

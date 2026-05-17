@@ -30,23 +30,23 @@ final class FirestoreSwapRepository: SwapRepositoryProtocol {
     // MARK: - SwapRepositoryProtocol
 
     func createRequest(_ request: SwapRequest) async throws {
-        logger.info("createRequest id=\(request.id, privacy: .private)")
+        logger.info("createRequest id=\(request.id)")
         do {
             try await db
                 .collection(FirestorePaths.swapRequests)
                 .document(request.id)
                 .setData(request.firestoreData)
         } catch let error as SwapDogError {
-            logger.error("createRequest failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("createRequest failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("createRequest unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("createRequest unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }
 
     func getRequestsForUser(userID: String) async throws -> [SwapRequest] {
-        logger.info("getRequestsForUser userID=\(userID, privacy: .private)")
+        logger.info("getRequestsForUser userID=\(userID)")
         do {
             // Firestore doesn't support OR queries directly in SDK < v10.
             // Use two separate queries and merge the results:
@@ -63,32 +63,32 @@ final class FirestoreSwapRepository: SwapRepositoryProtocol {
             let all = requesterSnapshot.documents + recipientSnapshot.documents
             return try all.compactMap { try decode(SwapRequest.self, from: $0.data()) }
         } catch let error as SwapDogError {
-            logger.error("getRequestsForUser failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("getRequestsForUser failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("getRequestsForUser unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("getRequestsForUser unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }
 
     func updateRequestStatus(id: String, status: SwapStatus) async throws {
-        logger.info("updateRequestStatus id=\(id, privacy: .private) status=\(status.rawValue)")
+        logger.info("updateRequestStatus id=\(id) status=\(status.rawValue)")
         do {
             try await db
                 .collection(FirestorePaths.swapRequests)
                 .document(id)
                 .updateData(["status": status.rawValue, "updated_at": Date()])
         } catch let error as SwapDogError {
-            logger.error("updateRequestStatus failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("updateRequestStatus failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("updateRequestStatus unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("updateRequestStatus unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }
 
     func getSwapHistory(userID: String) async throws -> [SwapRequest] {
-        logger.info("getSwapHistory userID=\(userID, privacy: .private)")
+        logger.info("getSwapHistory userID=\(userID)")
         do {
             let terminalStatuses: [String] = [
                 SwapStatus.completed.rawValue, SwapStatus.cancelled.rawValue, SwapStatus.declined.rawValue
@@ -109,10 +109,10 @@ final class FirestoreSwapRepository: SwapRepositoryProtocol {
             return try all.compactMap { try decode(SwapRequest.self, from: $0.data()) }
                 .sorted { $0.updatedAt > $1.updatedAt }
         } catch let error as SwapDogError {
-            logger.error("getSwapHistory failed: \(error.localizedDescription, privacy: .public)")
+            logger.error("getSwapHistory failed: \(error.localizedDescription)")
             throw error
         } catch {
-            logger.error("getSwapHistory unexpected error: \(error.localizedDescription, privacy: .public)")
+            logger.error("getSwapHistory unexpected error: \(error.localizedDescription)")
             throw SwapDogError.networkError
         }
     }

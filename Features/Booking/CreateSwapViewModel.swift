@@ -110,7 +110,7 @@ final class CreateSwapViewModel: ObservableObject {
     // MARK: - Computed
 
     /// The current user's dogs (for display in the form).
-    var myDogs: [Dog] { currentUserDogs }
+    var myDogs: [Dog] { self.currentUserDogs }
 
     /// The recipient's dogs (for display in the summary card).
     var theirDogs: [Dog] { recipientDogs }
@@ -194,13 +194,13 @@ final class CreateSwapViewModel: ObservableObject {
         let now = Date()
         return SwapRequest(
             id: UUID().uuidString,
-            requesterID: currentUser.id,
-            recipientID: recipient.id,
-            requesterDogIDs: Array(selectedDogIDs),
-            recipientDogIDs: recipientDogs.map(\.id),
-            startDate: startDate,
-            endDate: endDate,
-            message: message.isEmpty ? nil : message,
+            requesterID: self.currentUser.id,
+            recipientID: self.recipient.id,
+            requesterDogIDs: Array(self.selectedDogIDs),
+            recipientDogIDs: self.recipientDogs.map(\.id),
+            startDate: self.startDate,
+            endDate: self.endDate,
+            message: self.self.message.isEmpty ? nil : self.message,
             status: .pending,
             createdAt: now,
             updatedAt: now
@@ -223,18 +223,18 @@ final class CreateSwapViewModel: ObservableObject {
 
         let conversation = Conversation(
             id: UUID().uuidString,
-            participantIDs: [currentUser.id, recipient.id],
+            participantIDs: [self.currentUser.id, self.recipient.id],
             lastMessage: nil,
             lastMessageTimestamp: nil,
-            unreadCount: [currentUser.id: 0, recipient.id: 0]
+            unreadCount: [self.currentUser.id: 0, self.recipient.id: 0]
         )
         let systemMessage = Message(
             id: UUID().uuidString,
             conversationID: conversation.id,
-            senderID: currentUser.id,
-            text: "Swap request sent by \(currentUser.displayName).",
+            senderID: self.currentUser.id,
+            text: "Swap request sent by \(self.currentUser.displayName).",
             timestamp: Date(),
-            readBy: [currentUser.id]
+            readBy: [self.currentUser.id]
         )
         do {
             try await messagingRepository.sendMessage(systemMessage)
@@ -249,7 +249,7 @@ final class CreateSwapViewModel: ObservableObject {
         logger.info(
             """
             [PUSH-STUB] Would send notification to \(request.recipientID): \
-            '\(currentUser.displayName) sent you a swap request.'
+            '\(self.currentUser.displayName) sent you a swap request.'
             """
         )
     }

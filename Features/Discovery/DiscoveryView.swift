@@ -168,8 +168,11 @@ struct DiscoveryView: View {
 }
 
 #Preview("Empty") {
-    let repo = MockUserRepository()
-    repo.users = []
+    let repo: MockUserRepository = {
+        let r = MockUserRepository()
+        r.users = []
+        return r
+    }()
     DiscoveryView(viewModel: DiscoveryViewModel(
         userRepository:  repo,
         dogRepository:   MockDogRepository(),
@@ -178,8 +181,11 @@ struct DiscoveryView: View {
 }
 
 #Preview("Error") {
-    let repo = MockUserRepository()
-    repo.stubbedError = .networkError
+    let repo: MockUserRepository = {
+        let r = MockUserRepository()
+        r.stubbedError = .networkError
+        return r
+    }()
     DiscoveryView(viewModel: DiscoveryViewModel(
         userRepository:  repo,
         dogRepository:   MockDogRepository(),

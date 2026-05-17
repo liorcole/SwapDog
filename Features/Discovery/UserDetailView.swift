@@ -139,9 +139,12 @@ struct UserDetailView: View {
 }
 
 #Preview("UserDetailView — Not Found") {
-    let mockRepo = MockUserRepository()
-    mockRepo.stubbedError = .notFound
-    NavigationStack {
+    let mockRepo: MockUserRepository = {
+        let r = MockUserRepository()
+        r.stubbedError = .notFound
+        return r
+    }()
+    return NavigationStack {
         UserDetailView(
             viewModel: UserDetailViewModel(
                 userID: "invalid",

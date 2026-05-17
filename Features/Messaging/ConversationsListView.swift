@@ -243,35 +243,38 @@ private struct ConversationRowSkeleton: View {
 // MARK: - Preview
 
 #Preview("Conversations List") {
-    let mockMessaging = MockMessagingRepository()
-    let mockUsers     = MockUserRepository()
-
-    // Add a second mock conversation so the list is interesting.
-    mockMessaging.conversations = [
-        Conversation(
-            id: "conv_mock_001",
-            participantIDs: ["usr_mock_001", "usr_mock_002"],
-            lastMessage: "Hi! Luna loves your neighbourhood.",
-            lastMessageTimestamp: Date().addingTimeInterval(-120),
-            unreadCount: ["usr_mock_001": 0, "usr_mock_002": 2]
-        ),
-        Conversation(
-            id: "conv_mock_002",
-            participantIDs: ["usr_mock_001", "usr_mock_003"],
-            lastMessage: "Let me know which weekend works for you!",
-            lastMessageTimestamp: Date().addingTimeInterval(-3600),
-            unreadCount: ["usr_mock_001": 1, "usr_mock_003": 0]
-        ),
-    ]
-    mockUsers.users = [.mock]
-
+    let mockMessaging: MockMessagingRepository = {
+        let r = MockMessagingRepository()
+        // Add a second mock conversation so the list is interesting.
+        r.conversations = [
+            Conversation(
+                id: "conv_mock_001",
+                participantIDs: ["usr_mock_001", "usr_mock_002"],
+                lastMessage: "Hi! Luna loves your neighbourhood.",
+                lastMessageTimestamp: Date().addingTimeInterval(-120),
+                unreadCount: ["usr_mock_001": 0, "usr_mock_002": 2]
+            ),
+            Conversation(
+                id: "conv_mock_002",
+                participantIDs: ["usr_mock_001", "usr_mock_003"],
+                lastMessage: "Let me know which weekend works for you!",
+                lastMessageTimestamp: Date().addingTimeInterval(-3600),
+                unreadCount: ["usr_mock_001": 1, "usr_mock_003": 0]
+            ),
+        ]
+        return r
+    }()
+    let mockUsers: MockUserRepository = {
+        let r = MockUserRepository()
+        r.users = [.mock]
+        return r
+    }()
     let vm = ConversationsViewModel(
         messagingRepository: mockMessaging,
         userRepository:      mockUsers,
         currentUserID:       "usr_mock_002"
     )
-
-    ConversationsListView(
+    return ConversationsListView(
         viewModel:           vm,
         currentUserID:       "usr_mock_002",
         messagingRepository: mockMessaging

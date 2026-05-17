@@ -248,15 +248,18 @@ struct EditProfileView: View {
 // MARK: - Preview
 
 #Preview {
-    let vm = ProfileViewModel(
-        userRepository: MockUserRepository(),
-        dogRepository: MockDogRepository(),
-        authRepository: MockAuthRepository(),
-        reviewRepository: MockReviewRepository(),
-        coordinator: AppCoordinator()
-    )
-    vm.user = .mock
-    vm.primeEditFields(from: .mock)
-    EditProfileView()
+    let vm: ProfileViewModel = {
+        let v = ProfileViewModel(
+            userRepository: MockUserRepository(),
+            dogRepository: MockDogRepository(),
+            authRepository: MockAuthRepository(),
+            reviewRepository: MockReviewRepository(),
+            coordinator: AppCoordinator()
+        )
+        v.user = .mock
+        v.primeEditFields(from: .mock)
+        return v
+    }()
+    return EditProfileView()
         .environmentObject(vm)
 }

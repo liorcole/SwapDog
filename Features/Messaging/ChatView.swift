@@ -206,52 +206,52 @@ struct ChatView: View {
 // MARK: - Preview
 
 #Preview("Chat — With Messages") {
-    let mockRepo = MockMessagingRepository()
-
-    // Seed several messages to exercise clusters and separators.
-    mockRepo.messages = [
-        Message(
-            id: "m1",
-            conversationID: "conv_mock_001",
-            senderID: "usr_mock_002",
-            text: "Hey! Are you free this weekend?",
-            timestamp: Date().addingTimeInterval(-3700),
-            readBy: ["usr_mock_002"]
-        ),
-        Message(
-            id: "m2",
-            conversationID: "conv_mock_001",
-            senderID: "usr_mock_001",
-            text: "Yes! Saturday works great for Luna.",
-            timestamp: Date().addingTimeInterval(-3600),
-            readBy: ["usr_mock_001"]
-        ),
-        Message(
-            id: "m3",
-            conversationID: "conv_mock_001",
-            senderID: "usr_mock_002",
-            text: "Perfect! Let's meet at the park around 10 AM.",
-            timestamp: Date().addingTimeInterval(-900),
-            readBy: ["usr_mock_002"]
-        ),
-        Message(
-            id: "m4",
-            conversationID: "conv_mock_001",
-            senderID: "usr_mock_001",
-            text: "Sounds great, see you then! 🐶",
-            timestamp: Date().addingTimeInterval(-120),
-            readBy: ["usr_mock_001"]
-        ),
-    ]
-
+    let mockRepo: MockMessagingRepository = {
+        let r = MockMessagingRepository()
+        // Seed several messages to exercise clusters and separators.
+        r.messages = [
+            Message(
+                id: "m1",
+                conversationID: "conv_mock_001",
+                senderID: "usr_mock_002",
+                text: "Hey! Are you free this weekend?",
+                timestamp: Date().addingTimeInterval(-3700),
+                readBy: ["usr_mock_002"]
+            ),
+            Message(
+                id: "m2",
+                conversationID: "conv_mock_001",
+                senderID: "usr_mock_001",
+                text: "Yes! Saturday works great for Luna.",
+                timestamp: Date().addingTimeInterval(-3600),
+                readBy: ["usr_mock_001"]
+            ),
+            Message(
+                id: "m3",
+                conversationID: "conv_mock_001",
+                senderID: "usr_mock_002",
+                text: "Perfect! Let's meet at the park around 10 AM.",
+                timestamp: Date().addingTimeInterval(-900),
+                readBy: ["usr_mock_002"]
+            ),
+            Message(
+                id: "m4",
+                conversationID: "conv_mock_001",
+                senderID: "usr_mock_001",
+                text: "Sounds great, see you then! 🐶",
+                timestamp: Date().addingTimeInterval(-120),
+                readBy: ["usr_mock_001"]
+            ),
+        ]
+        return r
+    }()
     let vm = ChatViewModel(
         conversationID:      "conv_mock_001",
         currentUserID:       "usr_mock_001",
         otherUser:           .mock,
         messagingRepository: mockRepo
     )
-
-    NavigationStack {
+    return NavigationStack {
         ChatView(viewModel: vm, currentUserID: "usr_mock_001")
     }
 }

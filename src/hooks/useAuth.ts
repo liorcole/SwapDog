@@ -3,11 +3,69 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
 } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth, db } from '../config/firebase';
+import { generateReferralCode, redeemReferralCode } from './useReferrals';
+import { REFERRAL_STORAGE_KEY } from '../screens/auth/ReferralCodeScreen';
 
 export const useAuth = () => {
+  /**
+   * Creates a Firebase Auth account, then writes the Firestore user doc.
+   * - Reads the validated referral code from AsyncStorage
+   * - Looks up the code's createdBy userId to set referredBy
+   * - Redeems the referral code (increments usedCount)
+   * - Generates a unique referralCode for the new user
+   * - Sets accountStatus = 'pending_vetting' (they've passed the gate)
+   * - Sets points = 0
+   */
   const signUp = async (email: string, password: string): Promise<void> => {
-    await createUserWithEmailAndPassword(auth, email, password);
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    const uid = credential.user.uid;
+
+    // Read the referral code they entered at the gate
+    let referredBy: string | undefined;
+    let usedCode: string | undefined;
+
+    try {
+      const storedCode = await AsyncStorage.getItem(REFERRAL_STORAGE_KEY);
+      if (storedCode) {
+        usedCode = storedCode;
+        // Find the code doc to get createdBy
+        const q = query(
+          collection(db, 'referral_codes'),
+          where('code', '==', storedCode),
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          referredBy = snap.docs[0].data().createdBy as string;
+        }
+        // Redeem the code
+        await redeemReferralCode(storedCode, uid);
+      }
+    } catch {
+      // Non-fatal — proceed without referral linkage
+    }
+
+    // Generate this user's own referral code
+    const newReferralCode = await generateReferralCode(uid);
+
+    // Write user doc
+    await setDoc(doc(db, 'users', uid), {
+      email: credential.user.email,
+      displayName: '',
+      photoURL: '',
+      bio: '',
+      isOnboarded: false,
+      // Referral fields
+      referredBy: referredBy ?? null,
+      referralCodeUsed: usedCode ?? null,
+      referralCode: newReferralCode,
+      points: 0,
+      accountStatus: 'pending_vetting',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
   };
 
   const signIn = async (email: string, password: string): Promise<void> => {

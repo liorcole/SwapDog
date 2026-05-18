@@ -7,7 +7,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { User, GeoPoint } from '../models/types';
+import { User, GeoPoint, AccountStatus } from '../models/types';
 import { toDate } from '../utils/firestoreConverters';
 
 const parseUser = (id: string, data: Record<string, unknown>): User => ({
@@ -24,6 +24,20 @@ const parseUser = (id: string, data: Record<string, unknown>): User => ({
   updatedAt: toDate(data.updatedAt as Parameters<typeof toDate>[0]),
   rating: data.rating as number | undefined,
   reviewCount: data.reviewCount as number | undefined,
+  // Referral & account lifecycle
+  referredBy: data.referredBy as string | undefined,
+  referralCode: (data.referralCode as string) ?? '',
+  points: (data.points as number) ?? 0,
+  accountStatus: ((data.accountStatus as AccountStatus) ?? 'pending_referral'),
+  conductAgreedAt: data.conductAgreedAt
+    ? toDate(data.conductAgreedAt as Parameters<typeof toDate>[0])
+    : undefined,
+  contractSignedAt: data.contractSignedAt
+    ? toDate(data.contractSignedAt as Parameters<typeof toDate>[0])
+    : undefined,
+  vettingScheduledAt: data.vettingScheduledAt
+    ? toDate(data.vettingScheduledAt as Parameters<typeof toDate>[0])
+    : undefined,
 });
 
 export const useUsers = () => {

@@ -43,6 +43,7 @@ export type MainTabParamList = {
 };
 
 export type RootStackParamList = {
+  Referral: undefined;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   Main: NavigatorScreenParams<MainTabParamList>;

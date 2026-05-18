@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from '../config/firebase';
 import { User } from '../models/types';
 import { toDate } from '../utils/firestoreConverters';
+import { REFERRAL_STORAGE_KEY } from '../screens/auth/ReferralCodeScreen';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -11,6 +13,8 @@ interface AuthContextType {
   isOnboarded: boolean;
   loading: boolean;
   refreshUserProfile: () => Promise<void>;
+  /** The referral code that was used to enter the app (from AsyncStorage) */
+  validatedReferralCode: string | null;
 }
 
 export const AuthContext = createContext<AuthContextType>({
@@ -19,6 +23,7 @@ export const AuthContext = createContext<AuthContextType>({
   isOnboarded: false,
   loading: true,
   refreshUserProfile: async () => {},
+  validatedReferralCode: null,
 });
 
 export const useAuthContext = (): AuthContextType => {
@@ -37,6 +42,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [validatedReferralCode, setValidatedReferralCode] = useState<string | null>(null);
 
   const fetchUserProfile = async (uid: string): Promise<User | null> => {
     try {
@@ -58,6 +64,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           updatedAt: toDate(data.updatedAt),
           rating: data.rating,
           reviewCount: data.reviewCount,
+          // Referral & account lifecycle
+          referredBy: data.referredBy,
+          referralCode: data.referralCode ?? '',
+          points: data.points ?? 0,
+          accountStatus: data.accountStatus ?? 'pending_referral',
+          conductAgreedAt: data.conductAgreedAt ? toDate(data.conductAgreedAt) : undefined,
+          contractSignedAt: data.contractSignedAt ? toDate(data.contractSignedAt) : undefined,
+          vettingScheduledAt: data.vettingScheduledAt ? toDate(data.vettingScheduledAt) : undefined,
         };
       }
       return null;
@@ -72,6 +86,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUserProfile(profile);
     }
   };
+
+  useEffect(() => {
+    // Load the referral code from storage once
+    AsyncStorage.getItem(REFERRAL_STORAGE_KEY)
+      .then((val) => setValidatedReferralCode(val))
+      .catch(() => setValidatedReferralCode(null));
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -91,7 +112,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isOnboarded = userProfile?.isOnboarded ?? false;
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, isOnboarded, loading, refreshUserProfile }}>
+    <AuthContext.Provider
+      value={{ user, userProfile, isOnboarded, loading, refreshUserProfile, validatedReferralCode }}
+    >
       {children}
     </AuthContext.Provider>
   );

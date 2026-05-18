@@ -25,6 +25,13 @@ export enum SwapStatus {
   completed = 'completed',
 }
 
+export type AccountStatus =
+  | 'pending_referral'
+  | 'pending_vetting'
+  | 'pending_approval'
+  | 'active'
+  | 'suspended';
+
 export interface GeoPoint {
   latitude: number;
   longitude: number;
@@ -44,6 +51,24 @@ export interface User {
   updatedAt: Date;
   rating?: number;
   reviewCount?: number;
+  // Referral & account lifecycle fields
+  referredBy?: string;        // userId of the referrer
+  referralCode: string;       // unique code this user can share
+  points: number;             // starts at 0
+  accountStatus: AccountStatus;
+  conductAgreedAt?: Date;
+  contractSignedAt?: Date;
+  vettingScheduledAt?: Date;
+}
+
+export interface ReferralCode {
+  code: string;
+  createdBy: string;         // userId
+  isActive: boolean;
+  usedBy?: string[];         // userIds
+  maxUses: number;
+  usedCount: number;
+  createdAt: Date;
 }
 
 export interface Dog {

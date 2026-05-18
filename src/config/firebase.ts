@@ -4,12 +4,13 @@ import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_AUTH_DOMAIN',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_STORAGE_BUCKET',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID',
+  apiKey: 'AIzaSyBOF66WalEIXlKnowKip26mxkIAR4EfTpA',
+  authDomain: 'swapdog-d0cfe.firebaseapp.com',
+  projectId: 'swapdog-d0cfe',
+  storageBucket: 'swapdog-d0cfe.firebasestorage.app',
+  messagingSenderId: '523657483823',
+  appId: '1:523657483823:web:ec8148ce28ee1e794b58da',
+  measurementId: 'G-BQTEZZ5FP4',
 };
 
 const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];

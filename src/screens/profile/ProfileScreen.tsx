@@ -38,6 +38,11 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     ]);
   };
 
+  const handleCommunityStandards = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate('CommunityStandards');
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -88,6 +93,19 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Community</Text>
+        <TouchableOpacity
+          style={[styles.prefRow, { backgroundColor: colors.surface, ...shadow.sm }]}
+          onPress={handleCommunityStandards}
+          accessibilityLabel="View SwapDog Community Standards"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.prefLabel, { color: colors.text }]}>🐾 Community Standards</Text>
+          <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferences</Text>
         <TouchableOpacity
           style={[styles.prefRow, { backgroundColor: colors.surface }]}
@@ -130,9 +148,10 @@ const styles = StyleSheet.create({
   dogCard: { padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm },
   dogName: { fontSize: 16, fontWeight: '700' },
   dogBreed: { fontSize: 13, marginTop: 2 },
-  prefRow: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.md, borderRadius: borderRadius.md },
+  prefRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm },
   prefLabel: { fontSize: 15 },
   prefValue: { fontSize: 15 },
+  prefChevron: { fontSize: 22, fontWeight: '300' },
   signOutBtn: { margin: spacing.lg, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
   signOutText: { color: '#fff', ...typography.button },
 });

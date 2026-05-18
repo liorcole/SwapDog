@@ -23,6 +23,7 @@ import ChatScreen from '../screens/messages/ChatScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import EditDogScreen from '../screens/profile/EditDogScreen';
+import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const DiscoverStack = createNativeStackNavigator<DiscoverStackParamList>();
@@ -58,6 +59,12 @@ const ProfileNavigator: React.FC = () => (
     <ProfileStack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
     <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
     <ProfileStack.Screen name="EditDog" component={EditDogScreen} options={{ title: 'Edit Dog' }} />
+    <ProfileStack.Screen
+      name="CommunityStandards"
+      options={{ title: 'Community Standards', headerBackTitle: 'Back' }}
+    >
+      {() => <ConductStandardsScreen readOnly />}
+    </ProfileStack.Screen>
   </ProfileStack.Navigator>
 );
 

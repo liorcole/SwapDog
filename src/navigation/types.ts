@@ -33,6 +33,7 @@ export type ProfileStackParamList = {
   Profile: undefined;
   EditProfile: undefined;
   EditDog: { dogId: string };
+  CommunityStandards: undefined;
 };
 
 export type MainTabParamList = {
@@ -46,5 +47,8 @@ export type RootStackParamList = {
   Referral: undefined;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
+  ConductStandards: undefined;
+  VettingCall: undefined;
+  WaitingApproval: undefined;
   Main: NavigatorScreenParams<MainTabParamList>;
 };

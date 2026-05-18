@@ -64,8 +64,8 @@ const WaitingApprovalScreen: React.FC = () => {
           Thanks for scheduling!
         </Text>
         <Text style={[styles.body, { color: colors.textSecondary }]}>
-          We're reviewing your application and will get back to you shortly. You'll receive a
-          notification when you're approved.
+          Once we talk to you, we will message you about the status of your application within
+          24 hours.
         </Text>
       </View>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,8 @@ import {
   StyleSheet,
   Linking,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { spacing, borderRadius, typography, shadow } from '../../config/theme';
 
@@ -19,8 +15,6 @@ const CALENDLY_URL = 'https://calendly.com/swapdog/vetting';
 
 const VettingCallScreen: React.FC = () => {
   const { colors } = useTheme();
-  const { user, refreshUserProfile } = useAuthContext();
-  const [loading, setLoading] = useState(false);
 
   const handleSchedule = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -33,24 +27,6 @@ const VettingCallScreen: React.FC = () => {
       }
     } catch {
       Alert.alert('Error', 'Could not open the scheduling link.');
-    }
-  };
-
-  const handleAlreadyScheduled = async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        accountStatus: 'pending_approval',
-        vettingScheduledAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      await refreshUserProfile();
-      // Navigation is handled by AppNavigator observing the new accountStatus
-    } catch {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -102,26 +78,6 @@ const VettingCallScreen: React.FC = () => {
         <Text style={styles.scheduleBtnIcon} accessibilityElementsHidden>📅</Text>
         <Text style={styles.scheduleBtnText}>Schedule Your Call</Text>
       </TouchableOpacity>
-
-      {/* Already scheduled */}
-      <TouchableOpacity
-        style={styles.alreadyBtn}
-        onPress={handleAlreadyScheduled}
-        disabled={loading}
-        accessibilityRole="button"
-        accessibilityLabel="I already scheduled my call"
-      >
-        {loading ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : (
-          <Text style={[styles.alreadyText, { color: colors.textSecondary }]}>
-            Already scheduled?{' '}
-            <Text style={{ color: colors.primary, fontWeight: '600' }}>
-              Tap here to confirm →
-            </Text>
-          </Text>
-        )}
-      </TouchableOpacity>
     </View>
   );
 };
@@ -172,11 +128,6 @@ const styles = StyleSheet.create({
   },
   scheduleBtnIcon: { fontSize: 20 },
   scheduleBtnText: { color: '#fff', ...typography.button, fontSize: 18 },
-  alreadyBtn: {
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  alreadyText: { fontSize: 15, textAlign: 'center' },
 });
 
 export default VettingCallScreen;

@@ -31,6 +31,7 @@ import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import EditDogScreen from '../screens/profile/EditDogScreen';
 import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen';
 import MyAgreementScreen from '../screens/profile/MyAgreementScreen';
+import ReferralScreen from '../screens/profile/ReferralScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const DiscoverStack = createNativeStackNavigator<DiscoverStackParamList>();
@@ -76,6 +77,11 @@ const ProfileNavigator: React.FC = () => (
       name="MyAgreement"
       component={MyAgreementScreen}
       options={{ title: 'My Agreement', headerBackTitle: 'Back' }}
+    />
+    <ProfileStack.Screen
+      name="Referral"
+      component={ReferralScreen}
+      options={{ headerShown: false }}
     />
   </ProfileStack.Navigator>
 );

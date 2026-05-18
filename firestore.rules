@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users: read if authenticated, write own doc only
+    // Users: read if authenticated (needed for referral lists), write own doc only
     match /users/{userId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
@@ -62,6 +62,18 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.resource.data.reviewerId == request.auth.uid;
       allow update: if false;
+      allow delete: if false;
+    }
+
+    // Referral codes:
+    //   - Any authenticated user can read (to validate a code at sign-up)
+    //   - Only the code creator can write/update their own code documents
+    match /referral_codes/{codeId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if request.auth != null
+        && resource.data.createdBy == request.auth.uid;
       allow delete: if false;
     }
   }

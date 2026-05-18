@@ -104,3 +104,63 @@ export const generateReferralCode = async (userId: string): Promise<string> => {
 
   return code;
 };
+
+// ── Referral list helpers ────────────────────────────────────────────────────
+
+/**
+ * Returns all users who were referred by the given userId.
+ * Queries the `users` collection for documents where `referredBy === userId`.
+ */
+export const getMyReferrals = async (userId: string): Promise<import('../models/types').User[]> => {
+  try {
+    const { toDate } = await import('../utils/firestoreConverters');
+    const q = query(
+      collection(db, 'users'),
+      where('referredBy', '==', userId),
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((docSnap) => {
+      const d = docSnap.data();
+      return {
+        id: docSnap.id,
+        email: d.email ?? '',
+        displayName: d.displayName ?? '',
+        photoURL: d.photoURL,
+        bio: d.bio,
+        location: d.location,
+        locationName: d.locationName,
+        pushToken: d.pushToken,
+        isOnboarded: d.isOnboarded ?? false,
+        createdAt: toDate(d.createdAt),
+        updatedAt: toDate(d.updatedAt),
+        rating: d.rating,
+        reviewCount: d.reviewCount,
+        referredBy: d.referredBy,
+        referralCode: d.referralCode ?? '',
+        points: d.points ?? 0,
+        accountStatus: d.accountStatus ?? 'pending_referral',
+        conductAgreedAt: d.conductAgreedAt ? toDate(d.conductAgreedAt) : undefined,
+        contractSignedAt: d.contractSignedAt ? toDate(d.contractSignedAt) : undefined,
+        vettingScheduledAt: d.vettingScheduledAt ? toDate(d.vettingScheduledAt) : undefined,
+      } as import('../models/types').User;
+    });
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Returns the count of users referred by the given userId.
+ */
+export const getReferralCount = async (userId: string): Promise<number> => {
+  try {
+    const q = query(
+      collection(db, 'users'),
+      where('referredBy', '==', userId),
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.size;
+  } catch {
+    return 0;
+  }
+};

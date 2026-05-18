@@ -9,6 +9,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useDogs } from '../../hooks/useDogs';
+import { getReferralCount } from '../../hooks/useReferrals';
 import { Dog } from '../../models/types';
 import { spacing, borderRadius, typography, shadow } from '../../config/theme';
 import { formatDogAge } from '../../utils/formatDogAge';
@@ -26,9 +27,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { getDogsByOwner } = useDogs();
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [referralCount, setReferralCount] = useState(0);
 
   useEffect(() => {
-    if (user) getDogsByOwner(user.uid).then(setDogs).finally(() => setLoading(false));
+    if (!user) return;
+    getDogsByOwner(user.uid).then(setDogs).finally(() => setLoading(false));
+    getReferralCount(user.uid).then(setReferralCount);
   }, [user]);
 
   const handleSignOut = () => {
@@ -46,6 +50,11 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const handleMyAgreement = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate('MyAgreement');
+  };
+
+  const handleInviteFriend = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate('Referral');
   };
 
   if (loading) return <LoadingSpinner />;
@@ -103,6 +112,26 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} • {formatDogAge(dog.ageYears, dog.ageMonths)}</Text>
           </TouchableOpacity>
         ))}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Referrals</Text>
+        <TouchableOpacity
+          style={[styles.prefRow, { backgroundColor: colors.surface, ...shadow.sm }]}
+          onPress={handleInviteFriend}
+          accessibilityLabel="Invite a Friend"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.prefLabel, { color: colors.text }]}>🎁 Invite a Friend</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {referralCount > 0 && (
+              <View style={[styles.referralBadge, { backgroundColor: colors.primary }]}>
+                <Text style={styles.referralBadgeText}>{referralCount} {referralCount === 1 ? 'referral' : 'referrals'}</Text>
+              </View>
+            )}
+            <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>›</Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -185,6 +214,12 @@ const styles = StyleSheet.create({
   prefLabel: { fontSize: 15 },
   prefValue: { fontSize: 15 },
   prefChevron: { fontSize: 22, fontWeight: '300' },
+  referralBadge: {
+    borderRadius: 99,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  referralBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   signOutBtn: { margin: spacing.lg, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
   signOutText: { color: '#fff', ...typography.button },
 });

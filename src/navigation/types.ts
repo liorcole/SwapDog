@@ -35,6 +35,7 @@ export type MessagesStackParamList = {
 };
 
 export type ProfileStackParamList = {
+  Referral: undefined;
   Profile: undefined;
   EditProfile: undefined;
   EditDog: { dogId: string };

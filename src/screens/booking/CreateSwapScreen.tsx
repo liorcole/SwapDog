@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform, Switch,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,7 +12,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useDogs } from '../../hooks/useDogs';
 import { useUsers } from '../../hooks/useUsers';
 import { useSwaps } from '../../hooks/useSwaps';
-import { Dog, User, SwapStatus } from '../../models/types';
+import { Dog, User, SwapStatus, PaymentType } from '../../models/types';
+import { calculatePoints } from '../../utils/calculatePoints';
 import { spacing, borderRadius, typography } from '../../config/theme';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PhotoCarousel from '../../components/common/PhotoCarousel';
@@ -52,6 +53,10 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
   const [showStart, setShowStart] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
 
+  // Payment options
+  const [offerPayment, setOfferPayment] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+
   const [careDetails, setCareDetails] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -73,6 +78,20 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const selectedDog = myDogs.find((d) => d.id === selectedMyDogId) ?? null;
 
+  // Auto-calculate points from dates
+  const pointsCost = useMemo(
+    () => calculatePoints(startDate, endDate),
+    [startDate, endDate]
+  );
+
+  // Derive payment type
+  const paymentType: PaymentType = useMemo(() => {
+    if (!offerPayment) return 'points';
+    const amt = parseFloat(paymentAmount);
+    if (!amt || amt <= 0) return 'points';
+    return 'either';
+  }, [offerPayment, paymentAmount]);
+
   const toggleReceiverDog = (id: string) => {
     setSelectedReceiverDogs((prev) =>
       prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
@@ -92,6 +111,11 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
       Alert.alert('Care Details Required', `Please provide at least ${MIN_CARE_DETAILS} characters of care details`);
       return;
     }
+    const paymentAmountNum = offerPayment ? parseFloat(paymentAmount) : undefined;
+    if (offerPayment && (!paymentAmountNum || paymentAmountNum <= 0)) {
+      Alert.alert('Invalid Payment', 'Please enter a valid dollar amount');
+      return;
+    }
     if (!user || !receiver) return;
     setSubmitting(true);
     try {
@@ -105,6 +129,9 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
         careDetails: careDetails.trim(),
         message: message.trim() || undefined,
         status: SwapStatus.pending,
+        pointsCost,
+        paymentOffered: paymentAmountNum,
+        paymentType,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Sent!', 'Swap request sent successfully', [
@@ -195,9 +222,59 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
             {Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000))} day(s) coverage
           </Text>
         </View>
+
+        {/* Points cost display — auto-calculated */}
+        <View style={[styles.pointsCostBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}>
+          <Text style={[styles.pointsCostText, { color: colors.primary }]}>
+            🪙 Points Cost: {pointsCost.toFixed(1)} point{pointsCost !== 1 ? 's' : ''}
+          </Text>
+        </View>
       </View>
 
-      {/* ── Section 2: Your Dog's Info ── */}
+      {/* ── Section 2: Payment Option ── */}
+      <View style={[styles.section, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>💰 Payment Option</Text>
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleLabelGroup}>
+            <Text style={[styles.toggleLabel, { color: colors.text }]}>Also willing to pay instead of points?</Text>
+            <Text style={[styles.toggleHint, { color: colors.textSecondary }]}>
+              Gives sitters the choice to accept points or cash
+            </Text>
+          </View>
+          <Switch
+            value={offerPayment}
+            onValueChange={(v) => {
+              setOfferPayment(v);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            thumbColor="#fff"
+            accessibilityLabel="Toggle payment option"
+            accessibilityRole="switch"
+            accessibilityState={{ checked: offerPayment }}
+          />
+        </View>
+        {offerPayment && (
+          <View style={styles.paymentInputRow}>
+            <Text style={[styles.dollarSign, { color: colors.text }]}>$</Text>
+            <TextInput
+              style={[styles.paymentInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+              placeholder="0.00"
+              placeholderTextColor={colors.textSecondary}
+              value={paymentAmount}
+              onChangeText={setPaymentAmount}
+              keyboardType="decimal-pad"
+              accessibilityLabel="Payment amount in dollars"
+            />
+          </View>
+        )}
+        <Text style={[styles.paymentTypeSummary, { color: colors.textSecondary }]}>
+          {paymentType === 'points' && '🪙 Offering: Points only'}
+          {paymentType === 'either' && `🪙💰 Offering: Points or $${paymentAmount} — sitter chooses`}
+        </Text>
+      </View>
+
+      {/* ── Section 3: Your Dog's Info ── */}
       <View style={[styles.section, { backgroundColor: colors.surface }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>🐶 Your Dog</Text>
 
@@ -293,7 +370,7 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
       )}
 
-      {/* ── Section 3: Care Details ── */}
+      {/* ── Section 4: Care Details ── */}
       <View style={[styles.section, { backgroundColor: colors.surface }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Care Details</Text>
         <Text style={[styles.careHint, { color: colors.textSecondary }]}>
@@ -330,7 +407,7 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
         </Text>
       </View>
 
-      {/* ── Section 4: Optional message ── */}
+      {/* ── Section 5: Optional message ── */}
       <View style={[styles.section, { backgroundColor: colors.surface }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>💬 Message (optional)</Text>
         <TextInput
@@ -385,6 +462,31 @@ const styles = StyleSheet.create({
   dateButtonValue: { fontSize: 16, fontWeight: '600' },
   dateRange: { padding: spacing.sm, borderRadius: borderRadius.sm, alignItems: 'center', marginTop: spacing.xs },
   dateRangeText: { fontSize: 13 },
+  // Points cost
+  pointsCostBadge: {
+    borderWidth: 1.5,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  pointsCostText: { fontSize: 16, fontWeight: '700' },
+  // Payment option
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+  toggleLabelGroup: { flex: 1, marginRight: spacing.sm },
+  toggleLabel: { fontSize: 15, fontWeight: '600' },
+  toggleHint: { fontSize: 12, marginTop: 2 },
+  paymentInputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
+  dollarSign: { fontSize: 20, fontWeight: '700' },
+  paymentInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  paymentTypeSummary: { fontSize: 13, fontStyle: 'italic' },
   // Dog selector
   dogSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },
   dogSelectorTab: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.full, borderWidth: 1 },

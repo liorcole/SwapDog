@@ -8,6 +8,8 @@ import {
   orderBy,
   serverTimestamp,
   or,
+  updateDoc,
+  doc,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Message, Conversation } from '../models/types';
@@ -39,12 +41,19 @@ export const useMessaging = () => {
     senderId: string,
     text: string
   ): Promise<void> => {
+    // Add the message
     await addDoc(collection(db, 'conversations', convId, 'messages'), {
       conversationId: convId,
       senderId,
       text,
       read: false,
       createdAt: serverTimestamp(),
+    });
+    // Update conversation metadata
+    await updateDoc(doc(db, 'conversations', convId), {
+      lastMessage: text,
+      lastMessageAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
   };
 
@@ -90,5 +99,43 @@ export const useMessaging = () => {
     });
   };
 
-  return { sendMessage, subscribeToMessages, getConversations, subscribeToConversations };
+  /**
+   * Find an existing conversation between two users, or create a new one.
+   * Optionally links it to a swapRequestId.
+   */
+  const getOrCreateConversation = async (
+    userIdA: string,
+    userIdB: string,
+    swapRequestId?: string
+  ): Promise<string> => {
+    // Look for an existing conversation between these two participants
+    const q = query(
+      collection(db, 'conversations'),
+      where('participantIds', 'array-contains', userIdA)
+    );
+    const snap = await getDocs(q);
+    const existing = snap.docs.find((d) => {
+      const participants = (d.data().participantIds as string[]) ?? [];
+      return participants.includes(userIdB);
+    });
+    if (existing) return existing.id;
+
+    // Create a new conversation
+    const ref = await addDoc(collection(db, 'conversations'), {
+      participantIds: [userIdA, userIdB],
+      swapRequestId: swapRequestId ?? null,
+      unreadCounts: { [userIdA]: 0, [userIdB]: 0 },
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    return ref.id;
+  };
+
+  return {
+    sendMessage,
+    subscribeToMessages,
+    getConversations,
+    subscribeToConversations,
+    getOrCreateConversation,
+  };
 };

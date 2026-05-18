@@ -95,6 +95,9 @@ export interface Dog {
   updatedAt: Date;
 }
 
+export type PaymentType = 'points' | 'payment' | 'either';
+export type SitterPreference = 'points' | 'payment';
+
 export interface SwapRequest {
   id: string;
   requesterId: string;
@@ -108,6 +111,14 @@ export interface SwapRequest {
   careDetails?: string;
   status: SwapStatus;
   conversationId?: string;
+  /** Auto-calculated: 1 full day = 1 point, same day = 0.5 points */
+  pointsCost: number;
+  /** Optional dollar amount if owner is also willing to pay */
+  paymentOffered?: number;
+  /** What the owner is offering: points only, payment only, or either */
+  paymentType: PaymentType;
+  /** What the sitter chose when accepting (if paymentType === 'either') */
+  sitterPreference?: SitterPreference;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -10,7 +10,7 @@ import {
   or,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { SwapRequest, SwapStatus } from '../models/types';
+import { SwapRequest, SwapStatus, PaymentType, SitterPreference } from '../models/types';
 import { toDate } from '../utils/firestoreConverters';
 
 const parseSwap = (id: string, data: Record<string, unknown>): SwapRequest => ({
@@ -25,6 +25,11 @@ const parseSwap = (id: string, data: Record<string, unknown>): SwapRequest => ({
   careDetails: data.careDetails as string | undefined,
   status: data.status as SwapStatus,
   conversationId: data.conversationId as string | undefined,
+  // Points economy fields (default gracefully for older records)
+  pointsCost: (data.pointsCost as number) ?? 1,
+  paymentOffered: data.paymentOffered as number | undefined,
+  paymentType: ((data.paymentType as PaymentType) ?? 'points'),
+  sitterPreference: data.sitterPreference as SitterPreference | undefined,
   createdAt: toDate(data.createdAt as Parameters<typeof toDate>[0]),
   updatedAt: toDate(data.updatedAt as Parameters<typeof toDate>[0]),
 });
@@ -54,5 +59,17 @@ export const useSwaps = () => {
     await updateDoc(doc(db, 'swapRequests', id), { status, updatedAt: serverTimestamp() });
   };
 
-  return { createSwap, getSwapsByUser, updateSwapStatus };
+  const updateSwapSitterPreference = async (
+    id: string,
+    sitterPreference: SitterPreference,
+    status: SwapStatus
+  ): Promise<void> => {
+    await updateDoc(doc(db, 'swapRequests', id), {
+      sitterPreference,
+      status,
+      updatedAt: serverTimestamp(),
+    });
+  };
+
+  return { createSwap, getSwapsByUser, updateSwapStatus, updateSwapSitterPreference };
 };

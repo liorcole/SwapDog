@@ -73,6 +73,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         )}
         {userProfile?.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{userProfile.bio}</Text>}
+        {/* Points balance badge */}
+        <View style={[styles.pointsBadge, { backgroundColor: '#FF6B6B18', borderColor: '#FF6B6B' }]}>
+          <Text style={[styles.pointsBadgeText, { color: '#FF6B6B' }]}>
+            🪙 {(userProfile?.points ?? 0).toFixed(1)} points
+          </Text>
+        </View>
         <TouchableOpacity
           style={[styles.editBtn, { borderColor: colors.primary }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('EditProfile'); }}
@@ -159,6 +165,15 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
   ratingCount: { fontSize: 13, marginLeft: spacing.xs },
   bio: { fontSize: 14, textAlign: 'center', marginTop: spacing.sm },
+  pointsBadge: {
+    borderWidth: 1.5,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    marginTop: spacing.sm,
+    alignItems: 'center',
+  },
+  pointsBadgeText: { fontSize: 16, fontWeight: '700' },
   editBtn: { borderWidth: 1.5, borderRadius: borderRadius.full, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, marginTop: spacing.md },
   editBtnText: { fontWeight: '600' },
   section: { padding: spacing.lg },

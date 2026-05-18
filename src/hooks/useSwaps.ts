@@ -22,6 +22,7 @@ const parseSwap = (id: string, data: Record<string, unknown>): SwapRequest => ({
   startDate: toDate(data.startDate as Parameters<typeof toDate>[0]),
   endDate: toDate(data.endDate as Parameters<typeof toDate>[0]),
   message: data.message as string | undefined,
+  careDetails: data.careDetails as string | undefined,
   status: data.status as SwapStatus,
   conversationId: data.conversationId as string | undefined,
   createdAt: toDate(data.createdAt as Parameters<typeof toDate>[0]),

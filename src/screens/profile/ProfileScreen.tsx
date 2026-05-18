@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useDogs } from '../../hooks/useDogs';
 import { Dog } from '../../models/types';
 import { spacing, borderRadius, typography, shadow } from '../../config/theme';
+import { formatDogAge } from '../../utils/formatDogAge';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StarRating from '../../components/common/StarRating';
 
@@ -81,7 +82,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             accessibilityRole="button"
           >
             <Text style={[styles.dogName, { color: colors.text }]}>{dog.name}</Text>
-            <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} • {dog.age}y</Text>
+            <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} • {formatDogAge(dog.ageYears, dog.ageMonths)}</Text>
           </TouchableOpacity>
         ))}
       </View>

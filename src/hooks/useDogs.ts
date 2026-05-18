@@ -14,24 +14,40 @@ import { db } from '../config/firebase';
 import { Dog, DogSize, DogSex, EnergyLevel } from '../models/types';
 import { toDate } from '../utils/firestoreConverters';
 
-const parseDog = (id: string, data: Record<string, unknown>): Dog => ({
-  id,
-  ownerId: data.ownerId as string,
-  name: data.name as string,
-  breed: data.breed as string,
-  age: data.age as number,
-  size: data.size as DogSize,
-  sex: data.sex as DogSex,
-  energyLevel: data.energyLevel as EnergyLevel,
-  photos: (data.photos as string[]) ?? [],
-  bio: data.bio as string | undefined,
-  isGoodWithDogs: data.isGoodWithDogs as boolean | undefined,
-  isGoodWithKids: data.isGoodWithKids as boolean | undefined,
-  isSpayedNeutered: data.isSpayedNeutered as boolean | undefined,
-  vaccinated: data.vaccinated as boolean | undefined,
-  createdAt: toDate(data.createdAt as Parameters<typeof toDate>[0]),
-  updatedAt: toDate(data.updatedAt as Parameters<typeof toDate>[0]),
-});
+const parseDog = (id: string, data: Record<string, unknown>): Dog => {
+  // Backward-compat: legacy `age` (single number) → ageYears, ageMonths=0
+  const legacyAge = data.age as number | undefined;
+  const ageYears = data.ageYears !== undefined ? (data.ageYears as number) : (legacyAge ?? 0);
+  const ageMonths = data.ageMonths !== undefined ? (data.ageMonths as number) : 0;
+
+  // Backward-compat: legacy `photos` array → photoURLs
+  const legacyPhotos = data.photos as string[] | undefined;
+  const photoURLs: string[] =
+    data.photoURLs !== undefined
+      ? (data.photoURLs as string[])
+      : legacyPhotos ?? [];
+
+  return {
+    id,
+    ownerId: data.ownerId as string,
+    name: data.name as string,
+    breed: data.breed as string,
+    ageYears,
+    ageMonths,
+    size: data.size as DogSize,
+    sex: data.sex as DogSex,
+    energyLevel: data.energyLevel as EnergyLevel,
+    photoURLs,
+    bio: data.bio as string | undefined,
+    isGoodWithDogs: data.isGoodWithDogs as boolean | undefined,
+    isGoodWithKids: data.isGoodWithKids as boolean | undefined,
+    isSpayedNeutered: data.isSpayedNeutered as boolean | undefined,
+    vaccinated: data.vaccinated as boolean | undefined,
+    temperament: data.temperament as string | undefined,
+    createdAt: toDate(data.createdAt as Parameters<typeof toDate>[0]),
+    updatedAt: toDate(data.updatedAt as Parameters<typeof toDate>[0]),
+  };
+};
 
 export const useDogs = () => {
   const getDog = async (id: string): Promise<Dog | null> => {

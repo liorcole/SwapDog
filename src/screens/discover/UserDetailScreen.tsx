@@ -10,6 +10,7 @@ import { useUsers } from '../../hooks/useUsers';
 import { useDogs } from '../../hooks/useDogs';
 import { User, Dog } from '../../models/types';
 import { spacing, borderRadius, shadow, typography } from '../../config/theme';
+import { formatDogAge } from '../../utils/formatDogAge';
 import StarRating from '../../components/common/StarRating';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -68,7 +69,7 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             accessibilityRole="button"
           >
             <Text style={[styles.dogName, { color: colors.text }]}>{dog.name}</Text>
-            <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} • {dog.age}y • {dog.size}</Text>
+            <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} • {formatDogAge(dog.ageYears, dog.ageMonths)} • {dog.size}</Text>
           </TouchableOpacity>
         ))}
       </View>

@@ -9,6 +9,7 @@ import { spacing, borderRadius, typography } from '../../config/theme';
 import PhotoCarousel from '../../components/common/PhotoCarousel';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Chip from '../../components/common/Chip';
+import { formatDogAge } from '../../utils/formatDogAge';
 
 type Props = {
   route: RouteProp<DiscoverStackParamList, 'DogDetail'>;
@@ -36,12 +37,12 @@ const DogDetailScreen: React.FC<Props> = ({ route }) => {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <PhotoCarousel photos={dog.photos} height={280} />
+      <PhotoCarousel photos={dog.photoURLs} height={280} />
       <View style={styles.content}>
         <Text style={[styles.name, { color: colors.text }]} accessibilityRole="header">{dog.name}</Text>
         <Text style={[styles.breed, { color: colors.textSecondary }]}>{dog.breed}</Text>
         <View style={styles.row}>
-          <Chip label={`${dog.age} year${dog.age !== 1 ? 's' : ''}`} />
+          <Chip label={formatDogAge(dog.ageYears, dog.ageMonths)} />
           <Chip label={dog.size.replace('_', ' ')} />
           <Chip label={dog.sex} />
           <Chip label={`${dog.energyLevel.replace('_', ' ')} energy`} />
@@ -53,6 +54,12 @@ const DogDetailScreen: React.FC<Props> = ({ route }) => {
             <View style={styles.row}>
               {traits.map((t) => <Chip key={t} label={t} selected />)}
             </View>
+          </>
+        )}
+        {dog.temperament && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Temperament</Text>
+            <Text style={[styles.bio, { color: colors.text }]}>{dog.temperament}</Text>
           </>
         )}
       </View>

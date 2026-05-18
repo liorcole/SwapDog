@@ -51,16 +51,21 @@ export interface Dog {
   ownerId: string;
   name: string;
   breed: string;
-  age: number;
+  /** Age in whole years (0 means puppy under 1 year) */
+  ageYears: number;
+  /** Additional months (0-11). For puppies (ageYears=0) this is the primary age. */
+  ageMonths: number;
   size: DogSize;
   sex: DogSex;
   energyLevel: EnergyLevel;
-  photos: string[];
+  /** Up to 10 photo URLs. First photo is the primary/thumbnail. */
+  photoURLs: string[];
   bio?: string;
   isGoodWithDogs?: boolean;
   isGoodWithKids?: boolean;
   isSpayedNeutered?: boolean;
   vaccinated?: boolean;
+  temperament?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,6 +79,8 @@ export interface SwapRequest {
   startDate: Date;
   endDate: Date;
   message?: string;
+  /** Structured care details describing schedule, feeding, meds, etc. */
+  careDetails?: string;
   status: SwapStatus;
   conversationId?: string;
   createdAt: Date;

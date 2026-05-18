@@ -2,7 +2,13 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text } from 'react-native';
-import { MainTabParamList, DiscoverStackParamList, RequestsStackParamList, MessagesStackParamList, ProfileStackParamList } from './types';
+import {
+  MainTabParamList,
+  DiscoverStackParamList,
+  RequestsStackParamList,
+  MessagesStackParamList,
+  ProfileStackParamList,
+} from './types';
 import { useTheme } from '../contexts/ThemeContext';
 
 // Discover stack
@@ -24,6 +30,7 @@ import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import EditDogScreen from '../screens/profile/EditDogScreen';
 import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen';
+import MyAgreementScreen from '../screens/profile/MyAgreementScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const DiscoverStack = createNativeStackNavigator<DiscoverStackParamList>();
@@ -65,6 +72,11 @@ const ProfileNavigator: React.FC = () => (
     >
       {() => <ConductStandardsScreen readOnly />}
     </ProfileStack.Screen>
+    <ProfileStack.Screen
+      name="MyAgreement"
+      component={MyAgreementScreen}
+      options={{ title: 'My Agreement', headerBackTitle: 'Back' }}
+    />
   </ProfileStack.Navigator>
 );
 

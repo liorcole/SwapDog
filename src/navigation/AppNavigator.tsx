@@ -5,6 +5,7 @@ import { RootStackParamList } from './types';
 import { useAuthContext } from '../contexts/AuthContext';
 import AuthNavigator from './AuthNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
+import ApprovalNavigator from './ApprovalNavigator';
 import MainTabNavigator from './MainTabNavigator';
 import ReferralCodeScreen, { REFERRAL_STORAGE_KEY } from '../screens/auth/ReferralCodeScreen';
 import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen';
@@ -39,6 +40,7 @@ const AppNavigator: React.FC = () => {
 
   const accountStatus = userProfile?.accountStatus ?? 'pending_referral';
   const conductAgreed = !!userProfile?.conductAgreedAt;
+  const contractSigned = !!userProfile?.contractSignedAt;
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
@@ -61,10 +63,13 @@ const AppNavigator: React.FC = () => {
         // ── Conduct agreed, vetting call not yet scheduled ─────────────────
         <Stack.Screen name="VettingCall" component={VettingCallScreen} />
       ) : accountStatus === 'pending_approval' ? (
-        // ── Vetting scheduled, awaiting review ────────────────────────────
+        // ── Vetting scheduled, awaiting admin review ───────────────────────
         <Stack.Screen name="WaitingApproval" component={WaitingApprovalScreen} />
+      ) : accountStatus === 'active' && !contractSigned ? (
+        // ── Approved! Show celebration → contract signing ──────────────────
+        <Stack.Screen name="ApprovalFlow" component={ApprovalNavigator} />
       ) : (
-        // ── Active (and future: contract gate in Wave 3) ───────────────────
+        // ── Active + contract signed → full app access ─────────────────────
         <Stack.Screen name="Main" component={MainTabNavigator} />
       )}
     </Stack.Navigator>

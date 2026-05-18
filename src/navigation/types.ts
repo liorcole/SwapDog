@@ -12,6 +12,11 @@ export type OnboardingStackParamList = {
   LocationSetup: undefined;
 };
 
+export type ApprovalStackParamList = {
+  Celebration: undefined;
+  Contract: undefined;
+};
+
 export type DiscoverStackParamList = {
   Discover: undefined;
   UserDetail: { userId: string };
@@ -34,6 +39,7 @@ export type ProfileStackParamList = {
   EditProfile: undefined;
   EditDog: { dogId: string };
   CommunityStandards: undefined;
+  MyAgreement: undefined;
 };
 
 export type MainTabParamList = {
@@ -50,5 +56,6 @@ export type RootStackParamList = {
   ConductStandards: undefined;
   VettingCall: undefined;
   WaitingApproval: undefined;
+  ApprovalFlow: NavigatorScreenParams<ApprovalStackParamList>;
   Main: NavigatorScreenParams<MainTabParamList>;
 };

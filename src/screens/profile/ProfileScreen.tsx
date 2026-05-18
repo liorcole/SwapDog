@@ -43,7 +43,14 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     navigation.navigate('CommunityStandards');
   };
 
+  const handleMyAgreement = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate('MyAgreement');
+  };
+
   if (loading) return <LoadingSpinner />;
+
+  const hasContract = !!userProfile?.contractSignedAt;
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -103,6 +110,17 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={[styles.prefLabel, { color: colors.text }]}>🐾 Community Standards</Text>
           <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>›</Text>
         </TouchableOpacity>
+        {hasContract && (
+          <TouchableOpacity
+            style={[styles.prefRow, { backgroundColor: colors.surface, ...shadow.sm }]}
+            onPress={handleMyAgreement}
+            accessibilityLabel="View My Membership Agreement"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.prefLabel, { color: colors.text }]}>📜 My Agreement</Text>
+            <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>›</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.section}>

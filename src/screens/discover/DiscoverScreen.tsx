@@ -95,9 +95,6 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>🐾 Discover</Text>
-      </View>
       <FlatList
         data={users}
         keyExtractor={(u) => u.id}
@@ -118,8 +115,6 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 60, paddingBottom: 16, paddingHorizontal: spacing.lg },
-  headerTitle: { fontSize: 28, fontWeight: '800' },
   list: { padding: spacing.md },
   card: {
     flexDirection: 'row',

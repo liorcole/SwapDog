@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform, Switch,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform, Switch, KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -150,6 +150,11 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
     d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
@@ -433,6 +438,7 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
         <Text style={styles.submitBtnText}>{submitting ? 'Sending...' : 'Send Swap Request 🔄'}</Text>
       </TouchableOpacity>
     </ScrollView>
+  </KeyboardAvoidingView>
   );
 };
 

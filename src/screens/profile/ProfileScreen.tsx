@@ -187,7 +187,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { alignItems: 'center', padding: spacing.lg, paddingTop: 60 },
+  header: { alignItems: 'center', padding: spacing.lg },
   avatar: { width: 90, height: 90, borderRadius: 45, marginBottom: spacing.sm },
   name: { ...typography.h2, marginBottom: spacing.xs },
   location: { fontSize: 14, marginBottom: spacing.xs },

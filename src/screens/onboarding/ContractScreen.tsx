@@ -10,6 +10,8 @@ import {
   NativeScrollEvent,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics'
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -112,6 +114,11 @@ const ContractScreen: React.FC<ContractScreenProps> = ({
   };
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+    >
     <View style={[styles.outer, { backgroundColor: colors.background }]}>
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <View style={[styles.header, { backgroundColor: colors.surface, ...shadow.sm }]}>
@@ -261,6 +268,7 @@ const ContractScreen: React.FC<ContractScreenProps> = ({
         <View style={styles.bottomPadding} />
       </ScrollView>
     </View>
+    </KeyboardAvoidingView>
   );
 };
 

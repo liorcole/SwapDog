@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -47,7 +47,12 @@ const WriteReviewScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={[styles.title, { color: colors.text }]}>How was your swap?</Text>
       <Text style={[styles.sub, { color: colors.textSecondary }]}>Your review helps the community</Text>
       <View style={styles.ratingContainer} accessibilityRole="adjustable" accessibilityLabel={`Selected rating: ${rating} of 5 stars`}>
@@ -72,12 +77,13 @@ const WriteReviewScreen: React.FC<Props> = ({ navigation, route }) => {
       >
         <Text style={styles.btnText}>{loading ? 'Submitting...' : 'Submit Review'}</Text>
       </TouchableOpacity>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: spacing.lg, justifyContent: 'center' },
+  container: { flexGrow: 1, padding: spacing.lg, justifyContent: 'center' },
   title: { ...typography.h2, textAlign: 'center', marginBottom: spacing.xs },
   sub: { ...typography.body, textAlign: 'center', marginBottom: spacing.xl },
   ratingContainer: { alignItems: 'center', marginBottom: spacing.xl },

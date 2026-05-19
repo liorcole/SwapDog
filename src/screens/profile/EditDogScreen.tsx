@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -123,6 +124,11 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
   if (loading) return <LoadingSpinner />;
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
 
       {/* Photo grid */}
@@ -272,6 +278,7 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
         <Text style={[styles.deleteBtnText, { color: colors.error }]}>Delete Dog</Text>
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 

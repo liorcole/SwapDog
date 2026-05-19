@@ -1,27 +1,27 @@
 export const colors = {
   primary: '#FF6B6B',
   secondary: '#4ECDC4',
-  background: '#F7F7F7',
+  background: '#FFF5F5',
   surface: '#FFFFFF',
   text: '#2D3436',
   textSecondary: '#636E72',
   error: '#E17055',
   success: '#00B894',
   warning: '#FDCB6E',
-  border: '#DFE6E9',
+  border: '#F0D9D9',
 };
 
 export const darkColors = {
   primary: '#FF6B6B',
   secondary: '#4ECDC4',
-  background: '#1A1A2E',
-  surface: '#16213E',
-  text: '#EAEAEA',
-  textSecondary: '#A0AEC0',
+  background: '#1A0A0A',
+  surface: '#2A1414',
+  text: '#FAFAFA',
+  textSecondary: '#C0A0A0',
   error: '#E17055',
   success: '#00B894',
   warning: '#FDCB6E',
-  border: '#2C3E50',
+  border: '#3D2020',
 };
 
 export const spacing = {
@@ -51,23 +51,23 @@ export const typography = {
 
 export const shadow = {
   sm: {
-    shadowColor: '#000',
+    shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.06,
     shadowRadius: 2,
     elevation: 2,
   },
   md: {
-    shadowColor: '#000',
+    shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.10,
     shadowRadius: 4,
     elevation: 4,
   },
   lg: {
-    shadowColor: '#000',
+    shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.16,
+    shadowOpacity: 0.14,
     shadowRadius: 8,
     elevation: 8,
   },

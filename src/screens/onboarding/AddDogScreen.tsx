@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Switch,
-  Image, FlatList,
+  Image, FlatList, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -107,6 +107,11 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
   );
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">Add your dog</Text>
       <Text style={[styles.sub, { color: colors.textSecondary }]}>Tell us about your furry friend</Text>
@@ -262,6 +267,7 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={[styles.skip, { color: colors.textSecondary }]}>Skip for now</Text>
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 

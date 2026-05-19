@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -47,6 +48,11 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
   };
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <TouchableOpacity
         style={styles.photoPicker}
@@ -89,6 +95,7 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
         <Text style={styles.btnText}>{loading ? 'Saving...' : 'Save Changes'}</Text>
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 

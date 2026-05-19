@@ -16,6 +16,7 @@ import {
   Alert,
   ScrollView,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -91,6 +92,11 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const [calMonth, setCalMonth] = useState<Date>(
     new Date(today.getFullYear(), today.getMonth(), 1),
   );
+
+  // Popup overlay state
+  const [popupCommitments, setPopupCommitments] = useState<SwapPost[]>([]);
+  const [popupDate, setPopupDate] = useState<Date | null>(null);
+  const [showPopup, setShowPopup] = useState(false);
 
   const fetchPosts = useCallback(async () => {
     if (!user) return;
@@ -211,6 +217,13 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         accessibilityRole="button"
         accessibilityLabel={`Your post for ${item.dogName}`}
       >
+        {interestedCount > 0 && (
+          <View style={styles.interestTopLeft}>
+            <Text style={styles.interestBadgeText}>
+              🙋 {interestedCount} helper{interestedCount !== 1 ? 's' : ''} interested — tap to see
+            </Text>
+          </View>
+        )}
         <View style={styles.cardHeader}>
           {item.dogPhotoURL ? (
             <Image source={{ uri: item.dogPhotoURL }} style={[styles.dogThumbSmall, { borderColor: colors.border }]} />
@@ -232,34 +245,11 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        <View
-          style={[
-            styles.compBadge,
-            {
-              backgroundColor: item.compensationType !== 'points' ? '#00B89418' : colors.primary + '18',
-              borderColor: item.compensationType !== 'points' ? '#00B894' : colors.primary,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.compBadgeText,
-              { color: item.compensationType !== 'points' ? '#00B894' : colors.primary },
-            ]}
-          >
-            {compensationLabel(item)}
-          </Text>
-        </View>
+        <Text style={styles.compPlainText}>
+          {compensationLabel(item)}
+        </Text>
 
-        {interestedCount > 0 && (
-          <View style={styles.interestFlagRow}>
-            <View style={styles.interestBadge}>
-              <Text style={styles.interestBadgeText}>
-                🙋 {interestedCount} helper{interestedCount !== 1 ? 's' : ''} interested — tap to see
-              </Text>
-            </View>
-          </View>
-        )}
+
 
         {isOpen && (
           <TouchableOpacity
@@ -307,6 +297,22 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const selectedCommitments = acceptedPosts.filter((p) => overlapsDate(p, selectedDate));
+
+  // All commitments sorted chronologically (always-visible list)
+  const allSortedCommitments = [...acceptedPosts].sort(
+    (a, b) => a.startDate.getTime() - b.startDate.getTime(),
+  );
+
+  // Handle calendar date tap — show popup if that date has commitments
+  const handleDatePress = (date: Date) => {
+    const dayCommitments = acceptedPosts.filter((p) => overlapsDate(p, date));
+    setSelectedDate(new Date(date.getFullYear(), date.getMonth(), date.getDate()));
+    if (dayCommitments.length > 0) {
+      setPopupCommitments(dayCommitments);
+      setPopupDate(date);
+      setShowPopup(true);
+    }
+  };
 
   // ── Commitment card ───────────────────────────────────────────────────────
   const renderCommitmentCard = (post: SwapPost) => {
@@ -361,6 +367,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
     const calDays = buildCalendarDays();
 
     return (
+      <View style={{ flex: 1 }}>
       <ScrollView
         contentContainerStyle={styles.calendarScroll}
         refreshControl={
@@ -420,7 +427,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
               <TouchableOpacity
                 key={idx}
                 style={styles.calCell}
-                onPress={() => setSelectedDate(new Date(date.getFullYear(), date.getMonth(), date.getDate()))}
+                onPress={() => handleDatePress(date)}
                 accessibilityLabel={`${date.getDate()} ${MONTH_NAMES[date.getMonth()]}`}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
@@ -471,29 +478,68 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Selected day section */}
-        <View style={[styles.selectedDayHeader, { borderTopColor: colors.border }]}>
+        {/* Always-visible chronological list of ALL commitments */}
+        <View style={[styles.allCommitmentsHeader, { borderTopColor: colors.border }]}>
           <Text style={[styles.selectedDayTitle, { color: colors.text }]}>
-            {selectedDate.toLocaleDateString(undefined, {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-            })}
+            All Commitments
           </Text>
         </View>
 
-        {selectedCommitments.length === 0 ? (
+        {allSortedCommitments.length === 0 ? (
           <View style={styles.noneToday}>
             <Text style={[styles.noneTodayText, { color: colors.textSecondary }]}>
-              No commitments on this day
+              No upcoming commitments
             </Text>
           </View>
         ) : (
           <View style={styles.commitList}>
-            {selectedCommitments.map((post) => renderCommitmentCard(post))}
+            {allSortedCommitments.map((post) => renderCommitmentCard(post))}
           </View>
         )}
       </ScrollView>
+
+      {/* ── Date Tap Popup Overlay ── */}
+      <Modal
+        visible={showPopup}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPopup(false)}
+      >
+        <TouchableOpacity
+          style={styles.popupBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowPopup(false)}
+        >
+          <View
+            style={[styles.popupCard, { backgroundColor: colors.surface }]}
+            onStartShouldSetResponder={() => true}
+          >
+            {/* Header */}
+            <View style={styles.popupHeader}>
+              <Text style={[styles.popupDate, { color: colors.text }]}>
+                {popupDate?.toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowPopup(false)}
+                style={styles.popupCloseBtn}
+                accessibilityLabel="Close"
+                accessibilityRole="button"
+              >
+                <Text style={[styles.popupCloseText, { color: colors.textSecondary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Scrollable commitment list */}
+            <ScrollView style={styles.popupScroll} showsVerticalScrollIndicator={false}>
+              {popupCommitments.map((post) => renderCommitmentCard(post))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+      </View>
     );
   };
 
@@ -537,18 +583,19 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       {tab === 'mine' ? (
-        <>
-          <TouchableOpacity
-            style={[styles.fab, { backgroundColor: colors.primary }]}
-            onPress={() => navigation.navigate('CreatePost')}
-            accessibilityLabel="Post a request"
-            accessibilityRole="button"
-          >
-            <Text style={styles.fabText}>+ Post a Request</Text>
-          </TouchableOpacity>
-          <FlatList
+        <FlatList
             data={myPosts}
             keyExtractor={(p) => p.id}
+            ListHeaderComponent={
+              <TouchableOpacity
+                style={styles.postRequestCard}
+                onPress={() => navigation.navigate('CreatePost')}
+                accessibilityLabel="Post a request"
+                accessibilityRole="button"
+              >
+                <Text style={styles.postRequestCardText}>Post a Request 🐾</Text>
+              </TouchableOpacity>
+            }
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -568,7 +615,6 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
             renderItem={renderMyPost}
             contentContainerStyle={styles.list}
           />
-        </>
       ) : (
         renderCommitmentsTab()
       )}
@@ -622,36 +668,39 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   cancelBtnText: { fontSize: 13, fontWeight: '600' },
-  interestFlagRow: { marginBottom: spacing.xs },
-  interestBadge: {
+  // Helpers interested — top left of card
+  interestTopLeft: {
     backgroundColor: RED,
     borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
     alignSelf: 'flex-start',
+    marginBottom: spacing.xs,
     shadowColor: RED,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.30,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
-  interestBadgeText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
+  interestBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  // Points — plain bold white text
+  compPlainText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', marginBottom: spacing.xs },
 
-  // FAB
-  fab: {
-    flexDirection: 'row',
-    alignSelf: 'flex-end',
-    margin: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    elevation: 3,
-    shadowColor: '#000',
+  // Post Request Card (replaces FAB)
+  postRequestCard: {
+    backgroundColor: RED,
+    borderRadius: borderRadius.lg,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    shadowColor: RED,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  fabText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  postRequestCardText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
 
   // Calendar container
   calendarScroll: { padding: spacing.md, paddingBottom: spacing.xl * 3 },
@@ -700,11 +749,41 @@ const styles = StyleSheet.create({
   calLegendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   calLegendText: { fontSize: 11 },
 
-  // Selected day section
-  selectedDayHeader: { borderTopWidth: 1, paddingTop: spacing.md, marginBottom: spacing.sm },
+  // Section header for all commitments list
+  allCommitmentsHeader: { borderTopWidth: 1, paddingTop: spacing.md, marginBottom: spacing.sm },
   selectedDayTitle: { fontSize: 15, fontWeight: '700' },
   noneToday: { alignItems: 'center', paddingVertical: spacing.lg },
   noneTodayText: { fontSize: 14, fontStyle: 'italic' },
+  // Popup overlay
+  popupBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  popupCard: {
+    width: '85%',
+    maxHeight: '70%',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  popupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  popupDate: { fontSize: 16, fontWeight: '700', flex: 1, marginRight: spacing.sm },
+  popupCloseBtn: { padding: 4 },
+  popupCloseText: { fontSize: 20, fontWeight: '300' },
+  popupScroll: { flexShrink: 1 },
+  // Keep old selectedDayHeader alias so nothing breaks
+  selectedDayHeader: { borderTopWidth: 1, paddingTop: spacing.md, marginBottom: spacing.sm },
 
   // Commitment cards
   commitList: { gap: spacing.sm },

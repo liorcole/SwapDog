@@ -573,18 +573,9 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
           const capped = Math.min(rounded, MAX_RADIUS_MILES);
           return Math.abs(capped - prev) >= 0.2 ? capped : prev;
         });
-        if (mapRef.current && location) {
-          isProgrammaticMoveRef.current = true;
-          mapRef.current.animateToRegion({
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            latitudeDelta: region.latitudeDelta,
-            longitudeDelta: region.longitudeDelta,
-          }, 400);
-        }
       }, REGION_DEBOUNCE_MS);
     },
-    [mapViewHeight, location],
+    [mapViewHeight],
   );
 
   const handlePresetSelect = useCallback(
@@ -751,6 +742,8 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const isLoading = usersLoading || postsLoading;
+  // Only show shimmer on very first load — prevents flash on radius changes
+  const showLoadingShimmer = isLoading && nearbyUsers.length === 0 && areaPosts.length === 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -818,7 +811,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       {/* ── COMBINED FEED ── */}
-      {isLoading ? (
+      {showLoadingShimmer ? (
         <View style={styles.listLoadingContainer}>
           {[1, 2, 3].map((i) => (
             <View key={i} style={{ marginHorizontal: spacing.md, marginBottom: spacing.sm }}>

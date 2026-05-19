@@ -127,8 +127,12 @@ export const useSwaps = () => {
   const createPost = async (
     data: Omit<SwapPost, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<string> => {
+    // Firestore rejects undefined field values — strip them before writing
+    const cleanData = Object.fromEntries(
+      Object.entries(data as Record<string, unknown>).filter(([, v]) => v !== undefined)
+    );
     const ref = await addDoc(collection(db, 'swapPosts'), {
-      ...data,
+      ...cleanData,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });

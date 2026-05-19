@@ -159,7 +159,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
         // Location is optional — post can still be created
       }
 
-      const paymentAmountNum = offerPayment ? parseFloat(paymentAmount) : undefined;
+      const paymentAmountNum = offerPayment ? parseFloat(paymentAmount) : null;
 
       await createPost({
         posterId: user.uid,
@@ -175,10 +175,10 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
         careDetails: careDetails.trim(),
         compensationType,
         pointsCost,
-        paymentAmount: paymentAmountNum,
+        paymentAmount: paymentAmountNum ?? undefined,
         paymentRate: offerPayment ? paymentRate : undefined,
-        totalPayment,
-        totalUnits,
+        totalPayment: offerPayment ? totalPayment : undefined,
+        totalUnits: offerPayment ? totalUnits : undefined,
         status: 'open',
       });
 

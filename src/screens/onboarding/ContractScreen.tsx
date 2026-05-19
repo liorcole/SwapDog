@@ -123,13 +123,15 @@ const ContractScreen: React.FC<ContractScreenProps> = ({
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
     <View style={[styles.outer, { backgroundColor: colors.background }]}>
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <View style={[styles.header, { backgroundColor: colors.surface, ...shadow.sm }]}>
-        <Text style={styles.headerIcon} accessibilityElementsHidden>📜</Text>
-        <Text style={[styles.headerTitle, { color: colors.text }]} accessibilityRole="header">
-          Membership Agreement
-        </Text>
-      </View>
+      {/* ── Header — shown only in onboarding; nav bar title handles it in read-only/profile view ── */}
+      {!readOnly && (
+        <View style={[styles.header, { backgroundColor: colors.surface, ...shadow.sm }]}>
+          <Text style={styles.headerIcon} accessibilityElementsHidden>📜</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]} accessibilityRole="header">
+            Membership Agreement
+          </Text>
+        </View>
+      )}
 
       <ScrollView
         ref={scrollRef}

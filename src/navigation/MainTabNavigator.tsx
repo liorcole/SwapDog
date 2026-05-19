@@ -86,7 +86,7 @@ const RequestsNavigator: React.FC = () => {
         ...sharedHeaderOptions,
       }}
     >
-      <RequestsStack.Screen name="Requests" component={RequestsScreen} options={{ title: 'Swap Requests' }} />
+      <RequestsStack.Screen name="Requests" component={RequestsScreen} options={{ title: 'My Schedule' }} />
       <RequestsStack.Screen name="WriteReview" component={WriteReviewScreen} options={{ title: 'Write Review', presentation: 'modal' }} />
       <RequestsStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: 'Post Details' }} />
       <RequestsStack.Screen name="CreatePost" component={CreatePostScreen} options={{ title: 'Post a Request', presentation: 'modal' }} />
@@ -214,7 +214,7 @@ const MainTabNavigator: React.FC = () => {
       <Tab.Screen
         name="RequestsTab"
         component={RequestsNavigator}
-        options={{ tabBarLabel: 'Requests', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🔄</Text> }}
+        options={{ tabBarLabel: 'Schedule', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>📅</Text> }}
       />
       <Tab.Screen
         name="MessagesTab"

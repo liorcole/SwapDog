@@ -22,7 +22,7 @@ import {
   Animated,
   PanResponder,
 } from 'react-native';
-import MapView, { Circle, Marker, Region } from 'react-native-maps';
+import MapView, { Marker, Region } from 'react-native-maps';
 import {
   GooglePlacesAutocomplete,
   GooglePlaceData,
@@ -44,7 +44,7 @@ import ShimmerLoading from '../../components/common/ShimmerLoading';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Map height constraints
 const MAP_HEIGHT_DEFAULT = Math.round(SCREEN_HEIGHT * 0.40);
@@ -53,6 +53,10 @@ const MAP_HEIGHT_MAX = Math.round(SCREEN_HEIGHT * 0.60);
 
 // Drag handle height
 const HANDLE_HEIGHT = 28;
+
+// Fixed-pixel circle overlay size (constant on screen regardless of zoom)
+// 60% of screen width, but at most 280px
+const CIRCLE_SIZE = Math.min(Math.round(SCREEN_WIDTH * 0.60), 280);
 
 // How long to wait after the last region change before updating radius/query
 const REGION_DEBOUNCE_MS = 600;
@@ -345,13 +349,13 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const [usersLoading, setUsersLoading] = useState(false);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
 
+  // Track the current map view height so we can calculate the circle/map ratio
+  const [mapViewHeight, setMapViewHeight] = useState(MAP_HEIGHT_DEFAULT);
+
   const mapRef = useRef<MapView>(null);
 
   // Debounce timer ref for region changes
   const regionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Radius in meters for the Circle overlay
-  const radiusMeters = useMemo(() => radiusMiles * 1609.34, [radiusMiles]);
 
   // ── Collapsible map: Animated height ────────────────────────────────────────
   const mapHeightAnim = useRef(new Animated.Value(MAP_HEIGHT_DEFAULT)).current;
@@ -429,12 +433,17 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     void fetchNearby();
   }, [fetchNearby]);
 
-  // ── Re-center map when location or radius changes (from preset buttons) ──────
+  // ── Animate map zoom so the fixed circle represents the given radius ─────────
+  // Formula: latitudeDelta such that CIRCLE_SIZE pixels == radiusMiles on screen.
+  // The fixed circle covers (CIRCLE_SIZE / mapViewHeight) of the vertical map span.
+  // Full map vertical span = latitudeDelta degrees. Circle spans half of that fraction.
+  // => latitudeDelta = (radiusMiles / 69) * 2 * (mapViewHeight / CIRCLE_SIZE)
   const animateMapToRadius = useCallback(
-    (lat: number, lng: number, miles: number) => {
+    (lat: number, lng: number, miles: number, currentMapHeight: number) => {
       if (!mapRef.current) return;
-      // latitudeDelta ≈ miles * 2 / 69  (then ×2.5 for comfortable padding)
-      const delta = Math.max(0.02, (miles / 69) * 2 * 2.5);
+      const heightToUse = currentMapHeight > 0 ? currentMapHeight : MAP_HEIGHT_DEFAULT;
+      const ratio = heightToUse / CIRCLE_SIZE;
+      const delta = Math.max(0.005, (miles / 69) * 2 * ratio);
       const region: Region = {
         latitude: lat,
         longitude: lng,
@@ -448,13 +457,19 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
 
   useEffect(() => {
     if (!location) return;
-    animateMapToRadius(location.coords.latitude, location.coords.longitude, radiusMiles);
-    // NOTE: only runs when location changes — radius-preset button taps call
+    animateMapToRadius(
+      location.coords.latitude,
+      location.coords.longitude,
+      radiusMiles,
+      mapViewHeight,
+    );
+    // Only runs when location changes — radius-preset button taps call
     // animateMapToRadius directly to avoid circular updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
 
-  // ── Zoom ↔ Radius sync: when user pinch-zooms, update radius ─────────────
+  // ── Zoom ↔ Radius sync: when user pinch-zooms, update radius ──────────────
+  // Inverse formula: visibleRadiusMiles = (latitudeDelta * 69 / 2) * (CIRCLE_SIZE / mapViewHeight)
   const handleRegionChangeComplete = useCallback(
     (region: Region) => {
       // Debounce to avoid firing on every micro-movement
@@ -462,8 +477,10 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         clearTimeout(regionDebounceRef.current);
       }
       regionDebounceRef.current = setTimeout(() => {
-        // 1° latitude ≈ 69 miles; visible half-height = latitudeDelta/2
-        const visibleRadiusMiles = (region.latitudeDelta / 2) * 69;
+        const heightToUse = mapViewHeight > 0 ? mapViewHeight : MAP_HEIGHT_DEFAULT;
+        const ratio = CIRCLE_SIZE / heightToUse;
+        // The circle covers a fraction of the map height; compute what radius that fraction represents
+        const visibleRadiusMiles = (region.latitudeDelta / 2) * 69 * ratio;
         const rounded = Math.round(visibleRadiusMiles * 10) / 10;
         // Only update if the change is significant (>0.2 mi) to avoid jitter
         setRadiusMiles((prev) => {
@@ -471,18 +488,23 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         });
       }, REGION_DEBOUNCE_MS);
     },
-    [],
+    [mapViewHeight],
   );
 
-  // ── Preset button taps: set radius AND animate map ───────────────────────
+  // ── Preset button taps: animate map to show that radius ──────────────────
   const handlePresetSelect = useCallback(
     (r: RadiusMiles) => {
       setRadiusMiles(r);
       if (location) {
-        animateMapToRadius(location.coords.latitude, location.coords.longitude, r);
+        animateMapToRadius(
+          location.coords.latitude,
+          location.coords.longitude,
+          r,
+          mapViewHeight,
+        );
       }
     },
-    [location, animateMapToRadius],
+    [location, animateMapToRadius, mapViewHeight],
   );
 
   // ── Handle location override confirmed ──────────────────────────────────────
@@ -544,8 +566,9 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const initialRegion: Region = {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
-    latitudeDelta: Math.max(0.05, (radiusMiles / 69) * 2 * 2.5),
-    longitudeDelta: Math.max(0.05, (radiusMiles / 69) * 2 * 2.5),
+    // Initial delta accounts for the circle/map ratio so circle shows ~5mi at startup
+    latitudeDelta: Math.max(0.01, (radiusMiles / 69) * 2 * (MAP_HEIGHT_DEFAULT / CIRCLE_SIZE)),
+    longitudeDelta: Math.max(0.01, (radiusMiles / 69) * 2 * (MAP_HEIGHT_DEFAULT / CIRCLE_SIZE)),
   };
 
   return (
@@ -562,6 +585,10 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
             overflow: 'hidden',
           },
         ]}
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0) setMapViewHeight(h);
+        }}
       >
         <MapView
           ref={mapRef}
@@ -577,15 +604,34 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
             title={location.isOverride ? (location.label ?? 'Custom Location') : 'Your Location'}
             pinColor={colors.primary}
           />
-          {/* Search radius circle overlay */}
-          <Circle
-            center={location.coords}
-            radius={radiusMeters}
-            strokeColor={colors.primary}
-            strokeWidth={2}
-            fillColor={colors.primary + "1E"}
-          />
         </MapView>
+
+        {/* ── FIXED-PIXEL RADIUS CIRCLE OVERLAY ──
+            Sits on top of the map, centered, never moves or resizes with zoom.
+            pointerEvents="none" so it doesn't block map touch/pan/pinch events. */}
+        <View
+          style={styles.circleOverlayContainer}
+          pointerEvents="none"
+        >
+          <View
+            style={[
+              styles.circleOverlay,
+              {
+                width: CIRCLE_SIZE,
+                height: CIRCLE_SIZE,
+                borderRadius: CIRCLE_SIZE / 2,
+                borderColor: colors.primary,
+                backgroundColor: colors.primary + '1A', // ~10% opacity fill
+              },
+            ]}
+          />
+          {/* Radius label centered below the circle */}
+          <Text style={[styles.circleRadiusLabel, { color: colors.primary }]}>
+            {radiusMiles < 10
+              ? radiusMiles.toFixed(1)
+              : Math.round(radiusMiles).toString()} mi
+          </Text>
+        </View>
 
         {/* Change Location button — overlaid on map */}
         <TouchableOpacity
@@ -682,6 +728,26 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
   },
   locationBtnText: { fontSize: 13, fontWeight: '600' },
+
+  // Fixed-pixel radius circle overlay
+  circleOverlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleOverlay: {
+    borderWidth: 2,
+  },
+  circleRadiusLabel: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    // slight text shadow for legibility on varied map backgrounds
+    textShadowColor: 'rgba(255,255,255,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 3,
+  },
 
   // Drag handle
   dragHandle: {

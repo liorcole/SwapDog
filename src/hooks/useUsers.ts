@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import {
   doc,
   getDoc,
@@ -41,17 +42,22 @@ const parseUser = (id: string, data: Record<string, unknown>): User => ({
 });
 
 export const useUsers = () => {
-  const getUser = async (id: string): Promise<User | null> => {
+  // Stable references — wrapped in useCallback so callers can include them in
+  // dependency arrays without triggering infinite re-render loops.
+  const getUser = useCallback(async (id: string): Promise<User | null> => {
     const snap = await getDoc(doc(db, 'users', id));
     if (!snap.exists()) return null;
     return parseUser(snap.id, snap.data() as Record<string, unknown>);
-  };
+  }, []);
 
-  const updateUser = async (id: string, data: Partial<User>): Promise<void> => {
+  const updateUser = useCallback(async (id: string, data: Partial<User>): Promise<void> => {
     await updateDoc(doc(db, 'users', id), { ...data, updatedAt: new Date() });
-  };
+  }, []);
 
-  const getUsersByLocation = async (center: GeoPoint, radiusKm: number): Promise<User[]> => {
+  const getUsersByLocation = useCallback(async (
+    center: GeoPoint,
+    radiusKm: number,
+  ): Promise<User[]> => {
     const snap = await getDocs(query(collection(db, 'users')));
     const all = snap.docs.map((d) => parseUser(d.id, d.data() as Record<string, unknown>));
     return all.filter((u) => {
@@ -63,7 +69,7 @@ export const useUsers = () => {
         Math.cos((center.latitude * Math.PI) / 180);
       return Math.sqrt(dLat * dLat + dLng * dLng) <= radiusKm;
     });
-  };
+  }, []); // no deps — pure computation + stable firebase refs
 
   return { getUser, updateUser, getUsersByLocation };
 };

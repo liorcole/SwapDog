@@ -1,4 +1,11 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  memo,
+} from 'react';
 import {
   View,
   Text,
@@ -8,13 +15,19 @@ import {
   Image,
   Alert,
   Modal,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Dimensions,
+  Animated,
+  PanResponder,
 } from 'react-native';
 import MapView, { Circle, Marker, Region } from 'react-native-maps';
+import {
+  GooglePlacesAutocomplete,
+  GooglePlaceData,
+  GooglePlaceDetail,
+} from 'react-native-google-places-autocomplete';
 import * as Location from 'expo-location';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
@@ -29,8 +42,23 @@ import { spacing, borderRadius, shadow, typography } from '../../config/theme';
 import EmptyStateView from '../../components/common/EmptyStateView';
 import ShimmerLoading from '../../components/common/ShimmerLoading';
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MAP_HEIGHT = SCREEN_HEIGHT * 0.40;
+
+// Map height constraints
+const MAP_HEIGHT_DEFAULT = Math.round(SCREEN_HEIGHT * 0.40);
+const MAP_HEIGHT_MIN = Math.round(SCREEN_HEIGHT * 0.15);
+const MAP_HEIGHT_MAX = Math.round(SCREEN_HEIGHT * 0.60);
+
+// Drag handle height
+const HANDLE_HEIGHT = 28;
+
+// How long to wait after the last region change before updating radius/query
+const REGION_DEBOUNCE_MS = 600;
+
+// Google Maps API key (same project as Firebase — swapdog-d0cfe)
+const GOOGLE_API_KEY = 'AIzaSyBOF66WalEIXlKnowKip26mxkIAR4EfTpA';
 
 // Preset radius options in miles
 const RADIUS_OPTIONS = [1, 5, 10, 25] as const;
@@ -43,23 +71,28 @@ type Props = {
 // ─── Radius Selector ─────────────────────────────────────────────────────────
 
 interface RadiusSelectorProps {
-  selected: number;
-  onSelect: (r: RadiusMiles) => void;
+  radiusMiles: number;
+  onSelectPreset: (r: RadiusMiles) => void;
 }
 
-const RadiusSelector: React.FC<RadiusSelectorProps> = ({ selected, onSelect }) => {
+const RadiusSelector: React.FC<RadiusSelectorProps> = memo(({ radiusMiles, onSelectPreset }) => {
   const { colors } = useTheme();
+  // Show a preset as "active" only when the value exactly matches
+  const activePreset = (RADIUS_OPTIONS as readonly number[]).includes(radiusMiles)
+    ? (radiusMiles as RadiusMiles)
+    : null;
+
   return (
     <View style={styles.radiusRow}>
       <Text style={[styles.radiusLabel, { color: colors.textSecondary }]}>Radius:</Text>
       {RADIUS_OPTIONS.map((r) => {
-        const active = r === selected;
+        const active = r === activePreset;
         return (
           <TouchableOpacity
             key={r}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              onSelect(r);
+              onSelectPreset(r);
             }}
             style={[
               styles.radiusChip,
@@ -82,9 +115,24 @@ const RadiusSelector: React.FC<RadiusSelectorProps> = ({ selected, onSelect }) =
           </TouchableOpacity>
         );
       })}
+      {/* Live radius display when not matching a preset */}
+      {activePreset === null && (
+        <View
+          style={[
+            styles.radiusChip,
+            { backgroundColor: colors.primary, borderColor: colors.primary },
+          ]}
+        >
+          <Text style={[styles.radiusChipText, { color: '#FFFFFF' }]}>
+            {radiusMiles < 10
+              ? radiusMiles.toFixed(1)
+              : Math.round(radiusMiles).toString()} mi
+          </Text>
+        </View>
+      )}
     </View>
   );
-};
+});
 
 // ─── User Row ────────────────────────────────────────────────────────────────
 
@@ -95,7 +143,7 @@ interface UserRowProps {
   onPress: () => void;
 }
 
-const UserRow: React.FC<UserRowProps> = ({ user, distanceMiles, dogCount, onPress }) => {
+const UserRow: React.FC<UserRowProps> = memo(({ user, distanceMiles, dogCount, onPress }) => {
   const { colors } = useTheme();
   return (
     <TouchableOpacity
@@ -129,9 +177,9 @@ const UserRow: React.FC<UserRowProps> = ({ user, distanceMiles, dogCount, onPres
       <Text style={[styles.chevron, { color: colors.textSecondary }]}>›</Text>
     </TouchableOpacity>
   );
-};
+});
 
-// ─── Location Override Modal ─────────────────────────────────────────────────
+// ─── Location Override Modal (with Google Places Autocomplete) ───────────────
 
 interface LocationModalProps {
   visible: boolean;
@@ -149,28 +197,33 @@ const LocationModal: React.FC<LocationModalProps> = ({
   isOverride,
 }) => {
   const { colors } = useTheme();
-  const [text, setText] = useState('');
   const [resolving, setResolving] = useState(false);
 
-  const handleConfirm = async () => {
-    if (!text.trim()) return;
-    setResolving(true);
-    try {
-      const results = await Location.geocodeAsync(text.trim());
-      if (results.length === 0) {
-        Alert.alert('Not found', 'Could not find that location. Try a different city or address.');
-        setResolving(false);
+  const handlePlaceSelect = useCallback(
+    (data: GooglePlaceData, details: GooglePlaceDetail | null) => {
+      if (!details?.geometry?.location) {
+        // Fallback: geocode using expo-location if details are missing
+        setResolving(true);
+        void Location.geocodeAsync(data.description)
+          .then((results) => {
+            if (results.length === 0) {
+              Alert.alert('Not found', 'Could not find that location. Try a different address.');
+              return;
+            }
+            const { latitude, longitude } = results[0];
+            onConfirm({ latitude, longitude }, data.description);
+          })
+          .catch(() => {
+            Alert.alert('Error', 'Could not resolve that location. Please try again.');
+          })
+          .finally(() => setResolving(false));
         return;
       }
-      const { latitude, longitude } = results[0];
-      onConfirm({ latitude, longitude }, text.trim());
-      setText('');
-    } catch {
-      Alert.alert('Error', 'Could not geocode that location. Please try again.');
-    } finally {
-      setResolving(false);
-    }
-  };
+      const { lat, lng } = details.geometry.location;
+      onConfirm({ latitude: lat, longitude: lng }, data.description);
+    },
+    [onConfirm],
+  );
 
   return (
     <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
@@ -181,35 +234,69 @@ const LocationModal: React.FC<LocationModalProps> = ({
         <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>Change Location</Text>
           <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-            Enter a city, neighborhood, or address to search from a different location.
+            Search for a city, neighborhood, or address to find dogs nearby.
           </Text>
-          <TextInput
-            style={[
-              styles.modalInput,
-              { backgroundColor: colors.background, borderColor: colors.border, color: colors.text },
-            ]}
-            placeholder="e.g. Brooklyn, NY"
-            placeholderTextColor={colors.textSecondary}
-            value={text}
-            onChangeText={setText}
-            autoFocus
-            returnKeyType="search"
-            onSubmitEditing={() => { void handleConfirm(); }}
-          />
-          <TouchableOpacity
-            style={[
-              styles.modalBtn,
-              { backgroundColor: !text.trim() ? colors.border : colors.primary },
-            ]}
-            onPress={() => { void handleConfirm(); }}
-            disabled={resolving || !text.trim()}
-          >
-            {resolving ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.modalBtnText}>Search This Location</Text>
-            )}
-          </TouchableOpacity>
+
+          {/* Google Places Autocomplete */}
+          <View style={styles.autocompleteWrapper}>
+            <GooglePlacesAutocomplete
+              placeholder="e.g. Brooklyn, NY or 27 Ridge Dr"
+              onPress={handlePlaceSelect}
+              fetchDetails
+              query={{
+                key: GOOGLE_API_KEY,
+                language: 'en',
+                components: 'country:us',
+              }}
+              enablePoweredByContainer={false}
+              keepResultsAfterBlur={false}
+              autoFillOnNotFound={false}
+              styles={{
+                textInput: {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                  borderWidth: 1.5,
+                  borderRadius: borderRadius.md,
+                  color: colors.text,
+                  fontSize: 16,
+                  paddingHorizontal: spacing.md,
+                  height: 48,
+                },
+                textInputContainer: {
+                  paddingHorizontal: 0,
+                  backgroundColor: 'transparent',
+                },
+                listView: {
+                  backgroundColor: colors.surface,
+                  borderRadius: borderRadius.md,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  marginTop: 4,
+                  maxHeight: 220,
+                },
+                row: {
+                  backgroundColor: colors.surface,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm,
+                },
+                description: {
+                  color: colors.text,
+                  fontSize: 14,
+                },
+                poweredContainer: { display: 'none' },
+              }}
+            />
+          </View>
+
+          {resolving && (
+            <View style={styles.resolvingRow}>
+              <ActivityIndicator color={colors.primary} size="small" />
+              <Text style={[styles.resolvingText, { color: colors.textSecondary }]}>
+                Resolving location…
+              </Text>
+            </View>
+          )}
+
           {isOverride && (
             <TouchableOpacity
               style={[styles.modalBtnOutline, { borderColor: colors.secondary }]}
@@ -252,6 +339,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     clearLocationOverride,
   } = useDiscoverLocation();
 
+  // ── Core state ──────────────────────────────────────────────────────────────
   const [radiusMiles, setRadiusMiles] = useState<number>(5);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -259,15 +347,61 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
 
   const mapRef = useRef<MapView>(null);
 
+  // Debounce timer ref for region changes
+  const regionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Radius in meters for the Circle overlay
-  const radiusMeters = radiusMiles * 1609.34;
+  const radiusMeters = useMemo(() => radiusMiles * 1609.34, [radiusMiles]);
+
+  // ── Collapsible map: Animated height ────────────────────────────────────────
+  const mapHeightAnim = useRef(new Animated.Value(MAP_HEIGHT_DEFAULT)).current;
+  // We track the "committed" height so PanResponder can offset from it
+  const committedMapHeight = useRef(MAP_HEIGHT_DEFAULT);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        // Capture current animated value so we can offset from it
+        mapHeightAnim.stopAnimation((val) => {
+          committedMapHeight.current = val;
+        });
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        const newHeight = committedMapHeight.current + gestureState.dy;
+        const clamped = Math.max(MAP_HEIGHT_MIN, Math.min(MAP_HEIGHT_MAX, newHeight));
+        mapHeightAnim.setValue(clamped);
+      },
+      onPanResponderRelease: (_evt, gestureState) => {
+        const newHeight = committedMapHeight.current + gestureState.dy;
+        const clamped = Math.max(MAP_HEIGHT_MIN, Math.min(MAP_HEIGHT_MAX, newHeight));
+        // Snap: if dragged past halfway towards min, snap to min; otherwise to default/max
+        let snapTarget: number;
+        const midDown = (MAP_HEIGHT_MIN + MAP_HEIGHT_DEFAULT) / 2;
+        const midUp = (MAP_HEIGHT_DEFAULT + MAP_HEIGHT_MAX) / 2;
+        if (clamped < midDown) {
+          snapTarget = MAP_HEIGHT_MIN;
+        } else if (clamped > midUp) {
+          snapTarget = MAP_HEIGHT_MAX;
+        } else {
+          snapTarget = MAP_HEIGHT_DEFAULT;
+        }
+        committedMapHeight.current = snapTarget;
+        Animated.spring(mapHeightAnim, {
+          toValue: snapTarget,
+          useNativeDriver: false,
+          bounciness: 4,
+        }).start();
+      },
+    }),
+  ).current;
 
   // ── Fetch nearby users whenever location or radius changes ──────────────────
   const fetchNearby = useCallback(async () => {
     if (!location) return;
     setUsersLoading(true);
     try {
-      // getUsersByLocation takes radius in km
       const radiusKm = radiusMiles * 1.60934;
       const all = await getUsersByLocation(location.coords, radiusKm);
       const filtered = all.filter((u) => u.id !== userProfile?.id && u.location != null);
@@ -295,31 +429,108 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     void fetchNearby();
   }, [fetchNearby]);
 
-  // ── Re-center map when location or radius changes ────────────────────────────
+  // ── Re-center map when location or radius changes (from preset buttons) ──────
+  const animateMapToRadius = useCallback(
+    (lat: number, lng: number, miles: number) => {
+      if (!mapRef.current) return;
+      // latitudeDelta ≈ miles * 2 / 69  (then ×2.5 for comfortable padding)
+      const delta = Math.max(0.02, (miles / 69) * 2 * 2.5);
+      const region: Region = {
+        latitude: lat,
+        longitude: lng,
+        latitudeDelta: delta,
+        longitudeDelta: delta,
+      };
+      mapRef.current.animateToRegion(region, 600);
+    },
+    [],
+  );
+
   useEffect(() => {
-    if (!location || !mapRef.current) return;
-    const delta = Math.max(0.02, radiusMiles / 50);
-    const region: Region = {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      latitudeDelta: delta * 2.5,
-      longitudeDelta: delta * 2.5,
-    };
-    mapRef.current.animateToRegion(region, 600);
-  }, [location, radiusMiles]);
+    if (!location) return;
+    animateMapToRadius(location.coords.latitude, location.coords.longitude, radiusMiles);
+    // NOTE: only runs when location changes — radius-preset button taps call
+    // animateMapToRadius directly to avoid circular updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location]);
+
+  // ── Zoom ↔ Radius sync: when user pinch-zooms, update radius ─────────────
+  const handleRegionChangeComplete = useCallback(
+    (region: Region) => {
+      // Debounce to avoid firing on every micro-movement
+      if (regionDebounceRef.current) {
+        clearTimeout(regionDebounceRef.current);
+      }
+      regionDebounceRef.current = setTimeout(() => {
+        // 1° latitude ≈ 69 miles; visible half-height = latitudeDelta/2
+        const visibleRadiusMiles = (region.latitudeDelta / 2) * 69;
+        const rounded = Math.round(visibleRadiusMiles * 10) / 10;
+        // Only update if the change is significant (>0.2 mi) to avoid jitter
+        setRadiusMiles((prev) => {
+          return Math.abs(rounded - prev) >= 0.2 ? rounded : prev;
+        });
+      }, REGION_DEBOUNCE_MS);
+    },
+    [],
+  );
+
+  // ── Preset button taps: set radius AND animate map ───────────────────────
+  const handlePresetSelect = useCallback(
+    (r: RadiusMiles) => {
+      setRadiusMiles(r);
+      if (location) {
+        animateMapToRadius(location.coords.latitude, location.coords.longitude, r);
+      }
+    },
+    [location, animateMapToRadius],
+  );
 
   // ── Handle location override confirmed ──────────────────────────────────────
-  const handleLocationConfirm = async (coords: GeoPoint, label: string) => {
-    await setLocationOverride(coords, label);
-    setLocationModalVisible(false);
-  };
+  const handleLocationConfirm = useCallback(
+    async (coords: GeoPoint, label: string) => {
+      await setLocationOverride(coords, label);
+      setLocationModalVisible(false);
+    },
+    [setLocationOverride],
+  );
+
+  // ── Memoized FlatList renderItem to prevent re-renders ───────────────────
+  const renderUserItem = useCallback(
+    ({ item }: { item: NearbyUser }) => (
+      <UserRow
+        user={item.user}
+        distanceMiles={item.distanceMiles}
+        dogCount={item.dogCount}
+        onPress={() => navigation.navigate('UserDetail', { userId: item.user.id })}
+      />
+    ),
+    [navigation],
+  );
+
+  const keyExtractor = useCallback((item: NearbyUser) => item.user.id, []);
+
+  // ── Memoized list header ──────────────────────────────────────────────────
+  const listHeader = useMemo(
+    () => (
+      <Text style={[styles.listHeader, { color: colors.textSecondary }]}>
+        {nearbyUsers.length === 0
+          ? 'No dog owners found in this area'
+          : `${nearbyUsers.length} dog owner${nearbyUsers.length !== 1 ? 's' : ''} within ${
+              radiusMiles < 10
+                ? radiusMiles.toFixed(1)
+                : Math.round(radiusMiles).toString()
+            } mi`}
+      </Text>
+    ),
+    [nearbyUsers.length, radiusMiles, colors.textSecondary],
+  );
 
   // ── Loading state ────────────────────────────────────────────────────────────
   if (locationLoading || !location) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={{ height: MAP_HEIGHT, margin: spacing.md }}>
-          <ShimmerLoading height={MAP_HEIGHT} borderRadius={borderRadius.lg} />
+        <View style={{ height: MAP_HEIGHT_DEFAULT, margin: spacing.md }}>
+          <ShimmerLoading height={MAP_HEIGHT_DEFAULT} borderRadius={borderRadius.lg} />
         </View>
         {[1, 2, 3].map((i) => (
           <View key={i} style={{ marginHorizontal: spacing.md, marginBottom: spacing.sm }}>
@@ -333,20 +544,32 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const initialRegion: Region = {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
-    latitudeDelta: Math.max(0.05, (radiusMiles / 50) * 2.5),
-    longitudeDelta: Math.max(0.05, (radiusMiles / 50) * 2.5),
+    latitudeDelta: Math.max(0.05, (radiusMiles / 69) * 2 * 2.5),
+    longitudeDelta: Math.max(0.05, (radiusMiles / 69) * 2 * 2.5),
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* ── MAP ── */}
-      <View style={[styles.mapContainer, { height: MAP_HEIGHT }]}>
+
+      {/* ── ANIMATED MAP CONTAINER ── */}
+      <Animated.View
+        style={[
+          styles.mapContainer,
+          {
+            height: mapHeightAnim,
+            borderBottomLeftRadius: borderRadius.lg,
+            borderBottomRightRadius: borderRadius.lg,
+            overflow: 'hidden',
+          },
+        ]}
+      >
         <MapView
           ref={mapRef}
-          style={styles.map}
+          style={StyleSheet.absoluteFillObject}
           initialRegion={initialRegion}
           showsUserLocation={false}
           showsMyLocationButton={false}
+          onRegionChangeComplete={handleRegionChangeComplete}
         >
           {/* User's own position marker */}
           <Marker
@@ -354,13 +577,13 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
             title={location.isOverride ? (location.label ?? 'Custom Location') : 'Your Location'}
             pinColor={colors.primary}
           />
-          {/* Search radius circle overlay — translucent coral */}
+          {/* Search radius circle overlay */}
           <Circle
             center={location.coords}
             radius={radiusMeters}
             strokeColor={colors.primary}
             strokeWidth={2}
-            fillColor="rgba(255, 107, 107, 0.15)"
+            fillColor="rgba(255, 45, 85, 0.12)"
           />
         </MapView>
 
@@ -377,6 +600,16 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
             {location.isOverride ? `📍 ${location.label ?? 'Custom'}` : '📍 Change Location'}
           </Text>
         </TouchableOpacity>
+      </Animated.View>
+
+      {/* ── DRAG HANDLE ── */}
+      <View
+        style={[styles.dragHandle, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        {...panResponder.panHandlers}
+        accessibilityLabel="Drag to resize map"
+        accessibilityRole="adjustable"
+      >
+        <View style={[styles.dragPill, { backgroundColor: colors.border }]} />
       </View>
 
       {/* ── RADIUS SELECTOR ── */}
@@ -386,10 +619,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
           { backgroundColor: colors.surface, borderColor: colors.border },
         ]}
       >
-        <RadiusSelector
-          selected={radiusMiles}
-          onSelect={(r) => setRadiusMiles(r)}
-        />
+        <RadiusSelector radiusMiles={radiusMiles} onSelectPreset={handlePresetSelect} />
       </View>
 
       {/* ── USER LIST ── */}
@@ -404,15 +634,9 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
       ) : (
         <FlatList
           data={nearbyUsers}
-          keyExtractor={(item) => item.user.id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.list}
-          ListHeaderComponent={
-            <Text style={[styles.listHeader, { color: colors.textSecondary }]}>
-              {nearbyUsers.length === 0
-                ? 'No dog owners found in this area'
-                : `${nearbyUsers.length} dog owner${nearbyUsers.length !== 1 ? 's' : ''} within ${radiusMiles} mi`}
-            </Text>
-          }
+          ListHeaderComponent={listHeader}
           ListEmptyComponent={
             <EmptyStateView
               emoji="🐕"
@@ -420,14 +644,11 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
               subtitle="Try expanding your radius or changing your location"
             />
           }
-          renderItem={({ item }) => (
-            <UserRow
-              user={item.user}
-              distanceMiles={item.distanceMiles}
-              dogCount={item.dogCount}
-              onPress={() => navigation.navigate('UserDetail', { userId: item.user.id })}
-            />
-          )}
+          renderItem={renderUserItem}
+          removeClippedSubviews
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
         />
       )}
 
@@ -451,11 +672,7 @@ const styles = StyleSheet.create({
   // Map
   mapContainer: {
     position: 'relative',
-    overflow: 'hidden',
-    borderBottomLeftRadius: borderRadius.lg,
-    borderBottomRightRadius: borderRadius.lg,
   },
-  map: { ...StyleSheet.absoluteFillObject },
   locationBtn: {
     position: 'absolute',
     top: spacing.sm,
@@ -466,13 +683,26 @@ const styles = StyleSheet.create({
   },
   locationBtnText: { fontSize: 13, fontWeight: '600' },
 
+  // Drag handle
+  dragHandle: {
+    height: HANDLE_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+  },
+  dragPill: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
+
   // Radius selector
   radiusContainer: {
     borderBottomWidth: 1,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
   },
-  radiusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  radiusRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
   radiusLabel: { fontSize: 13, fontWeight: '600', marginRight: spacing.xs },
   radiusChip: {
     paddingHorizontal: 12,
@@ -521,20 +751,19 @@ const styles = StyleSheet.create({
   },
   modalTitle: { ...typography.h3, marginBottom: spacing.xs },
   modalSubtitle: { ...typography.bodySmall, marginBottom: spacing.md },
-  modalInput: {
-    borderWidth: 1.5,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    fontSize: 16,
+  autocompleteWrapper: {
+    marginBottom: spacing.md,
+    // Must have a fixed or min-height so the dropdown doesn't get clipped by the sheet
+    zIndex: 10,
+    minHeight: 50,
+  },
+  resolvingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     marginBottom: spacing.md,
   },
-  modalBtn: {
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  modalBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  resolvingText: { fontSize: 14 },
   modalBtnOutline: {
     padding: spacing.md,
     borderRadius: borderRadius.md,

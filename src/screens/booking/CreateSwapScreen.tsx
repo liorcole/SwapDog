@@ -62,19 +62,21 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  const targetUserId = route.params?.userId ?? '';
+
   useEffect(() => {
     if (!user) return;
     Promise.all([
       getDogsByOwner(user.uid),
-      getDogsByOwner(route.params.userId),
-      getUser(route.params.userId),
+      getDogsByOwner(targetUserId),
+      getUser(targetUserId),
     ]).then(([mine, theirs, u]) => {
       setMyDogs(mine);
       if (mine.length > 0) setSelectedMyDogId(mine[0].id);
       setReceiverDogs(theirs);
       setReceiver(u);
     }).finally(() => setLoading(false));
-  }, [user, route.params.userId]);
+  }, [user, targetUserId]);
 
   const selectedDog = myDogs.find((d) => d.id === selectedMyDogId) ?? null;
 

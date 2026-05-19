@@ -41,6 +41,8 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { getMyPosts } = useSwaps();
   const { getOrCreateConversation, sendMessage } = useMessaging();
 
+  const userId = route.params?.userId ?? '';
+
   const [user, setUser] = useState<User | null>(null);
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [myOpenPost, setMyOpenPost] = useState<SwapPost | null>(null);
@@ -50,8 +52,8 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   useEffect(() => {
     const load = async () => {
       const [u, d] = await Promise.all([
-        getUser(route.params.userId),
-        getDogsByOwner(route.params.userId),
+        getUser(userId),
+        getDogsByOwner(userId),
       ]);
       setUser(u);
       setDogs(d);
@@ -65,7 +67,7 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       setLoading(false);
     };
     void load();
-  }, [route.params.userId, me?.id]);
+  }, [userId, me?.id]);
 
   const handleSendPost = async () => {
     if (!me?.id || !user || !myOpenPost) return;

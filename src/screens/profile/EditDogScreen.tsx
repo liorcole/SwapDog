@@ -35,7 +35,7 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getDog(route.params.dogId).then((d) => {
+    getDog(route.params?.dogId ?? '').then((d) => {
       if (d) {
         setDog(d);
         setName(d.name);
@@ -49,13 +49,13 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
       }
       setLoading(false);
     });
-  }, [route.params.dogId]);
+  }, [route.params?.dogId ?? '']);
 
   const handleSave = async () => {
     if (!name.trim()) { Alert.alert('Required', 'Dog name is required'); return; }
     setSaving(true);
     try {
-      await updateDog(route.params.dogId, {
+      await updateDog(route.params?.dogId ?? '', {
         name: name.trim(),
         breed: breed.trim(),
         ageYears,
@@ -80,7 +80,7 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          await deleteDog(route.params.dogId);
+          await deleteDog(route.params?.dogId ?? '');
           navigation.goBack();
         },
       },

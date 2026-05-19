@@ -18,17 +18,24 @@ export default function App() {
 
   useEffect(() => {
     const receivedSub = addNotificationReceivedListener((notification) => {
-      console.log('Notification received:', notification.request.content.title);
+      // Guard the full chain — content may be undefined for silent/data-only pushes
+      console.log('Notification received:', notification?.request?.content?.title);
     });
 
     const responseSub = addNotificationResponseListener((response) => {
-      const data = response.notification.request.content.data as Record<string, string>;
+      // Guard every level — content can be undefined for certain push types on Android
+      const data = response?.notification?.request?.content?.data as
+        | Record<string, string>
+        | undefined;
       if (data?.conversationId && navigationRef.current) {
         navigationRef.current.navigate('Main', {
           screen: 'MessagesTab',
           params: {
             screen: 'Chat',
-            params: { conversationId: data.conversationId, otherUserId: data.otherUserId ?? '' },
+            params: {
+              conversationId: data.conversationId,
+              otherUserId: data.otherUserId ?? '',
+            },
           },
         } as never);
       }

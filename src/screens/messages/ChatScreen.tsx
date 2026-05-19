@@ -21,6 +21,7 @@ type Props = {
 };
 
 const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
+  const conversationId = route.params?.conversationId ?? '';
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
@@ -38,16 +39,16 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   // Mark conversation as read when the user opens the chat
   useEffect(() => {
     if (user?.uid) {
-      void markConversationRead(route.params.conversationId, user.uid);
+      void markConversationRead(conversationId, user.uid);
     }
-  }, [route.params.conversationId, user?.uid, markConversationRead]);
+  }, [conversationId, user?.uid, markConversationRead]);
 
   useEffect(() => {
-    const unsub = subscribeToMessages(route.params.conversationId, (msgs) => {
+    const unsub = subscribeToMessages(conversationId, (msgs) => {
       setMessages(msgs.reverse()); // inverted for FlatList inverted
     });
     return unsub;
-  }, [route.params.conversationId]);
+  }, [conversationId]);
 
   const handleSend = async () => {
     if (!text.trim() || !user || sending) return;
@@ -55,7 +56,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     setText('');
     setSending(true);
     try {
-      await sendMessage(route.params.conversationId, user.uid, toSend);
+      await sendMessage(conversationId, user.uid, toSend);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } finally {
       setSending(false);

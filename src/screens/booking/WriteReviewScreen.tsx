@@ -30,8 +30,8 @@ const WriteReviewScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       await createReview({
         reviewerId: user.uid,
-        revieweeId: route.params.revieweeId,
-        swapRequestId: route.params.swapRequestId,
+        revieweeId: route.params?.revieweeId ?? '',
+        swapRequestId: route.params?.swapRequestId ?? '',
         rating,
         comment: comment.trim() || undefined,
       });

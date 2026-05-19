@@ -37,18 +37,25 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [claiming, setClaiming] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
+  // Guard against undefined params (e.g. deep-link or navigation without params)
+  const postId = route.params?.postId;
+
   useEffect(() => {
+    if (!postId) {
+      setLoading(false);
+      return;
+    }
     const fetchPost = async () => {
       try {
         const areaPosts = await getAreaPosts();
-        const found = areaPosts.find((p) => p.id === route.params.postId) ?? null;
+        const found = areaPosts.find((p) => p.id === postId) ?? null;
         if (found) {
           setPost(found);
           return;
         }
         if (user?.uid) {
           const myPosts = await getMyPosts(user.uid);
-          const ownPost = myPosts.find((p) => p.id === route.params.postId) ?? null;
+          const ownPost = myPosts.find((p) => p.id === postId) ?? null;
           setPost(ownPost);
         }
       } finally {
@@ -56,7 +63,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       }
     };
     fetchPost();
-  }, [route.params.postId, user?.uid]);
+  }, [postId, user?.uid]);
 
   const handleHelp = async () => {
     if (!user || !post) return;

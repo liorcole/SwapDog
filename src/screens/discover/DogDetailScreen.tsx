@@ -17,7 +17,7 @@ type Props = {
 
 const DogDetailScreen: React.FC<Props> = ({ route }) => {
   const { colors } = useTheme();
-  const { dogId } = route.params;
+  const { dogId } = route.params ?? {};
   const { getDog } = useDogs();
   const [dog, setDog] = useState<Dog | null>(null);
   const [loading, setLoading] = useState(true);

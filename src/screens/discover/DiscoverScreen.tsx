@@ -151,10 +151,14 @@ const RadiusSelector: React.FC<RadiusSelectorProps> = memo(({ radiusMiles, onSel
 
 interface PostCardProps {
   post: SwapPost;
-  onPress: () => void;
+  onPress: (postId: string) => void;
 }
 
 const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
+  const handlePostPress = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress(post.id);
+  }, [onPress, post.id]);
   const { colors } = useTheme();
   const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -178,10 +182,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
   return (
     <TouchableOpacity
       style={[styles.postCard, { backgroundColor: colors.surface, ...shadow.sm }]}
-      onPress={() => {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        onPress();
-      }}
+      onPress={handlePostPress}
       accessibilityRole="button"
       accessibilityLabel={`${post.posterName}'s post for ${post.dogName}`}
     >
@@ -253,18 +254,19 @@ interface UserRowProps {
   user: User;
   distanceMiles: number;
   dogCount: number;
-  onPress: () => void;
+  onPress: (userId: string) => void;
 }
 
 const UserRow: React.FC<UserRowProps> = memo(({ user, distanceMiles, dogCount, onPress }) => {
+  const handleUserPress = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress(user.id);
+  }, [onPress, user.id]);
   const { colors } = useTheme();
   return (
     <TouchableOpacity
       style={[styles.userRow, { backgroundColor: colors.surface, ...shadow.sm }]}
-      onPress={() => {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        onPress();
-      }}
+      onPress={handleUserPress}
       accessibilityLabel={`${user.displayName}, ${formatDistance(distanceMiles)}`}
       accessibilityRole="button"
       accessibilityHint="Opens this user's full profile"
@@ -441,6 +443,22 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(({ item }) => {
   );
 });
 
+// ─── Feed sub-rows (memoized, own their own colors) ──────────────────────────
+
+const FeedEmptyRow: React.FC<{ text: string }> = memo(({ text }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.sectionEmpty, { backgroundColor: colors.background }]}>
+      <Text style={[styles.sectionEmptyText, { color: colors.textSecondary }]}>{text}</Text>
+    </View>
+  );
+});
+
+const FeedDividerRow: React.FC = memo(() => {
+  const { colors } = useTheme();
+  return <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />;
+});
+
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
@@ -465,6 +483,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const mapRef = useRef<MapView>(null);
   const isProgrammaticMoveRef = useRef(false);
   const regionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Animated map height ────────────────────────────────────────────────────
   const mapHeightAnim = useRef(new Animated.Value(MAP_HEIGHT_DEFAULT)).current;
@@ -515,7 +534,6 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     finally { setUsersLoading(false); }
   }, [location, radiusMiles, userProfile?.id, getUsersByLocation]);
 
-  useEffect(() => { void fetchNearby(); }, [fetchNearby]);
 
   // ── Fetch area posts ──────────────────────────────────────────────────────
   const fetchAreaPosts = useCallback(async () => {
@@ -531,7 +549,17 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     finally { setPostsLoading(false); }
   }, [location, radiusMiles, userProfile?.id, getAreaPosts]);
 
-  useEffect(() => { void fetchAreaPosts(); }, [fetchAreaPosts]);
+  // ── Combined debounced fetch — prevents rapid re-fetches on radius changes ─────
+  useEffect(() => {
+    if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+    fetchDebounceRef.current = setTimeout(() => {
+      void fetchNearby();
+      void fetchAreaPosts();
+    }, 300);
+    return () => {
+      if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+    };
+  }, [fetchNearby, fetchAreaPosts]);
 
   // ── Load user's own open post ──────────────────────────────────────────────
   useEffect(() => {
@@ -660,40 +688,41 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   }, [areaPosts, nearbyUsers, radiusMiles]);
 
   // ── FlatList render ────────────────────────────────────────────────────────
+  const handleNavigateToPost = useCallback(
+    (postId: string) => navigation.navigate('PostDetail', { postId }),
+    [navigation],
+  );
+
+  const handleNavigateToUser = useCallback(
+    (userId: string) => navigation.navigate('UserDetail', { userId }),
+    [navigation],
+  );
+
   const renderFeedItem: ListRenderItem<FeedItem> = useCallback(
     ({ item }) => {
       switch (item.kind) {
         case 'section_header':
           return <SectionHeaderRow item={item} />;
         case 'post':
-          return (
-            <PostCard
-              post={item.post}
-              onPress={() => navigation.navigate('PostDetail', { postId: item.post.id })}
-            />
-          );
+          return <PostCard post={item.post} onPress={handleNavigateToPost} />;
         case 'user':
           return (
             <UserRow
               user={item.nu.user}
               distanceMiles={item.nu.distanceMiles}
               dogCount={item.nu.dogCount}
-              onPress={() => navigation.navigate('UserDetail', { userId: item.nu.user.id })}
+              onPress={handleNavigateToUser}
             />
           );
         case 'empty':
-          return (
-            <View style={[styles.sectionEmpty, { backgroundColor: colors.background }]}>
-              <Text style={[styles.sectionEmptyText, { color: colors.textSecondary }]}>{item.text}</Text>
-            </View>
-          );
+          return <FeedEmptyRow text={item.text} />;
         case 'divider':
-          return <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />;
+          return <FeedDividerRow />;
         default:
           return null;
       }
     },
-    [navigation, colors],
+    [handleNavigateToPost, handleNavigateToUser],
   );
 
   const keyExtractor = useCallback((item: FeedItem) => item.id, []);

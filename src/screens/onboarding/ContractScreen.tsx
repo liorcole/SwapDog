@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics'
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { sendWelcomeMessageIfNeeded } from '../../hooks/useMessaging';
 import { db } from '../../config/firebase';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -104,6 +105,8 @@ const ContractScreen: React.FC<ContractScreenProps> = ({
         contractSignedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      // Send welcome message the first time (idempotent)
+      await sendWelcomeMessageIfNeeded(user.uid);
       await refreshUserProfile();
       onSigned?.();
     } catch {

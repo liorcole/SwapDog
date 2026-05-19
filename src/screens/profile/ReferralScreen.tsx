@@ -8,8 +8,12 @@ import {
   Share,
   Clipboard,
   Alert,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import * as SMS from 'expo-sms';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -28,11 +32,18 @@ const APP_LINK = 'https://swapdog.app';
 const ReferralScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user, userProfile } = useAuthContext();
+  const insets = useSafeAreaInsets();
   const [referrals, setReferrals] = useState<User[]>([]);
   const [referralCount, setReferralCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [smsAvailable, setSmsAvailable] = useState(false);
 
   const referralCode = userProfile?.referralCode ?? '';
+
+  // Check SMS availability on mount
+  useEffect(() => {
+    SMS.isAvailableAsync().then(setSmsAvailable).catch(() => setSmsAvailable(false));
+  }, []);
 
   const loadReferrals = useCallback(async () => {
     if (!user) return;
@@ -61,6 +72,20 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
     Alert.alert('Copied!', `Your referral code "${referralCode}" has been copied to the clipboard.`);
   };
 
+  const handleTextFriend = async () => {
+    if (!referralCode) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const message =
+      `Hey! 🐾 I've been using SwapDog — it's an amazing community for peer-to-peer dog ` +
+      `sitting with people you can trust. Use my referral code ${referralCode} to join! ` +
+      `Download: ${APP_LINK}`;
+    try {
+      await SMS.sendSMSAsync([], message);
+    } catch {
+      Alert.alert('Oops', 'Could not open the SMS app. Please try again.');
+    }
+  };
+
   const handleShare = async () => {
     if (!referralCode) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -85,10 +110,13 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
+  // Top padding: use safe area insets with a minimum so the back button is always reachable
+  const topPadding = Math.max(insets.top, Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight ?? 24) + 10);
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: topPadding }]}
     >
       {/* Header */}
       <View style={styles.headerRow}>
@@ -135,24 +163,38 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
           <View style={[styles.codeBox, { backgroundColor: colors.background, borderColor: colors.primary }]}>
             <Text style={[styles.codeText, { color: colors.primary }]}>{referralCode}</Text>
           </View>
-          <View style={styles.btnRow}>
+
+          {/* Copy code */}
+          <TouchableOpacity
+            style={[styles.fullWidthBtn, { borderColor: colors.primary, borderWidth: 1.5 }]}
+            onPress={handleCopyCode}
+            accessibilityLabel={`Copy referral code ${referralCode}`}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.fullWidthBtnText, { color: colors.primary }]}>📋  Copy Code</Text>
+          </TouchableOpacity>
+
+          {/* Text a Friend — coral fill, only shown when SMS is available */}
+          {smsAvailable && (
             <TouchableOpacity
-              style={[styles.actionBtn, styles.copyBtn, { borderColor: colors.primary }]}
-              onPress={handleCopyCode}
-              accessibilityLabel={`Copy referral code ${referralCode}`}
+              style={[styles.fullWidthBtn, styles.smsBtn, { backgroundColor: colors.primary }]}
+              onPress={handleTextFriend}
+              accessibilityLabel="Text a friend your referral code"
               accessibilityRole="button"
             >
-              <Text style={[styles.actionBtnText, { color: colors.primary }]}>📋 Copy Code</Text>
+              <Text style={[styles.fullWidthBtnText, { color: '#fff' }]}>📱  Text a Friend</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.shareBtn, { backgroundColor: colors.primary }]}
-              onPress={handleShare}
-              accessibilityLabel="Share your referral code"
-              accessibilityRole="button"
-            >
-              <Text style={[styles.actionBtnText, { color: '#fff' }]}>🔗 Share</Text>
-            </TouchableOpacity>
-          </View>
+          )}
+
+          {/* General share — teal secondary */}
+          <TouchableOpacity
+            style={[styles.fullWidthBtn, { borderColor: '#4ECDC4', borderWidth: 1.5 }]}
+            onPress={handleShare}
+            accessibilityLabel="Share your referral code"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.fullWidthBtnText, { color: '#4ECDC4' }]}>🔗  Share via…</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <View style={[styles.codeSection, { backgroundColor: colors.surface, ...shadow.sm }]}>
@@ -233,32 +275,40 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1,
     textTransform: 'uppercase',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   codeBox: {
     borderWidth: 2,
     borderRadius: borderRadius.md,
     padding: spacing.md,
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
   codeText: { fontSize: 28, fontWeight: '800', letterSpacing: 4 },
-  btnRow: { flexDirection: 'row', gap: spacing.sm },
-  actionBtn: {
-    flex: 1,
+
+  // Buttons
+  fullWidthBtn: {
     padding: spacing.md,
     borderRadius: borderRadius.md,
     alignItems: 'center',
   },
-  copyBtn: { borderWidth: 1.5 },
-  shareBtn: {},
-  actionBtnText: { fontSize: 15, fontWeight: '700' },
+  fullWidthBtnText: { fontSize: 15, fontWeight: '700' },
+  smsBtn: {
+    // extra prominence via shadow offset
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+
   noCodeText: { fontSize: 14, textAlign: 'center', paddingVertical: spacing.md },
 
   // Referrals section

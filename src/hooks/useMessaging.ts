@@ -139,3 +139,52 @@ export const useMessaging = () => {
     getOrCreateConversation,
   };
 };
+
+// ── System sender constants ───────────────────────────────────────────────────
+const SYSTEM_SENDER_ID = 'swapdog-team';
+
+const WELCOME_TEXT =
+  'Welcome to SwapDog! 🐾\n\n' +
+  "We're so happy to have you in the family! You're now part of a trusted " +
+  'community of dog lovers who look out for each other\'s pups.\n\n' +
+  'If you ever need help or have questions, reach out to us at hello@swapdog.com.\n\n' +
+  'Happy swapping! 🐕';
+
+/**
+ * Creates a welcome conversation from SwapDog Team the first time a user
+ * completes onboarding (contract signed). Safe to call multiple times —
+ * it checks for an existing welcome conversation before creating one.
+ */
+export const sendWelcomeMessageIfNeeded = async (userId: string): Promise<void> => {
+  // Check whether the welcome conversation already exists
+  const q = query(
+    collection(db, 'conversations'),
+    where('participantIds', 'array-contains', userId)
+  );
+  const snap = await getDocs(q);
+  const alreadyExists = snap.docs.some((d) => {
+    const participants = (d.data().participantIds as string[]) ?? [];
+    return participants.includes(SYSTEM_SENDER_ID);
+  });
+  if (alreadyExists) return;
+
+  // Create the welcome conversation
+  const convRef = await addDoc(collection(db, 'conversations'), {
+    participantIds: [userId, SYSTEM_SENDER_ID],
+    swapRequestId: null,
+    unreadCounts: { [userId]: 1 },
+    lastMessage: 'Welcome to SwapDog! 🐾',
+    lastMessageAt: serverTimestamp(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  // Add the welcome message itself
+  await addDoc(collection(db, 'conversations', convRef.id, 'messages'), {
+    conversationId: convRef.id,
+    senderId: SYSTEM_SENDER_ID,
+    text: WELCOME_TEXT,
+    read: false,
+    createdAt: serverTimestamp(),
+  });
+};

@@ -12,6 +12,7 @@ import {
   addNotificationReceivedListener,
   addNotificationResponseListener,
 } from './src/services/NotificationService';
+import { ErrorBoundary } from './src/components/common/ErrorBoundary';
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
@@ -48,14 +49,16 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <NavigationContainer ref={navigationRef} linking={linking}>
-            <AppNavigator />
-          </NavigationContainer>
-        </AuthProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <NavigationContainer ref={navigationRef} linking={linking}>
+              <AppNavigator />
+            </NavigationContainer>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }

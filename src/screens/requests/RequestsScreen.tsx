@@ -200,8 +200,8 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Points & payment info */}
         <View style={styles.compensationRow}>
-          <View style={[styles.compensationBadge, { backgroundColor: '#FF6B6B18', borderColor: '#FF6B6B' }]}>
-            <Text style={[styles.compensationBadgeText, { color: '#FF6B6B' }]}>
+          <View style={[styles.compensationBadge, { backgroundColor: '#FF2D5518', borderColor: '#FF2D55' }]}>
+            <Text style={[styles.compensationBadgeText, { color: '#FF2D55' }]}>
               🪙 {item.pointsCost.toFixed(1)} pts
             </Text>
           </View>
@@ -271,8 +271,8 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
               style={[
                 styles.radioOption,
                 {
-                  borderColor: selectedPref === 'points' ? '#FF6B6B' : colors.border,
-                  backgroundColor: selectedPref === 'points' ? '#FF6B6B18' : colors.surface,
+                  borderColor: selectedPref === 'points' ? '#FF2D55' : colors.border,
+                  backgroundColor: selectedPref === 'points' ? '#FF2D5518' : colors.surface,
                 },
               ]}
               onPress={() => {
@@ -283,8 +283,8 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
               accessibilityRole="radio"
               accessibilityState={{ checked: selectedPref === 'points' }}
             >
-              <View style={[styles.radioCircle, { borderColor: selectedPref === 'points' ? '#FF6B6B' : colors.border }]}>
-                {selectedPref === 'points' && <View style={[styles.radioFill, { backgroundColor: '#FF6B6B' }]} />}
+              <View style={[styles.radioCircle, { borderColor: selectedPref === 'points' ? '#FF2D55' : colors.border }]}>
+                {selectedPref === 'points' && <View style={[styles.radioFill, { backgroundColor: '#FF2D55' }]} />}
               </View>
               <Text style={[styles.radioLabel, { color: colors.text }]}>
                 🪙 I'll take points ({item.pointsCost.toFixed(1)} pts)

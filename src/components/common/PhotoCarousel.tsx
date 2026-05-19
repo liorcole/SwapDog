@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
   placeholderText: { fontSize: 48 },
   dots: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ccc', marginHorizontal: 3 },
-  dotActive: { backgroundColor: '#FF6B6B' },
+  dotActive: { backgroundColor: '#FF2D55' },
 });
 
 export default PhotoCarousel;

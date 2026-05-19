@@ -8,12 +8,9 @@ import {
   Share,
   Clipboard,
   Alert,
-  Platform,
-  StatusBar,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as SMS from 'expo-sms';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -32,7 +29,6 @@ const APP_LINK = 'https://swapdog.app';
 const ReferralScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user, userProfile } = useAuthContext();
-  const insets = useSafeAreaInsets();
   const [referrals, setReferrals] = useState<User[]>([]);
   const [referralCount, setReferralCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -110,25 +106,11 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  // Top padding: use safe area insets with a minimum so the back button is always reachable
-  const topPadding = Math.max(insets.top, Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight ?? 24) + 10);
-
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={[styles.content, { paddingTop: topPadding }]}
+      contentContainerStyle={styles.content}
     >
-      {/* Header */}
-      <View style={styles.headerRow}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-          style={styles.backBtn}
-        >
-          <Text style={[styles.backText, { color: colors.primary }]}>‹ Back</Text>
-        </TouchableOpacity>
-      </View>
       <Text style={[styles.title, { color: colors.text }]}>🎁 Invite a Friend</Text>
 
       {/* Trust & Safety Card */}
@@ -247,9 +229,6 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: spacing.lg, paddingBottom: 60 },
-  headerRow: { marginBottom: spacing.sm },
-  backBtn: { alignSelf: 'flex-start' },
-  backText: { fontSize: 18, fontWeight: '500' },
   title: { ...typography.h2, marginBottom: spacing.lg },
 
   // Trust & Safety
@@ -302,7 +281,7 @@ const styles = StyleSheet.create({
   fullWidthBtnText: { fontSize: 15, fontWeight: '700' },
   smsBtn: {
     // extra prominence via shadow offset
-    shadowColor: '#FF6B6B',
+    shadowColor: '#FF2D55',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

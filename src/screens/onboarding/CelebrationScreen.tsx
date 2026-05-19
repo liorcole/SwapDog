@@ -20,7 +20,7 @@ type Props = {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const CONFETTI_COLORS = [
-  '#FF6B6B', // coral (primary)
+  '#FF2D55', // coral (primary)
   '#4ECDC4', // teal (secondary)
   '#FDCB6E', // gold (warning)
   '#A29BFE', // lavender

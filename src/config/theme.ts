@@ -14,14 +14,14 @@ export const colors = {
 export const darkColors = {
   primary: '#FF2D55',
   secondary: '#4ECDC4',
-  background: '#1A0A0A',
-  surface: '#2A1414',
+  background: '#1C0812',
+  surface: '#2D1420',
   text: '#FAFAFA',
-  textSecondary: '#C0A0A0',
+  textSecondary: '#D4B0BC',
   error: '#E17055',
   success: '#00B894',
   warning: '#FDCB6E',
-  border: '#3D2020',
+  border: '#4A2034',
 };
 
 export const spacing = {

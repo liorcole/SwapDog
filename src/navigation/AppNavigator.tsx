@@ -12,6 +12,7 @@ import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen
 import VettingCallScreen from '../screens/onboarding/VettingCallScreen';
 import WaitingApprovalScreen from '../screens/onboarding/WaitingApprovalScreen';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { sendWelcomeMessageIfNeeded } from '../hooks/useMessaging';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -33,6 +34,19 @@ const AppNavigator: React.FC = () => {
     };
     checkReferral();
   }, []);
+
+  // Send welcome message for any active+signed user who didn't receive it
+  // at contract-signing time (e.g. users who signed before this feature shipped).
+  useEffect(() => {
+    if (!user || !userProfile) return;
+    const isActiveAndSigned =
+      userProfile.accountStatus === 'active' && !!userProfile.contractSignedAt;
+    if (!isActiveAndSigned) return;
+
+    sendWelcomeMessageIfNeeded(user.uid).catch((err) =>
+      console.warn('[AppNavigator] sendWelcomeMessageIfNeeded failed:', err)
+    );
+  }, [user?.uid, userProfile?.accountStatus, userProfile?.contractSignedAt]);
 
   if (loading || !referralChecked) {
     return <LoadingSpinner />;

@@ -14,6 +14,14 @@ type Props = {
   navigation: NativeStackNavigationProp<MessagesStackParamList, 'ConversationsList'>;
 };
 
+const SYSTEM_SENDER_ID = 'swapdog-team';
+
+const getOtherParticipantLabel = (participantIds: string[], myUid: string): string => {
+  const otherId = participantIds.find((id) => id !== myUid) ?? '';
+  if (otherId === SYSTEM_SENDER_ID) return '🐾 SwapDog Team';
+  return otherId; // fallback; real app would resolve display name
+};
+
 const ConversationsListScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
@@ -28,6 +36,7 @@ const ConversationsListScreen: React.FC<Props> = ({ navigation }) => {
 
   const renderItem = ({ item }: { item: Conversation }) => {
     const otherId = item.participantIds.find((id) => id !== user?.uid) ?? '';
+    const otherLabel = getOtherParticipantLabel(item.participantIds, user?.uid ?? '');
     const unread = item.unreadCounts[user?.uid ?? ''] ?? 0;
 
     return (
@@ -37,11 +46,14 @@ const ConversationsListScreen: React.FC<Props> = ({ navigation }) => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           navigation.navigate('Chat', { conversationId: item.id, otherUserId: otherId });
         }}
-        accessibilityLabel={`Conversation, last message: ${item.lastMessage ?? 'No messages yet'}`}
+        accessibilityLabel={`Conversation with ${otherLabel}, last message: ${item.lastMessage ?? 'No messages yet'}`}
         accessibilityRole="button"
         accessibilityHint="Opens this conversation"
       >
         <View style={styles.info}>
+          <Text style={[styles.otherName, { color: colors.primary }]} numberOfLines={1}>
+            {otherLabel}
+          </Text>
           <Text style={[styles.preview, { color: colors.text }]} numberOfLines={1}>
             {item.lastMessage ?? 'No messages yet'}
           </Text>
@@ -84,6 +96,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   info: { flex: 1 },
+  otherName: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   preview: { fontSize: 15 },
   time: { fontSize: 12, marginTop: 2 },
   badge: {

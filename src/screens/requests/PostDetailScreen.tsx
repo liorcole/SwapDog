@@ -234,14 +234,9 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       {/* Compensation */}
       <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>💰 Compensation</Text>
-        <View style={[styles.compBadge, {
-          backgroundColor: post.compensationType === 'points' ? colors.primary + '18' : '#00B89418',
-          borderColor: post.compensationType === 'points' ? colors.primary : '#00B894',
-        }]}>
-          <Text style={[styles.compBadgeText, { color: post.compensationType === 'points' ? colors.primary : '#00B894' }]}>
-            {compensationLabel()}
-          </Text>
-        </View>
+        <Text style={[styles.compText, { color: colors.text }]}>
+          {compensationLabel()}
+        </Text>
         {(post.compensationType === 'payment' || post.compensationType === 'either') && (
           <View style={[styles.offAppNote, { backgroundColor: '#FFF9E6', borderColor: '#F0C040' }]}>
             <Text style={[styles.offAppNoteText, { color: '#7A6000' }]}>
@@ -379,9 +374,8 @@ const styles = StyleSheet.create({
   // Dates
   dates: { fontSize: 16, fontWeight: '600' },
   // Compensation
-  compBadge: { borderWidth: 1.5, borderRadius: borderRadius.md, padding: spacing.sm, alignItems: 'center', marginBottom: spacing.sm },
-  compBadgeText: { fontSize: 15, fontWeight: '700' },
-  offAppNote: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm },
+  compText: { fontSize: 15, fontWeight: '400', marginBottom: spacing.sm },
+  offAppNote: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm, marginTop: spacing.xs },
   offAppNoteText: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
   // Care details
   careDetails: { fontSize: 14, lineHeight: 22 },

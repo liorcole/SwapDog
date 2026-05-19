@@ -58,7 +58,8 @@ const REGION_DEBOUNCE_MS = 600;
 
 
 // Preset radius options in miles
-const RADIUS_OPTIONS = [1, 5, 10, 25] as const;
+const RADIUS_OPTIONS = [1, 5, 10, 25, 30] as const;
+const MAX_RADIUS_MILES = 30;
 type RadiusMiles = (typeof RADIUS_OPTIONS)[number];
 
 type Props = {
@@ -510,7 +511,8 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         const rounded = Math.round(visibleRadiusMiles * 10) / 10;
         // Only update if the change is significant (>0.2 mi) to avoid jitter
         setRadiusMiles((prev) => {
-          return Math.abs(rounded - prev) >= 0.2 ? rounded : prev;
+          const capped = Math.min(rounded, MAX_RADIUS_MILES);
+          return Math.abs(capped - prev) >= 0.2 ? capped : prev;
         });
         // Re-center map on the pin so the fixed circle overlay always tracks the pin.
         // Preserves the current zoom level (keeps latitudeDelta/longitudeDelta from user's gesture).

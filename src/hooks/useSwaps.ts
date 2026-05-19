@@ -160,7 +160,9 @@ export const useSwaps = () => {
       where('status', '==', 'open')
     );
     const snap = await getDocs(q);
-    const all = snap.docs.map((d) => parsePost(d.id, d.data() as Record<string, unknown>));
+    const all = snap.docs
+      .map((d) => parsePost(d.id, d.data() as Record<string, unknown>))
+      .filter((p) => p.status === 'open'); // client-side guard: exclude claimed/cancelled
 
     if (!location) return all;
 

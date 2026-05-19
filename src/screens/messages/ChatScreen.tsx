@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -21,6 +22,7 @@ type Props = {
 
 const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuthContext();
   const { subscribeToMessages, sendMessage, markConversationRead } = useMessaging();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -28,22 +30,10 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
-  // Always show a chevron back arrow — whether coming from a post or the messages tab
+  // Hide the React Navigation header — we render our own in the component body
   useEffect(() => {
-    navigation.setOptions({
-      headerLeft: () => (
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={{ paddingHorizontal: 8, paddingVertical: 4 }}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={{ fontSize: 30, color: colors.primary, lineHeight: 36 }}>‹</Text>
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation, colors.primary]);
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
   // Mark conversation as read when the user opens the chat
   useEffect(() => {
@@ -72,12 +62,51 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // Cross-tab navigation: came from RequestsStack "I Can Help" flow.
+      // Navigate to the ConversationsList screen in the MessagesTab.
+      (navigation as any).getParent()?.navigate('MessagesTab', {
+        screen: 'ConversationsList',
+      });
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
+      keyboardVerticalOffset={0}
     >
+      {/* ── Custom in-component header — always visible, always has back ── */}
+      <View
+        style={[
+          styles.customHeader,
+          {
+            backgroundColor: colors.surface,
+            paddingTop: insets.top + 8,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.backBtn}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Text style={[styles.backIcon, { color: colors.primary }]}>‹</Text>
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+          Chat
+        </Text>
+        {/* right spacer to keep title centred */}
+        <View style={styles.headerSpacer} />
+      </View>
+
       <FlatList
         ref={listRef}
         data={messages}
@@ -117,6 +146,34 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  // ── Custom header ──────────────────────────────────────────────────────────
+  customHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 50,
+    paddingLeft: 4,
+    paddingRight: 8,
+  },
+  backIcon: {
+    fontSize: 36,
+    lineHeight: 40,
+    fontWeight: '300',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  headerSpacer: { minWidth: 50 },
+  // ── Chat body ──────────────────────────────────────────────────────────────
   list: { padding: spacing.xs },
   inputRow: {
     flexDirection: 'row',

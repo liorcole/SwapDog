@@ -24,6 +24,8 @@ export type DiscoverStackParamList = {
   CreateSwap: { userId: string };
   /** New: navigate directly to create a public post */
   CreatePost: undefined;
+  /** Full detail view for a public area post (from Discover feed) */
+  PostDetail: { postId: string };
 };
 
 export type RequestsStackParamList = {

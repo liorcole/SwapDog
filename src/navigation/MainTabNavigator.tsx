@@ -68,6 +68,8 @@ const DiscoverNavigator: React.FC = () => {
       <DiscoverStack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: 'Profile' }} />
       <DiscoverStack.Screen name="DogDetail" component={DogDetailScreen} options={{ title: 'Dog Profile' }} />
       <DiscoverStack.Screen name="CreateSwap" component={CreateSwapScreen} options={{ title: 'Request Swap', presentation: 'modal' }} />
+      <DiscoverStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: 'Post Details' }} />
+      <DiscoverStack.Screen name="CreatePost" component={CreatePostScreen} options={{ title: 'Post a Request', presentation: 'modal' }} />
     </DiscoverStack.Navigator>
   );
 };

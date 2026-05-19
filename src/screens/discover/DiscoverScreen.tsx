@@ -22,6 +22,7 @@ import {
   Animated,
   PanResponder,
   TextInput,
+  ListRenderItem,
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -43,30 +44,55 @@ import ShimmerLoading from '../../components/common/ShimmerLoading';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Map height constraints
-const MAP_HEIGHT_DEFAULT = Math.round(SCREEN_HEIGHT * 0.40);
+// Map height — compact: ~27% of screen so the feed gets more space
+const MAP_HEIGHT_DEFAULT = Math.round(SCREEN_HEIGHT * 0.27);
 const MAP_HEIGHT_MIN = Math.round(SCREEN_HEIGHT * 0.15);
-const MAP_HEIGHT_MAX = Math.round(SCREEN_HEIGHT * 0.60);
+const MAP_HEIGHT_MAX = Math.round(SCREEN_HEIGHT * 0.50);
 
-// Drag handle height
 const HANDLE_HEIGHT = 28;
 
-// Fixed-pixel circle overlay size (constant on screen regardless of zoom)
-// 60% of screen width, but at most 280px
 const CIRCLE_SIZE = Math.min(Math.round(SCREEN_WIDTH * 0.60), 280);
-
-// How long to wait after the last region change before updating radius/query
 const REGION_DEBOUNCE_MS = 600;
 
-
-// Preset radius options in miles
-const RADIUS_OPTIONS = [1, 5, 10, 25, 30] as const;
+// 3 preset radius options. Pinch-zoom updates radius dynamically beyond 10mi (capped at 30mi).
+const RADIUS_OPTIONS = [1, 5, 10] as const;
 const MAX_RADIUS_MILES = 30;
 type RadiusMiles = (typeof RADIUS_OPTIONS)[number];
+
+const RED = '#FF2D55';
 
 type Props = {
   navigation: NativeStackNavigationProp<DiscoverStackParamList, 'Discover'>;
 };
+
+// ─── Nearby user type ─────────────────────────────────────────────────────────
+
+interface NearbyUser {
+  user: User;
+  distanceMiles: number;
+  dogCount: number;
+}
+
+// ─── Flat feed item types (discriminated union) ───────────────────────────────
+
+type FeedItemSectionHeader = {
+  kind: 'section_header';
+  id: string;
+  title: string;
+  count: number;
+  isPosts: boolean;
+};
+type FeedItemPost = { kind: 'post'; id: string; post: SwapPost };
+type FeedItemUser = { kind: 'user'; id: string; nu: NearbyUser };
+type FeedItemEmpty = { kind: 'empty'; id: string; text: string };
+type FeedItemDivider = { kind: 'divider'; id: string };
+
+type FeedItem =
+  | FeedItemSectionHeader
+  | FeedItemPost
+  | FeedItemUser
+  | FeedItemEmpty
+  | FeedItemDivider;
 
 // ─── Radius Selector ─────────────────────────────────────────────────────────
 
@@ -77,7 +103,6 @@ interface RadiusSelectorProps {
 
 const RadiusSelector: React.FC<RadiusSelectorProps> = memo(({ radiusMiles, onSelectPreset }) => {
   const { colors } = useTheme();
-  // Show a preset as "active" only when the value exactly matches
   const activePreset = (RADIUS_OPTIONS as readonly number[]).includes(radiusMiles)
     ? (radiusMiles as RadiusMiles)
     : null;
@@ -104,33 +129,121 @@ const RadiusSelector: React.FC<RadiusSelectorProps> = memo(({ radiusMiles, onSel
             accessibilityLabel={`Set radius to ${r} mile${r > 1 ? 's' : ''}`}
             accessibilityState={{ selected: active }}
           >
-            <Text
-              style={[
-                styles.radiusChipText,
-                { color: active ? '#FFFFFF' : colors.textSecondary },
-              ]}
-            >
+            <Text style={[styles.radiusChipText, { color: active ? '#FFFFFF' : colors.textSecondary }]}>
               {r} mi
             </Text>
           </TouchableOpacity>
         );
       })}
-      {/* Live radius display when not matching a preset */}
+      {/* Live radius display when not on a preset */}
       {activePreset === null && (
-        <View
-          style={[
-            styles.radiusChip,
-            { backgroundColor: colors.primary, borderColor: colors.primary },
-          ]}
-        >
+        <View style={[styles.radiusChip, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
           <Text style={[styles.radiusChipText, { color: '#FFFFFF' }]}>
-            {radiusMiles < 10
-              ? radiusMiles.toFixed(1)
-              : Math.round(radiusMiles).toString()} mi
+            {radiusMiles < 10 ? radiusMiles.toFixed(1) : Math.round(radiusMiles).toString()} mi
           </Text>
         </View>
       )}
     </View>
+  );
+});
+
+// ─── Post Card ────────────────────────────────────────────────────────────────
+
+interface PostCardProps {
+  post: SwapPost;
+  onPress: () => void;
+}
+
+const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
+  const { colors } = useTheme();
+  const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const isPayment = post.compensationType === 'payment' || post.compensationType === 'either';
+  const interestedCount = post.respondedBy?.length ?? 0;
+
+  const compensationLabel = (): string => {
+    if (post.compensationType === 'points') {
+      return `🪙 ${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
+    }
+    if (post.totalPayment && post.paymentAmount && post.totalUnits && post.paymentRate) {
+      const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';
+      const unitLabel = post.paymentRate === 'per_hour'
+        ? `${post.totalUnits} hr${post.totalUnits !== 1 ? 's' : ''}`
+        : `${post.totalUnits} day${post.totalUnits !== 1 ? 's' : ''}`;
+      return `💰 $${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
+    }
+    return '💰 Payment offered';
+  };
+
+  return (
+    <TouchableOpacity
+      style={[styles.postCard, { backgroundColor: colors.surface, ...shadow.sm }]}
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={`${post.posterName}'s post for ${post.dogName}`}
+    >
+      {/* Red left accent */}
+      <View style={styles.postCardAccent} />
+
+      <View style={styles.postCardInner}>
+        <View style={styles.cardHeader}>
+          {post.posterPhotoURL ? (
+            <Image source={{ uri: post.posterPhotoURL }} style={[styles.avatarSmall, { borderColor: colors.border }]} />
+          ) : (
+            <View style={[styles.avatarPlaceholder, { backgroundColor: RED + '22' }]}>
+              <Text style={styles.avatarEmoji}>🧑</Text>
+            </View>
+          )}
+          <View style={styles.headerInfo}>
+            <Text style={[styles.posterName, { color: colors.text }]}>{post.posterName}</Text>
+            <Text style={[styles.dateRange, { color: colors.textSecondary }]}>{startStr} – {endStr}</Text>
+          </View>
+          {post.dogPhotoURL ? (
+            <Image source={{ uri: post.dogPhotoURL }} style={[styles.dogThumbSmall, { borderColor: colors.border }]} />
+          ) : (
+            <View style={[styles.dogThumbPlaceholder, { backgroundColor: RED + '15' }]}>
+              <Text style={styles.dogThumbEmoji}>🐕</Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={[styles.dogLine, { color: colors.text }]}>
+          {post.dogName}{post.dogBreed ? ` · ${post.dogBreed}` : ''}
+        </Text>
+
+        <View style={[styles.compBadge, {
+          backgroundColor: isPayment ? '#00B89418' : RED + '18',
+          borderColor: isPayment ? '#00B894' : RED,
+        }]}>
+          <Text style={[styles.compBadgeText, { color: isPayment ? '#00B894' : RED }]}>
+            {compensationLabel()}
+          </Text>
+        </View>
+
+        {isPayment && (
+          <Text style={[styles.offAppInline, { color: colors.textSecondary }]}>
+            💰 Payments made outside SwapDog
+          </Text>
+        )}
+
+        <Text style={[styles.carePreview, { color: colors.textSecondary }]} numberOfLines={2}>
+          {post.careDetails}
+        </Text>
+
+        {interestedCount > 0 && (
+          <View style={styles.interestBadge}>
+            <Text style={styles.interestBadgeText}>
+              🙋 {interestedCount} helper{interestedCount !== 1 ? 's' : ''} interested
+            </Text>
+          </View>
+        )}
+
+        <Text style={[styles.tapHint, { color: RED }]}>Tap to see full details →</Text>
+      </View>
+    </TouchableOpacity>
   );
 });
 
@@ -157,9 +270,7 @@ const UserRow: React.FC<UserRowProps> = memo(({ user, distanceMiles, dogCount, o
       accessibilityHint="Opens this user's full profile"
     >
       <Image
-        source={
-          user.photoURL ? { uri: user.photoURL } : require('../../../assets/icon.png')
-        }
+        source={user.photoURL ? { uri: user.photoURL } : require('../../../assets/icon.png')}
         style={styles.avatar}
         accessibilityLabel={`${user.displayName}'s profile photo`}
       />
@@ -179,7 +290,7 @@ const UserRow: React.FC<UserRowProps> = memo(({ user, distanceMiles, dogCount, o
   );
 });
 
-// ─── Location Override Modal (Nominatim OpenStreetMap autocomplete) ───────────
+// ─── Location Override Modal ──────────────────────────────────────────────────
 
 interface LocationModalProps {
   visible: boolean;
@@ -197,11 +308,7 @@ interface NominatimResult {
 }
 
 const LocationModal: React.FC<LocationModalProps> = ({
-  visible,
-  onClose,
-  onConfirm,
-  onUseCurrentLocation,
-  isOverride,
+  visible, onClose, onConfirm, onUseCurrentLocation, isOverride,
 }) => {
   const { colors } = useTheme();
   const [query, setQuery] = useState('');
@@ -209,19 +316,12 @@ const LocationModal: React.FC<LocationModalProps> = ({
   const [fetching, setFetching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset when modal is dismissed
   useEffect(() => {
-    if (!visible) {
-      setQuery('');
-      setSuggestions([]);
-    }
+    if (!visible) { setQuery(''); setSuggestions([]); }
   }, [visible]);
 
   const fetchSuggestions = useCallback((q: string) => {
-    if (q.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
+    if (q.trim().length < 2) { setSuggestions([]); return; }
     setFetching(true);
     void fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&limit=5&countrycodes=us`,
@@ -233,51 +333,33 @@ const LocationModal: React.FC<LocationModalProps> = ({
       .finally(() => setFetching(false));
   }, []);
 
-  const handleChangeText = useCallback(
-    (text: string) => {
-      setQuery(text);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => fetchSuggestions(text), 300);
-    },
-    [fetchSuggestions],
-  );
+  const handleChangeText = useCallback((text: string) => {
+    setQuery(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(text), 300);
+  }, [fetchSuggestions]);
 
-  const handleSelectSuggestion = useCallback(
-    (item: NominatimResult) => {
-      const lat = parseFloat(item.lat);
-      const lng = parseFloat(item.lon);
-      const parts = item.display_name.split(',');
-      const label = parts.slice(0, 3).join(',').trim();
-      setSuggestions([]);
-      setQuery('');
-      onConfirm({ latitude: lat, longitude: lng }, label);
-    },
-    [onConfirm],
-  );
+  const handleSelectSuggestion = useCallback((item: NominatimResult) => {
+    const lat = parseFloat(item.lat);
+    const lng = parseFloat(item.lon);
+    const parts = item.display_name.split(',');
+    const label = parts.slice(0, 3).join(',').trim();
+    setSuggestions([]);
+    setQuery('');
+    onConfirm({ latitude: lat, longitude: lng }, label);
+  }, [onConfirm]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.modalOverlay}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
         <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>Change Location</Text>
           <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
             Search for a city, neighborhood, or address to find dogs nearby.
           </Text>
-
-          {/* Nominatim autocomplete search */}
           <View style={styles.autocompleteWrapper}>
             <TextInput
-              style={[
-                styles.searchInput,
-                {
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                  color: colors.text,
-                },
-              ]}
+              style={[styles.searchInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
               placeholder="e.g. Brooklyn, NY or 27 Ridge Dr"
               placeholderTextColor={colors.textSecondary}
               value={query}
@@ -290,18 +372,11 @@ const LocationModal: React.FC<LocationModalProps> = ({
             {fetching && (
               <View style={styles.resolvingRow}>
                 <ActivityIndicator color={colors.primary} size="small" />
-                <Text style={[styles.resolvingText, { color: colors.textSecondary }]}>
-                  Searching…
-                </Text>
+                <Text style={[styles.resolvingText, { color: colors.textSecondary }]}>Searching…</Text>
               </View>
             )}
             {suggestions.length > 0 && (
-              <View
-                style={[
-                  styles.dropdown,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
+              <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 {suggestions.map((item) => (
                   <TouchableOpacity
                     key={item.place_id}
@@ -310,10 +385,7 @@ const LocationModal: React.FC<LocationModalProps> = ({
                     accessibilityLabel={item.display_name}
                     accessibilityRole="button"
                   >
-                    <Text
-                      style={[styles.dropdownItemText, { color: colors.text }]}
-                      numberOfLines={2}
-                    >
+                    <Text style={[styles.dropdownItemText, { color: colors.text }]} numberOfLines={2}>
                       {item.display_name}
                     </Text>
                   </TouchableOpacity>
@@ -321,14 +393,10 @@ const LocationModal: React.FC<LocationModalProps> = ({
               </View>
             )}
           </View>
-
           {isOverride && (
             <TouchableOpacity
               style={[styles.modalBtnOutline, { borderColor: colors.secondary }]}
-              onPress={() => {
-                onUseCurrentLocation();
-                onClose();
-              }}
+              onPress={() => { onUseCurrentLocation(); onClose(); }}
             >
               <Text style={[styles.modalBtnOutlineText, { color: colors.secondary }]}>
                 📡 Use My Current Location
@@ -344,49 +412,62 @@ const LocationModal: React.FC<LocationModalProps> = ({
   );
 };
 
-// ─── Main Screen ─────────────────────────────────────────────────────────────
+// ─── Section Header Row ───────────────────────────────────────────────────────
 
-interface NearbyUser {
-  user: User;
-  distanceMiles: number;
-  dogCount: number;
+interface SectionHeaderRowProps {
+  item: FeedItemSectionHeader;
 }
+const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(({ item }) => {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        styles.sectionHeader,
+        {
+          backgroundColor: item.isPosts ? RED + '12' : colors.surface,
+          borderColor: item.isPosts ? RED + '40' : colors.border,
+        },
+      ]}
+    >
+      <Text style={[styles.sectionHeaderText, { color: item.isPosts ? RED : colors.text }]}>
+        {item.title}
+      </Text>
+      {item.count > 0 && (
+        <View style={[styles.sectionBadge, { backgroundColor: item.isPosts ? RED : colors.textSecondary }]}>
+          <Text style={styles.sectionBadgeText}>{item.count}</Text>
+        </View>
+      )}
+    </View>
+  );
+});
+
+// ─── Main Screen ─────────────────────────────────────────────────────────────
 
 const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { userProfile } = useAuthContext();
   const { getUsersByLocation } = useUsers();
-  const { getMyPosts } = useSwaps();
+  const { getMyPosts, getAreaPosts } = useSwaps();
   const { getOrCreateConversation, sendMessage } = useMessaging();
 
-  const {
-    location,
-    loading: locationLoading,
-    setLocationOverride,
-    clearLocationOverride,
-  } = useDiscoverLocation();
+  const { location, loading: locationLoading, setLocationOverride, clearLocationOverride } = useDiscoverLocation();
 
-  // ── Core state ──────────────────────────────────────────────────────────────
   const [radiusMiles, setRadiusMiles] = useState<number>(5);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
+  const [areaPosts, setAreaPosts] = useState<SwapPost[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [postsLoading, setPostsLoading] = useState(false);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
   const [myOpenPost, setMyOpenPost] = useState<SwapPost | null>(null);
   const [broadcastSending, setBroadcastSending] = useState(false);
-
-  // Track the current map view height so we can calculate the circle/map ratio
   const [mapViewHeight, setMapViewHeight] = useState(MAP_HEIGHT_DEFAULT);
 
   const mapRef = useRef<MapView>(null);
-  // Prevent re-processing onRegionChangeComplete events we triggered ourselves
   const isProgrammaticMoveRef = useRef(false);
-
-  // Debounce timer ref for region changes
   const regionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Collapsible map: Animated height ────────────────────────────────────────
+  // ── Animated map height ────────────────────────────────────────────────────
   const mapHeightAnim = useRef(new Animated.Value(MAP_HEIGHT_DEFAULT)).current;
-  // We track the "committed" height so PanResponder can offset from it
   const committedMapHeight = useRef(MAP_HEIGHT_DEFAULT);
 
   const panResponder = useRef(
@@ -394,41 +475,24 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        // Capture current animated value so we can offset from it
-        mapHeightAnim.stopAnimation((val) => {
-          committedMapHeight.current = val;
-        });
+        mapHeightAnim.stopAnimation((val) => { committedMapHeight.current = val; });
       },
       onPanResponderMove: (_evt, gestureState) => {
-        const newHeight = committedMapHeight.current + gestureState.dy;
-        const clamped = Math.max(MAP_HEIGHT_MIN, Math.min(MAP_HEIGHT_MAX, newHeight));
+        const clamped = Math.max(MAP_HEIGHT_MIN, Math.min(MAP_HEIGHT_MAX, committedMapHeight.current + gestureState.dy));
         mapHeightAnim.setValue(clamped);
       },
       onPanResponderRelease: (_evt, gestureState) => {
-        const newHeight = committedMapHeight.current + gestureState.dy;
-        const clamped = Math.max(MAP_HEIGHT_MIN, Math.min(MAP_HEIGHT_MAX, newHeight));
-        // Snap: if dragged past halfway towards min, snap to min; otherwise to default/max
-        let snapTarget: number;
+        const clamped = Math.max(MAP_HEIGHT_MIN, Math.min(MAP_HEIGHT_MAX, committedMapHeight.current + gestureState.dy));
         const midDown = (MAP_HEIGHT_MIN + MAP_HEIGHT_DEFAULT) / 2;
         const midUp = (MAP_HEIGHT_DEFAULT + MAP_HEIGHT_MAX) / 2;
-        if (clamped < midDown) {
-          snapTarget = MAP_HEIGHT_MIN;
-        } else if (clamped > midUp) {
-          snapTarget = MAP_HEIGHT_MAX;
-        } else {
-          snapTarget = MAP_HEIGHT_DEFAULT;
-        }
+        const snapTarget = clamped < midDown ? MAP_HEIGHT_MIN : clamped > midUp ? MAP_HEIGHT_MAX : MAP_HEIGHT_DEFAULT;
         committedMapHeight.current = snapTarget;
-        Animated.spring(mapHeightAnim, {
-          toValue: snapTarget,
-          useNativeDriver: false,
-          bounciness: 4,
-        }).start();
+        Animated.spring(mapHeightAnim, { toValue: snapTarget, useNativeDriver: false, bounciness: 4 }).start();
       },
     }),
   ).current;
 
-  // ── Fetch nearby users whenever location or radius changes ──────────────────
+  // ── Fetch nearby users ─────────────────────────────────────────────────────
   const fetchNearby = useCallback(async () => {
     if (!location) return;
     setUsersLoading(true);
@@ -440,150 +504,108 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         .map((u) => ({
           user: u,
           distanceMiles: calculateDistance(
-            location.coords.latitude,
-            location.coords.longitude,
-            u.location!.latitude,
-            u.location!.longitude,
+            location.coords.latitude, location.coords.longitude,
+            u.location!.latitude, u.location!.longitude,
           ),
           dogCount: 0,
         }))
         .sort((a, b) => a.distanceMiles - b.distanceMiles);
       setNearbyUsers(withDistance);
-    } catch {
-      // silent
-    } finally {
-      setUsersLoading(false);
-    }
+    } catch { /* silent */ }
+    finally { setUsersLoading(false); }
   }, [location, radiusMiles, userProfile?.id, getUsersByLocation]);
 
-  useEffect(() => {
-    void fetchNearby();
-  }, [fetchNearby]);
+  useEffect(() => { void fetchNearby(); }, [fetchNearby]);
 
-  // ── Load current user's open post for the broadcast button ──────────────────
+  // ── Fetch area posts ──────────────────────────────────────────────────────
+  const fetchAreaPosts = useCallback(async () => {
+    if (!location) return;
+    setPostsLoading(true);
+    try {
+      const posts = await getAreaPosts(
+        { latitude: location.coords.latitude, longitude: location.coords.longitude },
+        radiusMiles,
+      );
+      setAreaPosts(posts.filter((p) => p.posterId !== userProfile?.id));
+    } catch { /* silent */ }
+    finally { setPostsLoading(false); }
+  }, [location, radiusMiles, userProfile?.id, getAreaPosts]);
+
+  useEffect(() => { void fetchAreaPosts(); }, [fetchAreaPosts]);
+
+  // ── Load user's own open post ──────────────────────────────────────────────
   useEffect(() => {
     if (!userProfile?.id) return;
     void getMyPosts(userProfile.id).then((posts) => {
-      const open = posts.find((p) => p.status === 'open') ?? null;
-      setMyOpenPost(open);
+      setMyOpenPost(posts.find((p) => p.status === 'open') ?? null);
     });
   }, [userProfile?.id]);
 
-  // ── Animate map zoom so the fixed circle represents the given radius ─────────
-  // Formula: latitudeDelta such that CIRCLE_SIZE pixels == radiusMiles on screen.
-  // The fixed circle covers (CIRCLE_SIZE / mapViewHeight) of the vertical map span.
-  // Full map vertical span = latitudeDelta degrees. Circle spans half of that fraction.
-  // => latitudeDelta = (radiusMiles / 69) * 2 * (mapViewHeight / CIRCLE_SIZE)
+  // ── Map zoom helpers ──────────────────────────────────────────────────────
   const animateMapToRadius = useCallback(
     (lat: number, lng: number, miles: number, currentMapHeight: number) => {
       if (!mapRef.current) return;
       const heightToUse = currentMapHeight > 0 ? currentMapHeight : MAP_HEIGHT_DEFAULT;
       const ratio = heightToUse / CIRCLE_SIZE;
       const delta = Math.max(0.005, (miles / 69) * 2 * ratio);
-      const region: Region = {
-        latitude: lat,
-        longitude: lng,
-        latitudeDelta: delta,
-        longitudeDelta: delta,
-      };
       isProgrammaticMoveRef.current = true;
-      mapRef.current.animateToRegion(region, 600);
+      mapRef.current.animateToRegion({ latitude: lat, longitude: lng, latitudeDelta: delta, longitudeDelta: delta }, 600);
     },
     [],
   );
 
   useEffect(() => {
     if (!location) return;
-    animateMapToRadius(
-      location.coords.latitude,
-      location.coords.longitude,
-      radiusMiles,
-      mapViewHeight,
-    );
-    // Only runs when location changes — radius-preset button taps call
-    // animateMapToRadius directly to avoid circular updates.
+    animateMapToRadius(location.coords.latitude, location.coords.longitude, radiusMiles, mapViewHeight);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location]);
 
-  // ── Zoom ↔ Radius sync: when user pinch-zooms, update radius ──────────────
-  // Inverse formula: visibleRadiusMiles = (latitudeDelta * 69 / 2) * (CIRCLE_SIZE / mapViewHeight)
   const handleRegionChangeComplete = useCallback(
     (region: Region) => {
-      // Skip events we triggered programmatically (re-center / radius animations)
-      if (isProgrammaticMoveRef.current) {
-        isProgrammaticMoveRef.current = false;
-        return;
-      }
-      // Debounce to avoid firing on every micro-movement
-      if (regionDebounceRef.current) {
-        clearTimeout(regionDebounceRef.current);
-      }
+      if (isProgrammaticMoveRef.current) { isProgrammaticMoveRef.current = false; return; }
+      if (regionDebounceRef.current) clearTimeout(regionDebounceRef.current);
       regionDebounceRef.current = setTimeout(() => {
         const heightToUse = mapViewHeight > 0 ? mapViewHeight : MAP_HEIGHT_DEFAULT;
         const ratio = CIRCLE_SIZE / heightToUse;
-        // The circle covers a fraction of the map height; compute what radius that fraction represents
         const visibleRadiusMiles = (region.latitudeDelta / 2) * 69 * ratio;
         const rounded = Math.round(visibleRadiusMiles * 10) / 10;
-        // Only update if the change is significant (>0.2 mi) to avoid jitter
         setRadiusMiles((prev) => {
           const capped = Math.min(rounded, MAX_RADIUS_MILES);
           return Math.abs(capped - prev) >= 0.2 ? capped : prev;
         });
-        // Re-center map on the pin so the fixed circle overlay always tracks the pin.
-        // Preserves the current zoom level (keeps latitudeDelta/longitudeDelta from user's gesture).
         if (mapRef.current && location) {
           isProgrammaticMoveRef.current = true;
-          mapRef.current.animateToRegion(
-            {
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-              latitudeDelta: region.latitudeDelta,
-              longitudeDelta: region.longitudeDelta,
-            },
-            400,
-          );
+          mapRef.current.animateToRegion({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            latitudeDelta: region.latitudeDelta,
+            longitudeDelta: region.longitudeDelta,
+          }, 400);
         }
       }, REGION_DEBOUNCE_MS);
     },
     [mapViewHeight, location],
   );
 
-  // ── Preset button taps: animate map to show that radius ──────────────────
   const handlePresetSelect = useCallback(
     (r: RadiusMiles) => {
       setRadiusMiles(r);
-      if (location) {
-        animateMapToRadius(
-          location.coords.latitude,
-          location.coords.longitude,
-          r,
-          mapViewHeight,
-        );
-      }
+      if (location) animateMapToRadius(location.coords.latitude, location.coords.longitude, r, mapViewHeight);
     },
     [location, animateMapToRadius, mapViewHeight],
   );
 
-  // ── Build post share message ─────────────────────────────────────────────
+  // ── Broadcast helpers ──────────────────────────────────────────────────────
   const buildPostMessage = useCallback((post: SwapPost): string => {
     const start = post.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const end = post.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return (
-      `🐾 Hey! I posted a request for dog sitting — check it out!\n\n` +
-      `🐶 Dog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\n` +
-      `📅 Dates: ${start} – ${end}\n` +
-      `📝 Details: ${post.careDetails}`
-    );
+    return `🐾 Hey! I posted a request for dog sitting — check it out!\n\n🐶 Dog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\n📅 Dates: ${start} – ${end}\n📝 Details: ${post.careDetails}`;
   }, []);
 
-  // ── Broadcast post to all nearby users ───────────────────────────────────────
   const handleBroadcast = useCallback(() => {
     if (!myOpenPost || !userProfile?.id || nearbyUsers.length === 0) return;
     const count = nearbyUsers.length;
-    const miles =
-      radiusMiles < 10
-        ? radiusMiles.toFixed(1)
-        : Math.round(radiusMiles).toString();
+    const miles = radiusMiles < 10 ? radiusMiles.toFixed(1) : Math.round(radiusMiles).toString();
     Alert.alert(
       '📢 Share My Post Nearby',
       `Send your post to ${count} dog owner${count !== 1 ? 's' : ''} within ${miles} mi?`,
@@ -613,67 +635,97 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     );
   }, [myOpenPost, userProfile?.id, nearbyUsers, radiusMiles, buildPostMessage, getOrCreateConversation, sendMessage]);
 
-  // ── Handle location override confirmed ──────────────────────────────────────
-  const handleLocationConfirm = useCallback(
-    async (coords: GeoPoint, label: string) => {
-      await setLocationOverride(coords, label);
-      setLocationModalVisible(false);
+  // ── Location confirm ──────────────────────────────────────────────────────
+  const handleLocationConfirm = useCallback(async (coords: GeoPoint, label: string) => {
+    await setLocationOverride(coords, label);
+    setLocationModalVisible(false);
+  }, [setLocationOverride]);
+
+  // ── Build flat feed data (discriminated union) ─────────────────────────────
+  const feedData: FeedItem[] = useMemo(() => {
+    const milesLabel = radiusMiles < 10 ? radiusMiles.toFixed(1) : Math.round(radiusMiles).toString();
+    const items: FeedItem[] = [];
+
+    // Section 1: Posts
+    items.push({ kind: 'section_header', id: 'header_posts', title: '🐾 Active Posts Nearby', count: areaPosts.length, isPosts: true });
+    if (areaPosts.length === 0) {
+      items.push({ kind: 'empty', id: 'empty_posts', text: 'No active posts in your area right now' });
+    } else {
+      areaPosts.forEach((p) => items.push({ kind: 'post', id: p.id, post: p }));
+    }
+
+    // Divider
+    items.push({ kind: 'divider', id: 'divider_1' });
+
+    // Section 2: Dog owners
+    items.push({ kind: 'section_header', id: 'header_users', title: `🏠 Dog Owners Within ${milesLabel} Miles`, count: nearbyUsers.length, isPosts: false });
+    if (nearbyUsers.length === 0) {
+      items.push({ kind: 'empty', id: 'empty_users', text: 'No dog owners found nearby — try a larger radius' });
+    } else {
+      nearbyUsers.forEach((nu) => items.push({ kind: 'user', id: nu.user.id, nu }));
+    }
+
+    return items;
+  }, [areaPosts, nearbyUsers, radiusMiles]);
+
+  // ── FlatList render ────────────────────────────────────────────────────────
+  const renderFeedItem: ListRenderItem<FeedItem> = useCallback(
+    ({ item }) => {
+      switch (item.kind) {
+        case 'section_header':
+          return <SectionHeaderRow item={item} />;
+        case 'post':
+          return (
+            <PostCard
+              post={item.post}
+              onPress={() => navigation.navigate('PostDetail', { postId: item.post.id })}
+            />
+          );
+        case 'user':
+          return (
+            <UserRow
+              user={item.nu.user}
+              distanceMiles={item.nu.distanceMiles}
+              dogCount={item.nu.dogCount}
+              onPress={() => navigation.navigate('UserDetail', { userId: item.nu.user.id })}
+            />
+          );
+        case 'empty':
+          return (
+            <View style={[styles.sectionEmpty, { backgroundColor: colors.background }]}>
+              <Text style={[styles.sectionEmptyText, { color: colors.textSecondary }]}>{item.text}</Text>
+            </View>
+          );
+        case 'divider':
+          return <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />;
+        default:
+          return null;
+      }
     },
-    [setLocationOverride],
+    [navigation, colors],
   );
 
-  // ── Memoized FlatList renderItem to prevent re-renders ───────────────────
-  const renderUserItem = useCallback(
-    ({ item }: { item: NearbyUser }) => (
-      <UserRow
-        user={item.user}
-        distanceMiles={item.distanceMiles}
-        dogCount={item.dogCount}
-        onPress={() => navigation.navigate('UserDetail', { userId: item.user.id })}
-      />
-    ),
-    [navigation],
-  );
+  const keyExtractor = useCallback((item: FeedItem) => item.id, []);
 
-  const keyExtractor = useCallback((item: NearbyUser) => item.user.id, []);
-
-  // ── Memoized list header ──────────────────────────────────────────────────
-  const listHeader = useMemo(
-    () => (
-      <View>
-        {myOpenPost && nearbyUsers.length > 0 && (
-          <TouchableOpacity
-            style={[
-              styles.broadcastBtn,
-              { backgroundColor: colors.primary, opacity: broadcastSending ? 0.7 : 1 },
-            ]}
-            onPress={handleBroadcast}
-            disabled={broadcastSending}
-            accessibilityLabel={`Share your post with all ${nearbyUsers.length} nearby dog owners`}
-            accessibilityRole="button"
-          >
-            {broadcastSending ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.broadcastBtnText}>
-                📢 Share My Post Nearby ({nearbyUsers.length})
-              </Text>
-            )}
-          </TouchableOpacity>
+  // ── Broadcast button (ListHeaderComponent) ─────────────────────────────────
+  const listHeader = useMemo(() => {
+    if (!myOpenPost || nearbyUsers.length === 0) return null;
+    return (
+      <TouchableOpacity
+        style={[styles.broadcastBtn, { backgroundColor: RED, opacity: broadcastSending ? 0.7 : 1 }]}
+        onPress={handleBroadcast}
+        disabled={broadcastSending}
+        accessibilityLabel={`Share your post with all ${nearbyUsers.length} nearby dog owners`}
+        accessibilityRole="button"
+      >
+        {broadcastSending ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.broadcastBtnText}>📢 Share My Post Nearby ({nearbyUsers.length})</Text>
         )}
-        <Text style={[styles.listHeader, { color: colors.textSecondary }]}>
-          {nearbyUsers.length === 0
-            ? 'No dog owners found in this area'
-            : `${nearbyUsers.length} dog owner${nearbyUsers.length !== 1 ? 's' : ''} within ${
-                radiusMiles < 10
-                  ? radiusMiles.toFixed(1)
-                  : Math.round(radiusMiles).toString()
-              } mi`}
-        </Text>
-      </View>
-    ),
-    [myOpenPost, nearbyUsers.length, radiusMiles, colors.textSecondary, colors.primary, broadcastSending, handleBroadcast],
-  );
+      </TouchableOpacity>
+    );
+  }, [myOpenPost, nearbyUsers.length, broadcastSending, handleBroadcast]);
 
   // ── Loading state ────────────────────────────────────────────────────────────
   if (locationLoading || !location) {
@@ -694,29 +746,24 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const initialRegion: Region = {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
-    // Initial delta accounts for the circle/map ratio so circle shows ~5mi at startup
     latitudeDelta: Math.max(0.01, (radiusMiles / 69) * 2 * (MAP_HEIGHT_DEFAULT / CIRCLE_SIZE)),
     longitudeDelta: Math.max(0.01, (radiusMiles / 69) * 2 * (MAP_HEIGHT_DEFAULT / CIRCLE_SIZE)),
   };
 
+  const isLoading = usersLoading || postsLoading;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
 
-      {/* ── ANIMATED MAP CONTAINER ── */}
+      {/* ── MAP ── */}
       <Animated.View
-        style={[
-          styles.mapContainer,
-          {
-            height: mapHeightAnim,
-            borderBottomLeftRadius: borderRadius.lg,
-            borderBottomRightRadius: borderRadius.lg,
-            overflow: 'hidden',
-          },
-        ]}
-        onLayout={(e) => {
-          const h = e.nativeEvent.layout.height;
-          if (h > 0) setMapViewHeight(h);
-        }}
+        style={[styles.mapContainer, {
+          height: mapHeightAnim,
+          borderBottomLeftRadius: borderRadius.lg,
+          borderBottomRightRadius: borderRadius.lg,
+          overflow: 'hidden',
+        }]}
+        onLayout={(e) => { const h = e.nativeEvent.layout.height; if (h > 0) setMapViewHeight(h); }}
       >
         <MapView
           ref={mapRef}
@@ -726,48 +773,27 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
           showsMyLocationButton={false}
           onRegionChangeComplete={handleRegionChangeComplete}
         >
-          {/* User's own position marker */}
           <Marker
             coordinate={location.coords}
             title={location.isOverride ? (location.label ?? 'Custom Location') : 'Your Location'}
-            pinColor={colors.primary}
+            pinColor={RED}
           />
         </MapView>
 
-        {/* ── FIXED-PIXEL RADIUS CIRCLE OVERLAY ──
-            Sits on top of the map, centered, never moves or resizes with zoom.
-            pointerEvents="none" so it doesn't block map touch/pan/pinch events. */}
-        <View
-          style={styles.circleOverlayContainer}
-          pointerEvents="none"
-        >
-          <View
-            style={[
-              styles.circleOverlay,
-              {
-                width: CIRCLE_SIZE,
-                height: CIRCLE_SIZE,
-                borderRadius: CIRCLE_SIZE / 2,
-                borderColor: colors.primary,
-                backgroundColor: colors.primary + '1A', // ~10% opacity fill
-              },
-            ]}
-          />
-          {/* Radius label centered below the circle */}
-          <Text style={[styles.circleRadiusLabel, { color: colors.primary }]}>
-            {radiusMiles < 10
-              ? radiusMiles.toFixed(1)
-              : Math.round(radiusMiles).toString()} mi
+        <View style={styles.circleOverlayContainer} pointerEvents="none">
+          <View style={[styles.circleOverlay, {
+            width: CIRCLE_SIZE, height: CIRCLE_SIZE,
+            borderRadius: CIRCLE_SIZE / 2,
+            borderColor: RED, backgroundColor: RED + '1A',
+          }]} />
+          <Text style={[styles.circleRadiusLabel, { color: RED }]}>
+            {radiusMiles < 10 ? radiusMiles.toFixed(1) : Math.round(radiusMiles).toString()} mi
           </Text>
         </View>
 
-        {/* Change Location button — overlaid on map */}
         <TouchableOpacity
           style={[styles.locationBtn, { backgroundColor: colors.surface, ...shadow.md }]}
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setLocationModalVisible(true);
-          }}
+          onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLocationModalVisible(true); }}
           accessibilityLabel="Change search location"
         >
           <Text style={[styles.locationBtnText, { color: colors.text }]}>
@@ -786,18 +812,13 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         <View style={[styles.dragPill, { backgroundColor: colors.border }]} />
       </View>
 
-      {/* ── RADIUS SELECTOR ── */}
-      <View
-        style={[
-          styles.radiusContainer,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
-      >
+      {/* ── RADIUS SELECTOR (3 presets, single line) ── */}
+      <View style={[styles.radiusContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <RadiusSelector radiusMiles={radiusMiles} onSelectPreset={handlePresetSelect} />
       </View>
 
-      {/* ── USER LIST ── */}
-      {usersLoading ? (
+      {/* ── COMBINED FEED ── */}
+      {isLoading ? (
         <View style={styles.listLoadingContainer}>
           {[1, 2, 3].map((i) => (
             <View key={i} style={{ marginHorizontal: spacing.md, marginBottom: spacing.sm }}>
@@ -806,27 +827,20 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
           ))}
         </View>
       ) : (
-        <FlatList
-          data={nearbyUsers}
+        <FlatList<FeedItem>
+          data={feedData}
           keyExtractor={keyExtractor}
-          contentContainerStyle={styles.list}
+          renderItem={renderFeedItem}
           ListHeaderComponent={listHeader}
-          ListEmptyComponent={
-            <EmptyStateView
-              emoji="🐕"
-              title="No dog owners nearby"
-              subtitle="Try expanding your radius or changing your location"
-            />
-          }
-          renderItem={renderUserItem}
+          contentContainerStyle={styles.list}
           removeClippedSubviews
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
           windowSize={5}
         />
       )}
 
-      {/* ── LOCATION OVERRIDE MODAL ── */}
+      {/* ── LOCATION MODAL ── */}
       <LocationModal
         visible={locationModalVisible}
         onClose={() => setLocationModalVisible(false)}
@@ -843,94 +857,67 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
-  // Map
-  mapContainer: {
-    position: 'relative',
-  },
-  locationBtn: {
-    position: 'absolute',
-    top: spacing.sm,
-    left: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-  },
+  mapContainer: { position: 'relative' },
+  locationBtn: { position: 'absolute', top: spacing.sm, left: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full },
   locationBtnText: { fontSize: 13, fontWeight: '600' },
 
-  // Fixed-pixel radius circle overlay
-  circleOverlayContainer: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleOverlay: {
-    borderWidth: 2,
-  },
-  circleRadiusLabel: {
-    marginTop: 6,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    // slight text shadow for legibility on varied map backgrounds
-    textShadowColor: 'rgba(255,255,255,0.8)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 3,
-  },
+  circleOverlayContainer: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  circleOverlay: { borderWidth: 2 },
+  circleRadiusLabel: { marginTop: 6, fontSize: 12, fontWeight: '700', letterSpacing: 0.3, textShadowColor: 'rgba(255,255,255,0.8)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 3 },
 
-  // Drag handle
-  dragHandle: {
-    height: HANDLE_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 1,
-  },
-  dragPill: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-  },
+  dragHandle: { height: HANDLE_HEIGHT, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1 },
+  dragPill: { width: 40, height: 4, borderRadius: 2 },
 
-  // Radius selector
-  radiusContainer: {
-    borderBottomWidth: 1,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  radiusRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
+  // Radius — single line, 3 chips only, no flexWrap
+  radiusContainer: { borderBottomWidth: 1, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+  radiusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   radiusLabel: { fontSize: 13, fontWeight: '600', marginRight: spacing.xs },
-  radiusChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: borderRadius.full,
-    borderWidth: 1.5,
-  },
+  radiusChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: borderRadius.full, borderWidth: 1.5 },
   radiusChipText: { fontSize: 13, fontWeight: '600' },
 
-  // List
   listLoadingContainer: { flex: 1, paddingTop: spacing.md },
-  list: { padding: spacing.md, paddingTop: spacing.sm },
-  broadcastBtn: {
-    marginBottom: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-  },
+  list: { padding: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.xl * 2 },
+
+  broadcastBtn: { marginBottom: spacing.md, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
   broadcastBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  listHeader: {
-    ...typography.caption,
-    marginBottom: spacing.sm,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
+
+  // Section headers
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, paddingHorizontal: spacing.md, marginHorizontal: -spacing.md, marginBottom: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, gap: spacing.sm },
+  sectionHeaderText: { fontSize: 14, fontWeight: '800', flex: 1, letterSpacing: 0.2 },
+  sectionBadge: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  sectionBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+
+  sectionEmpty: { paddingVertical: spacing.md, paddingHorizontal: spacing.sm, marginBottom: spacing.sm, borderRadius: borderRadius.md, alignItems: 'center' },
+  sectionEmptyText: { fontSize: 13, fontStyle: 'italic' },
+
+  sectionDivider: { height: 1, marginVertical: spacing.sm },
+
+  // Post card — red left accent border
+  postCard: { flexDirection: 'row', borderRadius: borderRadius.lg, marginBottom: spacing.sm, overflow: 'hidden' },
+  postCardAccent: { width: 4, backgroundColor: RED, borderTopLeftRadius: borderRadius.lg, borderBottomLeftRadius: borderRadius.lg },
+  postCardInner: { flex: 1, padding: spacing.md },
+
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+  avatarSmall: { width: 40, height: 40, borderRadius: 20, borderWidth: 1 },
+  avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  avatarEmoji: { fontSize: 18 },
+  headerInfo: { flex: 1 },
+  posterName: { fontSize: 15, fontWeight: '700' },
+  dateRange: { fontSize: 12, marginTop: 1 },
+  dogThumbSmall: { width: 44, height: 44, borderRadius: borderRadius.sm, borderWidth: 1 },
+  dogThumbPlaceholder: { width: 44, height: 44, borderRadius: borderRadius.sm, alignItems: 'center', justifyContent: 'center' },
+  dogThumbEmoji: { fontSize: 20 },
+  dogLine: { fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
+  compBadge: { borderWidth: 1.5, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: spacing.xs },
+  compBadgeText: { fontSize: 13, fontWeight: '700' },
+  offAppInline: { fontSize: 11, marginBottom: spacing.xs },
+  carePreview: { fontSize: 13, lineHeight: 18, marginBottom: spacing.xs },
+  interestBadge: { backgroundColor: RED, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: spacing.xs, shadowColor: RED, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.30, shadowRadius: 4, elevation: 2 },
+  interestBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  tapHint: { fontSize: 12, fontWeight: '600', textAlign: 'right', marginTop: spacing.xs },
 
   // User row
-  userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.sm,
-  },
+  userRow: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm },
   avatar: { width: 52, height: 52, borderRadius: 26, marginRight: spacing.md },
   userInfo: { flex: 1 },
   userName: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
@@ -939,61 +926,18 @@ const styles = StyleSheet.create({
   chevron: { fontSize: 22, fontWeight: '300', marginLeft: spacing.xs },
 
   // Modal
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  modalSheet: {
-    borderTopLeftRadius: borderRadius.lg,
-    borderTopRightRadius: borderRadius.lg,
-    padding: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+  modalSheet: { borderTopLeftRadius: borderRadius.lg, borderTopRightRadius: borderRadius.lg, padding: spacing.lg, paddingBottom: spacing.xl },
   modalTitle: { ...typography.h3, marginBottom: spacing.xs },
   modalSubtitle: { ...typography.bodySmall, marginBottom: spacing.md },
-  autocompleteWrapper: {
-    marginBottom: spacing.md,
-    zIndex: 10,
-  },
-  searchInput: {
-    borderWidth: 1.5,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    height: 48,
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  dropdown: {
-    borderWidth: 1,
-    borderRadius: borderRadius.md,
-    overflow: 'hidden',
-    maxHeight: 220,
-    marginTop: 2,
-  },
-  dropdownItem: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  dropdownItemText: {
-    fontSize: 14,
-    lineHeight: 19,
-  },
-  resolvingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
+  autocompleteWrapper: { marginBottom: spacing.md, zIndex: 10 },
+  searchInput: { borderWidth: 1.5, borderRadius: borderRadius.md, paddingHorizontal: spacing.md, height: 48, fontSize: 16, marginBottom: 4 },
+  dropdown: { borderWidth: 1, borderRadius: borderRadius.md, overflow: 'hidden', maxHeight: 220, marginTop: 2 },
+  dropdownItem: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  dropdownItemText: { fontSize: 14, lineHeight: 19 },
+  resolvingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
   resolvingText: { fontSize: 14 },
-  modalBtnOutline: {
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    marginBottom: spacing.sm,
-  },
+  modalBtnOutline: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', borderWidth: 1.5, marginBottom: spacing.sm },
   modalBtnOutlineText: { fontSize: 15, fontWeight: '600' },
   modalCancel: { alignItems: 'center', paddingVertical: spacing.sm },
   modalCancelText: { fontSize: 15 },

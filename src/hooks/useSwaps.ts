@@ -237,6 +237,54 @@ export const useSwaps = () => {
     ).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   };
 
+  /**
+   * Approve a helper for a post:
+   * - Sets status to 'claimed'
+   * - Records claimedBy = helperId
+   */
+  const approveHelper = async (postId: string, helperId: string): Promise<void> => {
+    await updateDoc(doc(db, 'swapPosts', postId), {
+      status: 'claimed' as PostStatus,
+      claimedBy: helperId,
+      updatedAt: serverTimestamp(),
+    });
+  };
+
+  /**
+   * Fetch "Accepted" posts for a user:
+   * - Posts the user created that are now 'claimed'
+   * - Posts where the user is the approved helper (claimedBy === userId)
+   *
+   * Note: Firestore doesn't support OR across different fields in a single query,
+   * so we run two separate queries and merge client-side.
+   */
+  const getAcceptedPosts = async (userId: string): Promise<SwapPost[]> => {
+    const [posterSnap, helperSnap] = await Promise.all([
+      getDocs(query(
+        collection(db, 'swapPosts'),
+        where('posterId', '==', userId),
+        where('status', '==', 'claimed')
+      )),
+      getDocs(query(
+        collection(db, 'swapPosts'),
+        where('claimedBy', '==', userId),
+        where('status', '==', 'claimed')
+      )),
+    ]);
+
+    const seen = new Set<string>();
+    const results: SwapPost[] = [];
+
+    for (const d of [...posterSnap.docs, ...helperSnap.docs]) {
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        results.push(parsePost(d.id, d.data() as Record<string, unknown>));
+      }
+    }
+
+    return results.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  };
+
   return {
     // Legacy
     createSwap,
@@ -251,5 +299,7 @@ export const useSwaps = () => {
     cancelPost,
     addResponder,
     getPendingPosts,
+    approveHelper,
+    getAcceptedPosts,
   };
 };

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Text,
+  View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -27,7 +28,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
-  // Add a back button to the header so users can return from "I Can Help" flow
+  // Always show a chevron back arrow — whether coming from a post or the messages tab
   useEffect(() => {
     navigation.setOptions({
       headerLeft: () => (

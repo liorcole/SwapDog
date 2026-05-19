@@ -18,6 +18,8 @@ import { SwapPost } from '../../models/types';
 import { spacing, borderRadius, shadow, typography } from '../../config/theme';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
+const RED = '#FF2D55';
+
 type Props = {
   navigation: NativeStackNavigationProp<RequestsStackParamList, 'PostDetail'>;
   route: RouteProp<RequestsStackParamList, 'PostDetail'>;
@@ -26,15 +28,15 @@ type Props = {
 const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { user, userProfile } = useAuthContext();
-  const { getAreaPosts, getMyPosts, addResponder } = useSwaps();
+  const { getAreaPosts, getMyPosts, addResponder, approveHelper } = useSwaps();
   const { getOrCreateConversation, sendMessage } = useMessaging();
 
   const [post, setPost] = useState<SwapPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch the post — check area posts first, then user's own posts as fallback
     const fetchPost = async () => {
       try {
         const areaPosts = await getAreaPosts();
@@ -43,7 +45,6 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           setPost(found);
           return;
         }
-        // Fallback: might be the owner viewing their own post
         if (user?.uid) {
           const myPosts = await getMyPosts(user.uid);
           const ownPost = myPosts.find((p) => p.id === route.params.postId) ?? null;
@@ -70,14 +71,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-      // Create / open conversation
       const convId = await getOrCreateConversation(user.uid, post.posterId, post.id);
 
-      // FIX 6: warm, friendly auto-message copy
       const introText = `🐾 Hey! I'd love to help watch ${post.dogName} from ${startStr} to ${endStr}. Let me know if you'd like to set something up!`;
       await sendMessage(convId, user.uid, introText);
 
-      // If payment was offered, add reminder
       if (post.compensationType === 'payment' || post.compensationType === 'either') {
         await sendMessage(
           convId,
@@ -86,7 +84,6 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         );
       }
 
-      // FIX 4: add this user to respondedBy on the post
       await addResponder(post.id, {
         userId: user.uid,
         userName: sitterName,
@@ -95,7 +92,6 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      // Navigate to the conversation
       navigation.getParent()?.navigate('MessagesTab', {
         screen: 'Chat',
         params: { conversationId: convId, otherUserId: post.posterId },
@@ -121,6 +117,33 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     } finally {
       setClaiming(false);
     }
+  };
+
+  const handleApprove = async (helperId: string, helperName: string) => {
+    if (!user || !post) return;
+    Alert.alert(
+      'Approve Helper',
+      `Choose ${helperName} as your dog sitter for this post?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          onPress: async () => {
+            setApprovingId(helperId);
+            try {
+              await approveHelper(post.id, helperId);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              // Refresh post state optimistically
+              setPost((prev) => prev ? { ...prev, status: 'claimed', claimedBy: helperId } : prev);
+            } catch (err: unknown) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Could not approve helper');
+            } finally {
+              setApprovingId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) return <LoadingSpinner />;
@@ -234,33 +257,73 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         <Text style={[styles.careDetails, { color: colors.text }]}>{post.careDetails}</Text>
       </View>
 
-      {/* FIX 4: Interested Helpers section — only visible to post owner */}
+      {/* ── Interested Helpers — RED accent section, owner only ── */}
       {isOwner && respondents.length > 0 && (
-        <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            🙋 Interested Helpers ({respondents.length})
-          </Text>
-          {respondents.map((r) => (
-            <TouchableOpacity
-              key={r.userId}
-              style={[styles.responderRow, { borderTopColor: colors.border }]}
-              onPress={() => handleMessageResponder(r.userId)}
-              accessibilityRole="button"
-              accessibilityLabel={`Message ${r.userName}`}
-            >
-              {r.userPhotoURL ? (
-                <Image source={{ uri: r.userPhotoURL }} style={[styles.responderAvatar, { borderColor: colors.border }]} />
-              ) : (
-                <View style={[styles.responderAvatarPlaceholder, { backgroundColor: colors.primary + '22' }]}>
-                  <Text style={styles.responderAvatarEmoji}>🧑</Text>
-                </View>
-              )}
-              <View style={styles.responderInfo}>
-                <Text style={[styles.responderName, { color: colors.text }]}>{r.userName}</Text>
-                <Text style={[styles.responderTap, { color: colors.primary }]}>Tap to message →</Text>
+        <View style={styles.helpersSection}>
+          {/* Red header bar */}
+          <View style={styles.helpersSectionHeader}>
+            <Text style={styles.helpersSectionTitle}>
+              🙋 Interested Helpers ({respondents.length})
+            </Text>
+            {post.status === 'claimed' && (
+              <View style={styles.claimedBadge}>
+                <Text style={styles.claimedBadgeText}>✅ APPROVED</Text>
               </View>
-            </TouchableOpacity>
-          ))}
+            )}
+          </View>
+
+          {/* Helper rows */}
+          {respondents.map((r) => {
+            const isApproved = post.claimedBy === r.userId;
+            const isApproving = approvingId === r.userId;
+            return (
+              <View key={r.userId} style={styles.helperRow}>
+                {/* Avatar */}
+                <TouchableOpacity
+                  onPress={() => handleMessageResponder(r.userId)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Message ${r.userName}`}
+                  style={styles.helperAvatarTouchable}
+                >
+                  {r.userPhotoURL ? (
+                    <Image source={{ uri: r.userPhotoURL }} style={styles.helperAvatar} />
+                  ) : (
+                    <View style={styles.helperAvatarPlaceholder}>
+                      <Text style={styles.helperAvatarEmoji}>🧑</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {/* Name + tap hint */}
+                <TouchableOpacity
+                  onPress={() => handleMessageResponder(r.userId)}
+                  style={styles.helperInfo}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Message ${r.userName}`}
+                >
+                  <Text style={styles.helperName}>{r.userName}</Text>
+                  {isApproved ? (
+                    <Text style={styles.helperApprovedLabel}>✅ Approved sitter</Text>
+                  ) : (
+                    <Text style={styles.helperTap}>Tap to message →</Text>
+                  )}
+                </TouchableOpacity>
+
+                {/* Approve button — only if post is still open */}
+                {post.status === 'open' && !isApproved && (
+                  <TouchableOpacity
+                    style={[styles.approveBtn, isApproving && styles.approveBtnDisabled]}
+                    onPress={() => handleApprove(r.userId, r.userName)}
+                    disabled={isApproving}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Approve ${r.userName}`}
+                  >
+                    <Text style={styles.approveBtnText}>{isApproving ? '…' : 'Approve'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
         </View>
       )}
 
@@ -322,14 +385,76 @@ const styles = StyleSheet.create({
   offAppNoteText: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
   // Care details
   careDetails: { fontSize: 14, lineHeight: 22 },
-  // Respondents
-  responderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth },
-  responderAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 1 },
-  responderAvatarPlaceholder: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  responderAvatarEmoji: { fontSize: 20 },
-  responderInfo: { flex: 1 },
-  responderName: { fontSize: 15, fontWeight: '600' },
-  responderTap: { fontSize: 12, marginTop: 2 },
+  // ── Interested Helpers RED section ──────────────────────────────────────────
+  helpersSection: {
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: RED,
+    backgroundColor: 'rgba(255,45,85,0.06)',
+    // Red shadow
+    shadowColor: RED,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  helpersSectionHeader: {
+    backgroundColor: RED,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  helpersSectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  claimedBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  claimedBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  helperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,45,85,0.25)',
+  },
+  helperAvatarTouchable: {},
+  helperAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: RED },
+  helperAvatarPlaceholder: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,45,85,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: RED,
+  },
+  helperAvatarEmoji: { fontSize: 20 },
+  helperInfo: { flex: 1 },
+  helperName: { fontSize: 15, fontWeight: '600', color: '#2D3436' },
+  helperTap: { fontSize: 12, marginTop: 2, color: RED },
+  helperApprovedLabel: { fontSize: 12, marginTop: 2, color: '#00B894', fontWeight: '600' },
+  // Approve button
+  approveBtn: {
+    backgroundColor: RED,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+  },
+  approveBtnDisabled: { opacity: 0.5 },
+  approveBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   // Help button
   helpBtn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.sm, marginBottom: spacing.sm },
   helpBtnText: { color: '#fff', ...typography.button, fontSize: 17 },

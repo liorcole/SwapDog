@@ -17,6 +17,7 @@ import { useMessaging } from '../../hooks/useMessaging';
 import { SwapPost } from '../../models/types';
 import { spacing, borderRadius, shadow, typography } from '../../config/theme';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { scheduleOwnerReminders, requestNotificationPermissions } from '../../services/ReminderService';
 
 const RED = '#FF2D55';
 
@@ -28,7 +29,7 @@ type Props = {
 const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { user, userProfile } = useAuthContext();
-  const { getAreaPosts, getMyPosts, addResponder, approveHelper } = useSwaps();
+  const { getAreaPosts, getMyPosts, addResponder, approveHelper, saveOwnerReminderIds } = useSwaps();
   const { getOrCreateConversation, sendMessage } = useMessaging();
 
   const [post, setPost] = useState<SwapPost | null>(null);
@@ -135,6 +136,25 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               // Refresh post state optimistically
               setPost((prev) => prev ? { ...prev, status: 'claimed', claimedBy: helperId } : prev);
+
+              // Schedule local push reminders for the owner (this device)
+              try {
+                const hasPermission = await requestNotificationPermissions();
+                if (hasPermission) {
+                  const ownerIds = await scheduleOwnerReminders({
+                    startDate: post.startDate,
+                    dogName: post.dogName,
+                    ownerName: post.posterName,
+                    sitterName: helperName,
+                  });
+                  if (ownerIds.length > 0) {
+                    await saveOwnerReminderIds(post.id, ownerIds);
+                  }
+                }
+              } catch (reminderErr) {
+                // Non-fatal — approval already succeeded
+                console.warn('[PostDetail] Failed to schedule reminders:', reminderErr);
+              }
             } catch (err: unknown) {
               Alert.alert('Error', err instanceof Error ? err.message : 'Could not approve helper');
             } finally {

@@ -145,6 +145,12 @@ export interface SwapPost {
   /** userId of the sitter who claimed the post */
   claimedBy?: string;
 
+  /** Notification IDs for scheduled swap reminders (owner-side). Used for cancellation. */
+  reminderNotificationIds?: string[];
+
+  /** Notification IDs for scheduled sitter-side reminders. Stored in Firestore so sitter device can skip re-scheduling. */
+  sitterReminderNotificationIds?: string[];
+
   /** Users who responded 'I Can Help' to this post */
   respondedBy?: Array<{
     userId: string;

@@ -14,6 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RequestsStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -22,6 +23,11 @@ import { SwapPost } from '../../models/types';
 import { spacing, borderRadius, shadow } from '../../config/theme';
 import EmptyStateView from '../../components/common/EmptyStateView';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import {
+  cancelSwapReminders,
+  scheduleSitterReminders,
+  requestNotificationPermissions,
+} from '../../services/ReminderService';
 
 const RED = '#FF2D55';
 
@@ -34,7 +40,7 @@ type TabType = 'area' | 'mine' | 'pending' | 'accepted';
 const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
-  const { getAreaPosts, getMyPosts, getPendingPosts, cancelPost, getAcceptedPosts } = useSwaps();
+  const { getAreaPosts, getMyPosts, getPendingPosts, cancelPost, getAcceptedPosts, saveSitterReminderIds } = useSwaps();
 
   const [tab, setTab] = useState<TabType>('area');
   const [areaPosts, setAreaPosts] = useState<SwapPost[]>([]);
@@ -77,6 +83,52 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
 
   useFocusEffect(useCallback(() => { fetchPosts(); }, [fetchPosts]));
 
+  // ── Sitter-side reminder scheduling ───────────────────────────────────────
+  // When the Accepted tab data loads, schedule reminders on the sitter's device
+  // for any post where they are the claimed sitter and reminders aren't yet
+  // scheduled on this device.
+  useEffect(() => {
+    if (!user || acceptedPosts.length === 0) return;
+
+    const scheduleMissingReminders = async () => {
+      for (const post of acceptedPosts) {
+        // Only schedule for posts where the current user is the sitter (not the owner)
+        if (post.claimedBy !== user.uid) continue;
+        // Skip if sitter reminders are already stored (scheduled on this device before)
+        if ((post.sitterReminderNotificationIds ?? []).length > 0) continue;
+
+        // Use AsyncStorage as a local guard to avoid re-scheduling after app restarts
+        // even before the Firestore update propagates.
+        const storageKey = `sitter_reminders_scheduled_${post.id}`;
+        try {
+          const alreadyScheduled = await AsyncStorage.getItem(storageKey);
+          if (alreadyScheduled) continue;
+
+          const hasPermission = await requestNotificationPermissions();
+          if (!hasPermission) continue;
+
+          const sitterIds = await scheduleSitterReminders({
+            startDate: post.startDate,
+            dogName: post.dogName,
+            ownerName: post.posterName,
+            sitterName: user.displayName ?? 'You',
+          });
+
+          if (sitterIds.length > 0) {
+            await AsyncStorage.setItem(storageKey, 'true');
+            saveSitterReminderIds(post.id, sitterIds).catch((e) =>
+              console.warn('[RequestsScreen] saveSitterReminderIds failed:', e)
+            );
+          }
+        } catch (e) {
+          console.warn('[RequestsScreen] sitter reminder scheduling failed:', e);
+        }
+      }
+    };
+
+    scheduleMissingReminders();
+  }, [acceptedPosts, user?.uid]);
+
   const handleCancel = async (postId: string) => {
     Alert.alert('Cancel Post', 'Remove your post from the area feed?', [
       { text: 'No', style: 'cancel' },
@@ -84,6 +136,19 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         text: 'Cancel Post',
         style: 'destructive',
         onPress: async () => {
+          // Cancel any scheduled reminders for this post
+          const postToCancel = [...myPosts].find((p) => p.id === postId);
+          if (postToCancel) {
+            const allIds = [
+              ...(postToCancel.reminderNotificationIds ?? []),
+              ...(postToCancel.sitterReminderNotificationIds ?? []),
+            ];
+            if (allIds.length > 0) {
+              cancelSwapReminders(allIds).catch((e) =>
+                console.warn('[RequestsScreen] cancelSwapReminders failed:', e)
+              );
+            }
+          }
           await cancelPost(postId);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           fetchPosts();

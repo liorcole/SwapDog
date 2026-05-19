@@ -12,6 +12,7 @@ import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen
 import VettingCallScreen from '../screens/onboarding/VettingCallScreen';
 import WaitingApprovalScreen from '../screens/onboarding/WaitingApprovalScreen';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { requestNotificationPermissions } from '../services/ReminderService';
 import { sendWelcomeMessageIfNeeded } from '../hooks/useMessaging';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -34,6 +35,15 @@ const AppNavigator: React.FC = () => {
     };
     checkReferral();
   }, []);
+
+  // Request notification permissions when an active user lands in the app
+  useEffect(() => {
+    if (!user || !userProfile) return;
+    if (userProfile.accountStatus !== 'active') return;
+    requestNotificationPermissions().catch((e) =>
+      console.warn('[AppNavigator] requestNotificationPermissions failed:', e)
+    );
+  }, [user?.uid, userProfile?.accountStatus]);
 
   // Send welcome message for any active+signed user who didn't receive it
   // at contract-signing time (e.g. users who signed before this feature shipped).

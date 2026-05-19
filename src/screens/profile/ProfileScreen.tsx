@@ -45,36 +45,80 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     getDogsByOwner(user.uid).then(setDogs);
   };
 
-  const handleAddDogPhotos = async (dogId: string, currentPhotos: string[]) => {
+  const handleAddDogPhoto = async (dogId: string, currentPhotos: string[]) => {
     if (currentPhotos.length >= 10) {
       Alert.alert('Limit reached', 'You can add up to 10 photos per dog');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
-      allowsMultipleSelection: true,
+      allowsEditing: true,
+      aspect: [1, 1] as [number, number],
       quality: 0.8,
     });
-    if (result.canceled) return;
+    if (result.canceled || !result.assets[0]) return;
     setUploadingDogId(dogId);
     try {
-      const uploaded = await Promise.all(
-        result.assets.map(async (asset) => {
-          const response = await fetch(asset.uri);
-          const blob = await response.blob();
-          const fileRef = storageRef(storage, `dogs/${dogId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
-          await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
-          return getDownloadURL(fileRef);
-        }),
-      );
-      const newPhotos = [...currentPhotos, ...uploaded].slice(0, 10);
+      const asset = result.assets[0];
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const fileRef = storageRef(storage, `dogs/${dogId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
+      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
+      const downloadURL = await getDownloadURL(fileRef);
+      const newPhotos = [...currentPhotos, downloadURL].slice(0, 10);
       await updateDog(dogId, { photoURLs: newPhotos });
       refreshDogs();
     } catch {
-      Alert.alert('Error', 'Failed to upload photos. Please try again.');
+      Alert.alert('Error', 'Failed to upload photo. Please try again.');
     } finally {
       setUploadingDogId(null);
     }
+  };
+
+  const handleReplacePhoto = async (dogId: string, currentPhotos: string[], index: number) => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [1, 1] as [number, number],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setUploadingDogId(dogId);
+    try {
+      const asset = result.assets[0];
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const fileRef = storageRef(storage, `dogs/${dogId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
+      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
+      const downloadURL = await getDownloadURL(fileRef);
+      const newPhotos = [...currentPhotos];
+      newPhotos[index] = downloadURL;
+      await updateDog(dogId, { photoURLs: newPhotos });
+      refreshDogs();
+    } catch {
+      Alert.alert('Error', 'Failed to replace photo. Please try again.');
+    } finally {
+      setUploadingDogId(null);
+    }
+  };
+
+  const handlePhotoTap = (dogId: string, currentPhotos: string[], index: number) => {
+    Alert.alert(
+      'Edit Photo',
+      '',
+      [
+        {
+          text: 'Replace / Crop Photo',
+          onPress: () => { void handleReplacePhoto(dogId, currentPhotos, index); },
+        },
+        {
+          text: 'Remove Photo',
+          style: 'destructive',
+          onPress: () => { void handleRemoveDogPhoto(dogId, currentPhotos, index); },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
   };
 
   const handleRemoveDogPhoto = async (dogId: string, currentPhotos: string[], index: number) => {
@@ -168,26 +212,27 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             <View style={styles.dogPhotoRow}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dogPhotoScroll}>
                 {dog.photoURLs.map((uri, idx) => (
-                  <View key={uri + idx} style={styles.dogPhotoThumbWrap}>
+                  <TouchableOpacity
+                    key={uri + idx}
+                    style={styles.dogPhotoThumbWrap}
+                    onPress={() => handlePhotoTap(dog.id, dog.photoURLs, idx)}
+                    accessibilityLabel={`Edit ${dog.name} photo ${idx + 1}`}
+                    accessibilityRole="button"
+                  >
                     <Image
                       source={{ uri }}
                       style={styles.dogPhotoThumb}
                       accessibilityLabel={`${dog.name} photo ${idx + 1}`}
                     />
-                    <TouchableOpacity
-                      style={[styles.dogPhotoRemoveBtn, { backgroundColor: colors.error }]}
-                      onPress={() => { void handleRemoveDogPhoto(dog.id, dog.photoURLs, idx); }}
-                      accessibilityLabel={`Remove photo ${idx + 1} of ${dog.name}`}
-                      accessibilityRole="button"
-                    >
+                    <View style={[styles.dogPhotoRemoveBtn, { backgroundColor: colors.error }]}>
                       <Text style={styles.dogPhotoRemoveText}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
+                    </View>
+                  </TouchableOpacity>
                 ))}
                 {/* Plus-sign tile — always at end of photo scroll */}
                 <TouchableOpacity
                   style={[styles.dogPhotoAddTile, { borderColor: colors.border, backgroundColor: colors.background }]}
-                  onPress={() => { void handleAddDogPhotos(dog.id, dog.photoURLs); }}
+                  onPress={() => { void handleAddDogPhoto(dog.id, dog.photoURLs); }}
                   disabled={uploadingDogId === dog.id}
                   accessibilityLabel={`Add photos for ${dog.name}`}
                   accessibilityRole="button"

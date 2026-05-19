@@ -2,6 +2,7 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   updateDoc,
   doc,
   query,
@@ -208,11 +209,21 @@ export const useSwaps = () => {
     });
   };
 
-  /** Add a responder to a post's respondedBy array */
+  /** Add a responder to a post's respondedBy array (guards against duplicates) */
   const addResponder = async (
     postId: string,
     responder: { userId: string; userName: string; userPhotoURL?: string }
   ): Promise<void> => {
+    // Server-side duplicate guard: read the doc first
+    const postSnap = await getDoc(doc(db, 'swapPosts', postId));
+    if (postSnap.exists()) {
+      const data = postSnap.data() as Record<string, unknown>;
+      const existing = (data.respondedBy as Array<Record<string, unknown>> | undefined) ?? [];
+      if (existing.some((r) => r.userId === responder.userId)) {
+        // Already responded — skip the write
+        return;
+      }
+    }
     await updateDoc(doc(db, 'swapPosts', postId), {
       respondedBy: arrayUnion({
         userId: responder.userId,

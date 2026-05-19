@@ -350,17 +350,30 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       )}
 
       {/* I Can Help button (not shown for own posts) */}
-      {!isOwner && post.status === 'open' && (
-        <TouchableOpacity
-          style={[styles.helpBtn, { backgroundColor: colors.primary, opacity: claiming ? 0.7 : 1 }]}
-          onPress={handleHelp}
-          disabled={claiming}
-          accessibilityLabel={claiming ? 'Sending message...' : 'I can help!'}
-          accessibilityRole="button"
-        >
-          <Text style={styles.helpBtnText}>{claiming ? 'Opening chat...' : 'I Can Help! 🐾'}</Text>
-        </TouchableOpacity>
-      )}
+      {!isOwner && post.status === 'open' && (() => {
+        const alreadyResponded = respondents.some((r) => r.userId === user?.uid);
+        if (alreadyResponded) {
+          return (
+            <View
+              style={[styles.helpBtn, styles.helpBtnAlreadyResponded]}
+              accessibilityLabel="Already responded to this post"
+            >
+              <Text style={[styles.helpBtnText, { color: '#636E72' }]}>Already Responded ✓</Text>
+            </View>
+          );
+        }
+        return (
+          <TouchableOpacity
+            style={[styles.helpBtn, { backgroundColor: colors.primary, opacity: claiming ? 0.7 : 1 }]}
+            onPress={handleHelp}
+            disabled={claiming}
+            accessibilityLabel={claiming ? 'Sending message...' : 'I can help!'}
+            accessibilityRole="button"
+          >
+            <Text style={styles.helpBtnText}>{claiming ? 'Opening chat...' : 'I Can Help! 🐾'}</Text>
+          </TouchableOpacity>
+        );
+      })()}
 
       {isOwner && respondents.length === 0 && (
         <View style={[styles.ownerNote, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -478,6 +491,7 @@ const styles = StyleSheet.create({
   approveBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   // Help button
   helpBtn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.sm, marginBottom: spacing.sm },
+  helpBtnAlreadyResponded: { backgroundColor: '#E8E8E8' },
   helpBtnText: { color: '#fff', ...typography.button, fontSize: 17 },
   // Owner note
   ownerNote: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center' },

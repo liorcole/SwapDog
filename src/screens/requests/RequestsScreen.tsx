@@ -4,7 +4,7 @@
  *   "Commitments"  : calendar-style view of all accepted swap commitments
  *                    Red (#FF2D55) = your dog being watched; Teal (#2DD4BF) = you're watching
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
   ScrollView,
   Dimensions,
   Modal,
+  PanResponder,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -92,6 +93,21 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const [calMonth, setCalMonth] = useState<Date>(
     new Date(today.getFullYear(), today.getMonth(), 1),
   );
+
+  // Pan responder for horizontal swipe to change month
+  const calPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 50,
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < -50) {
+          setCalMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+        } else if (gestureState.dx > 50) {
+          setCalMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+        }
+      },
+    }),
+  ).current;
 
   // Popup overlay state
   const [popupCommitments, setPopupCommitments] = useState<SwapPost[]>([]);
@@ -412,8 +428,8 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
           ))}
         </View>
 
-        {/* Calendar grid */}
-        <View style={styles.calGrid}>
+        {/* Calendar grid — swipeable left/right to change month */}
+        <View style={styles.calGrid} {...calPanResponder.panHandlers}>
           {calDays.map((date, idx) => {
             if (date === null) {
               return <View key={`empty-${idx}`} style={styles.calCell} />;
@@ -672,17 +688,17 @@ const styles = StyleSheet.create({
   interestTopLeft: {
     backgroundColor: RED,
     borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
     alignSelf: 'flex-start',
-    marginBottom: spacing.xs,
+    marginBottom: 12,
     shadowColor: RED,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.30,
     shadowRadius: 4,
     elevation: 2,
   },
-  interestBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  interestBadgeText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   // Points — plain bold white text
   compPlainText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', marginBottom: spacing.xs },
 

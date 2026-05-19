@@ -63,7 +63,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           const response = await fetch(asset.uri);
           const blob = await response.blob();
           const fileRef = storageRef(storage, `dogs/${dogId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
-          await uploadBytes(fileRef, blob);
+          await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
           return getDownloadURL(fileRef);
         }),
       );
@@ -167,53 +167,38 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             {/* Photo gallery row */}
             <View style={styles.dogPhotoRow}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dogPhotoScroll}>
-                {dog.photoURLs.length === 0 ? (
-                  <TouchableOpacity
-                    style={[styles.dogPhotoAddTile, { borderColor: colors.border, backgroundColor: colors.background }]}
-                    onPress={() => { void handleAddDogPhotos(dog.id, dog.photoURLs); }}
-                    accessibilityLabel={`Add photos for ${dog.name}`}
-                    accessibilityRole="button"
-                  >
-                    <Text style={[styles.dogPhotoAddIcon, { color: colors.primary }]}>+</Text>
-                    <Text style={[styles.dogPhotoAddLabel, { color: colors.textSecondary }]}>Add Photos</Text>
-                  </TouchableOpacity>
-                ) : (
-                  dog.photoURLs.map((uri, idx) => (
-                    <View key={uri + idx} style={styles.dogPhotoThumbWrap}>
-                      <Image
-                        source={{ uri }}
-                        style={styles.dogPhotoThumb}
-                        accessibilityLabel={`${dog.name} photo ${idx + 1}`}
-                      />
-                      <TouchableOpacity
-                        style={[styles.dogPhotoRemoveBtn, { backgroundColor: colors.error }]}
-                        onPress={() => { void handleRemoveDogPhoto(dog.id, dog.photoURLs, idx); }}
-                        accessibilityLabel={`Remove photo ${idx + 1} of ${dog.name}`}
-                        accessibilityRole="button"
-                      >
-                        <Text style={styles.dogPhotoRemoveText}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))
-                )}
+                {dog.photoURLs.map((uri, idx) => (
+                  <View key={uri + idx} style={styles.dogPhotoThumbWrap}>
+                    <Image
+                      source={{ uri }}
+                      style={styles.dogPhotoThumb}
+                      accessibilityLabel={`${dog.name} photo ${idx + 1}`}
+                    />
+                    <TouchableOpacity
+                      style={[styles.dogPhotoRemoveBtn, { backgroundColor: colors.error }]}
+                      onPress={() => { void handleRemoveDogPhoto(dog.id, dog.photoURLs, idx); }}
+                      accessibilityLabel={`Remove photo ${idx + 1} of ${dog.name}`}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.dogPhotoRemoveText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {/* Plus-sign tile — always at end of photo scroll */}
+                <TouchableOpacity
+                  style={[styles.dogPhotoAddTile, { borderColor: colors.border, backgroundColor: colors.background }]}
+                  onPress={() => { void handleAddDogPhotos(dog.id, dog.photoURLs); }}
+                  disabled={uploadingDogId === dog.id}
+                  accessibilityLabel={`Add photos for ${dog.name}`}
+                  accessibilityRole="button"
+                >
+                  {uploadingDogId === dog.id ? (
+                    <ActivityIndicator color={colors.primary} size="small" />
+                  ) : (
+                    <Text style={[styles.dogPhotoAddIcon, { color: colors.textSecondary }]}>+</Text>
+                  )}
+                </TouchableOpacity>
               </ScrollView>
-
-              {/* Edit photos button */}
-              <TouchableOpacity
-                style={[styles.dogPhotoEditBtn, { borderColor: colors.primary }]}
-                onPress={() => { void handleAddDogPhotos(dog.id, dog.photoURLs); }}
-                disabled={uploadingDogId === dog.id}
-                accessibilityLabel={`Edit photos for ${dog.name}`}
-                accessibilityRole="button"
-              >
-                {uploadingDogId === dog.id ? (
-                  <ActivityIndicator color={colors.primary} size="small" />
-                ) : (
-                  <Text style={[styles.dogPhotoEditText, { color: colors.primary }]}>
-                    {dog.photoURLs.length === 0 ? '+ Add Photos' : '✏️ Edit Photos'}
-                  </Text>
-                )}
-              </TouchableOpacity>
             </View>
           </View>
         ))}
@@ -358,18 +343,6 @@ const styles = StyleSheet.create({
     marginRight: spacing.xs,
   },
   dogPhotoAddIcon: { fontSize: 22, fontWeight: '300', lineHeight: 26 },
-  dogPhotoAddLabel: { fontSize: 10, marginTop: 2 },
-  dogPhotoEditBtn: {
-    borderWidth: 1.5,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-    marginTop: spacing.xs,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  dogPhotoEditText: { fontSize: 13, fontWeight: '600' },
   signOutBtn: { margin: spacing.lg, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
   signOutText: { color: '#fff', ...typography.button },
 });

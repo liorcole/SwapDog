@@ -3,7 +3,6 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -14,8 +13,6 @@ import { Dog, DogSize, DogSex, EnergyLevel } from '../../models/types';
 import { spacing, borderRadius, typography } from '../../config/theme';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Chip from '../../components/common/Chip';
-
-const MAX_PHOTOS = 10;
 
 type Props = {
   navigation: NativeStackNavigationProp<ProfileStackParamList, 'EditDog'>;
@@ -53,37 +50,6 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
       setLoading(false);
     });
   }, [route.params.dogId]);
-
-  const pickPhoto = async () => {
-    if (photoURLs.length >= MAX_PHOTOS) {
-      Alert.alert('Limit reached', `You can add up to ${MAX_PHOTOS} photos`);
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsMultipleSelection: true,
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      const newUris = result.assets.map((a) => a.uri);
-      setPhotoURLs((prev) => [...prev, ...newUris].slice(0, MAX_PHOTOS));
-    }
-  };
-
-  const removePhoto = (index: number) => {
-    setPhotoURLs((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const setPrimary = (index: number) => {
-    if (index === 0) return;
-    setPhotoURLs((prev) => {
-      const next = [...prev];
-      const [selected] = next.splice(index, 1);
-      next.unshift(selected);
-      return next;
-    });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
 
   const handleSave = async () => {
     if (!name.trim()) { Alert.alert('Required', 'Dog name is required'); return; }
@@ -131,47 +97,28 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
     >
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
 
-      {/* Photo grid */}
-      <Text style={[styles.label, { color: colors.text }]}>Photos ({photoURLs.length}/{MAX_PHOTOS})</Text>
-      <Text style={[styles.hint, { color: colors.textSecondary }]}>Long-press a photo to set as primary</Text>
-      <View style={styles.photoGrid}>
-        {photoURLs.map((uri, index) => (
-          <View key={uri + index} style={styles.photoThumb}>
-            <TouchableOpacity
-              onLongPress={() => setPrimary(index)}
-              accessibilityLabel={index === 0 ? 'Primary photo, long-press to reorder' : `Photo ${index + 1}, long-press to set as primary`}
-            >
-              <Image source={{ uri }} style={styles.thumbImg} />
-            </TouchableOpacity>
-            {index === 0 && (
-              <View style={[styles.primaryBadge, { backgroundColor: colors.primary }]}>
-                <Text style={styles.primaryBadgeText}>Primary</Text>
+      {/* Photo gallery — display only. Add/remove photos from Profile screen. */}
+      {photoURLs.length > 0 && (
+        <>
+          <Text style={[styles.label, { color: colors.text }]}>Photos</Text>
+          <View style={styles.photoGrid}>
+            {photoURLs.map((uri, index) => (
+              <View key={uri + index} style={styles.photoThumb}>
+                <Image
+                  source={{ uri }}
+                  style={styles.thumbImg}
+                  accessibilityLabel={index === 0 ? 'Primary photo' : `Photo ${index + 1}`}
+                />
+                {index === 0 && (
+                  <View style={[styles.primaryBadge, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.primaryBadgeText}>Primary</Text>
+                  </View>
+                )}
               </View>
-            )}
-            <TouchableOpacity
-              style={[styles.removeBtn, { backgroundColor: colors.error }]}
-              onPress={() => removePhoto(index)}
-              accessibilityLabel={`Remove photo ${index + 1}`}
-              accessibilityRole="button"
-            >
-              <Text style={styles.removeBtnText}>✕</Text>
-            </TouchableOpacity>
+            ))}
           </View>
-        ))}
-        {photoURLs.length < MAX_PHOTOS && (
-          <TouchableOpacity
-            style={[styles.addPhotoTile, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={pickPhoto}
-            accessibilityLabel={`Add photo. ${MAX_PHOTOS - photoURLs.length} remaining`}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.addPhotoIcon, { color: colors.primary }]}>+</Text>
-            <Text style={[styles.addPhotoLabel, { color: colors.textSecondary }]}>
-              {photoURLs.length}/{MAX_PHOTOS}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
+        </>
+      )}
 
       <TextInput
         style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -289,7 +236,6 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg },
   input: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md, fontSize: 15 },
   label: { fontSize: 15, fontWeight: '600', marginBottom: spacing.sm },
-  hint: { fontSize: 12, fontStyle: 'italic', marginBottom: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.lg },
   btn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginBottom: spacing.md },
   btnText: { color: '#fff', ...typography.button },
@@ -301,11 +247,7 @@ const styles = StyleSheet.create({
   thumbImg: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: borderRadius.sm },
   primaryBadge: { position: 'absolute', bottom: 2, left: 2, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
   primaryBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
-  removeBtn: { position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  removeBtnText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  addPhotoTile: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: borderRadius.sm, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  addPhotoIcon: { fontSize: 24, fontWeight: '300', lineHeight: 28 },
-  addPhotoLabel: { fontSize: 10 },
+
   // Age
   ageRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.sm },
   agePicker: { flex: 1 },

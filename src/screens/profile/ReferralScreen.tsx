@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   Share,
-  Clipboard,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -81,13 +80,6 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
     loadReferrals();
   }, [loadReferrals]);
 
-  const handleCopyCode = () => {
-    if (!referralCode) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Clipboard.setString(referralCode);
-    Alert.alert('Copied!', `Your referral code "${referralCode}" has been copied to the clipboard.`);
-  };
-
   const handleShare = async () => {
     if (!referralCode) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -157,16 +149,10 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
             YOUR REFERRAL CODE
           </Text>
-          {/* Copy code button — referral code text is INSIDE the button */}
-          <TouchableOpacity
-            style={[styles.copyCodeBtn, { backgroundColor: colors.background, borderColor: colors.primary }]}
-            onPress={handleCopyCode}
-            accessibilityLabel={`Copy referral code ${referralCode}`}
-            accessibilityRole="button"
-          >
+          {/* Referral code — display only */}
+          <View style={[styles.codeDisplay, { borderColor: colors.border, backgroundColor: colors.background }]}>
             <Text style={[styles.copyCodeText, { color: colors.primary }]}>{referralCode}</Text>
-            <Text style={[styles.copyCodeLabel, { color: colors.primary }]}>  📋 Copy Code</Text>
-          </TouchableOpacity>
+          </View>
 
           {/* Share — opens native share sheet (includes text, WhatsApp, email, etc.) */}
           <TouchableOpacity
@@ -265,16 +251,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: spacing.xs,
   },
-  copyCodeBtn: {
-    flexDirection: 'row',
+  codeDisplay: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderRadius: borderRadius.md,
     padding: spacing.md,
   },
   copyCodeText: { fontSize: 22, fontWeight: '800', letterSpacing: 3 },
-  copyCodeLabel: { fontSize: 15, fontWeight: '700' },
 
   // Buttons
   fullWidthBtn: {

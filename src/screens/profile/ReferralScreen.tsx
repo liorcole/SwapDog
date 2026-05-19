@@ -8,6 +8,7 @@ import {
   Share,
   Clipboard,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as SMS from 'expo-sms';
@@ -16,7 +17,7 @@ import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { spacing, borderRadius, typography, shadow } from '../../config/theme';
-import { getMyReferrals, getReferralCount } from '../../hooks/useReferrals';
+import { getMyReferrals, getReferralCount, ensureReferralCode } from '../../hooks/useReferrals';
 import { User } from '../../models/types';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -28,18 +29,44 @@ const APP_LINK = 'https://swapdog.app';
 
 const ReferralScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
-  const { user, userProfile } = useAuthContext();
+  const { user, userProfile, refreshUserProfile } = useAuthContext();
   const [referrals, setReferrals] = useState<User[]>([]);
   const [referralCount, setReferralCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [codeGenerating, setCodeGenerating] = useState(false);
   const [smsAvailable, setSmsAvailable] = useState(false);
-
-  const referralCode = userProfile?.referralCode ?? '';
+  // Local referral code — starts from profile, may be freshly generated
+  const [referralCode, setReferralCode] = useState(userProfile?.referralCode ?? '');
 
   // Check SMS availability on mount
   useEffect(() => {
     SMS.isAvailableAsync().then(setSmsAvailable).catch(() => setSmsAvailable(false));
   }, []);
+
+  // Auto-generate a referral code if the user doesn't have one yet
+  useEffect(() => {
+    if (!user) return;
+    if (referralCode && referralCode.trim().length > 0) return; // already have one
+    setCodeGenerating(true);
+    ensureReferralCode(user.uid)
+      .then((code) => {
+        setReferralCode(code);
+        // Refresh so AuthContext/userProfile reflects the new code
+        return refreshUserProfile();
+      })
+      .catch(() => {
+        // Non-fatal — user will see "generating" message
+      })
+      .finally(() => setCodeGenerating(false));
+  }, [user, referralCode, refreshUserProfile]);
+
+  // Sync if userProfile updates (e.g. after refreshUserProfile)
+  useEffect(() => {
+    const profileCode = userProfile?.referralCode ?? '';
+    if (profileCode && profileCode.trim().length > 0) {
+      setReferralCode(profileCode);
+    }
+  }, [userProfile?.referralCode]);
 
   const loadReferrals = useCallback(async () => {
     if (!user) return;
@@ -72,8 +99,8 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
     if (!referralCode) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const message =
-      `Hey! 🐾 I've been using SwapDog — it's an amazing community for peer-to-peer dog ` +
-      `sitting with people you can trust. Use my referral code ${referralCode} to join! ` +
+      `Hey! 🐾 I've been using SwapDog — a trusted community for peer-to-peer dog ` +
+      `sitting. Use my code ${referralCode} to join! ` +
       `Download: ${APP_LINK}`;
     try {
       await SMS.sendSMSAsync([], message);
@@ -87,7 +114,9 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await Share.share({
-        message: `🐾 Join me on SwapDog — the trusted community for peer-to-peer dog sitting! Use my referral code: ${referralCode} to get started. Download: ${APP_LINK}`,
+        message:
+          `🐾 Join me on SwapDog — the trusted community for peer-to-peer dog sitting! ` +
+          `Use my referral code: ${referralCode} to get started. Download: ${APP_LINK}`,
         title: 'Join SwapDog',
       });
     } catch {
@@ -113,6 +142,14 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
     >
       <Text style={[styles.title, { color: colors.text }]}>🎁 Invite a Friend</Text>
 
+      {/* Accountability Warning — prominent per spec */}
+      <View style={[styles.warningCard, { backgroundColor: '#F8D7DA', borderColor: '#F5C2C7' }]}>
+        <Text style={[styles.warningText, { color: '#842029' }]}>
+          ⚠️ If someone you refer is reported for conduct violations, your account will be
+          reviewed and may be subject to suspension.
+        </Text>
+      </View>
+
       {/* Trust & Safety Card */}
       <View style={[styles.safetyCard, { backgroundColor: '#FFF3CD', borderColor: '#F0AD4E' }]}>
         <Text style={[styles.safetyTitle, { color: '#856404' }]}>🐾 Built on Trust & Safety</Text>
@@ -124,20 +161,19 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
           Your referrals reflect on you.
         </Text>
         <Text style={[styles.safetyBody, { color: '#664D03' }]}>
-          We expect all referrals to be trusted friends or family members who share our values of
-          responsible pet care.
+          Only refer trusted friends or family members who share our values of responsible pet care.
         </Text>
-        <View style={[styles.warningBox, { backgroundColor: '#F8D7DA', borderColor: '#F5C2C7' }]}>
-          <Text style={[styles.warningText, { color: '#842029' }]}>
-            ⚠️ Accountability Notice: If someone you refer is reported for conduct violations, your
-            account will be reviewed and may be subject to suspension. This is handled on a
-            case-by-case basis, but please — only refer people you would trust with your own pets.
-          </Text>
-        </View>
       </View>
 
       {/* Referral Code Section */}
-      {referralCode ? (
+      {codeGenerating ? (
+        <View style={[styles.codeSection, { backgroundColor: colors.surface, ...shadow.sm }]}>
+          <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
+          <Text style={[styles.noCodeText, { color: colors.textSecondary }]}>
+            Generating your referral code…
+          </Text>
+        </View>
+      ) : referralCode ? (
         <View style={[styles.codeSection, { backgroundColor: colors.surface, ...shadow.sm }]}>
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
             YOUR REFERRAL CODE
@@ -156,7 +192,7 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={[styles.fullWidthBtnText, { color: colors.primary }]}>📋  Copy Code</Text>
           </TouchableOpacity>
 
-          {/* Text a Friend — coral fill, only shown when SMS is available */}
+          {/* Text a Friend — only shown when SMS is available */}
           {smsAvailable && (
             <TouchableOpacity
               style={[styles.fullWidthBtn, styles.smsBtn, { backgroundColor: colors.primary }]}
@@ -168,7 +204,7 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
             </TouchableOpacity>
           )}
 
-          {/* General share — teal secondary */}
+          {/* General share */}
           <TouchableOpacity
             style={[styles.fullWidthBtn, { borderColor: '#4ECDC4', borderWidth: 1.5 }]}
             onPress={handleShare}
@@ -181,7 +217,7 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
       ) : (
         <View style={[styles.codeSection, { backgroundColor: colors.surface, ...shadow.sm }]}>
           <Text style={[styles.noCodeText, { color: colors.textSecondary }]}>
-            Your referral code is being generated. Check back soon!
+            Your referral code is being set up. Check back soon!
           </Text>
         </View>
       )}
@@ -211,7 +247,7 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
                   style={[styles.referralRow, { backgroundColor: colors.surface, ...shadow.sm }]}
                 >
                   <Text style={[styles.referralName, { color: colors.text }]}>
-                    {referredUser.displayName}
+                    {referredUser.displayName || 'New Member'}
                   </Text>
                   <View style={[styles.statusBadge, { backgroundColor: badge.bg, borderColor: badge.color }]}>
                     <Text style={[styles.statusText, { color: badge.color }]}>{badge.label}</Text>
@@ -231,6 +267,15 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: 60 },
   title: { ...typography.h2, marginBottom: spacing.lg },
 
+  // Prominent accountability warning (top)
+  warningCard: {
+    borderWidth: 1.5,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  warningText: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
+
   // Trust & Safety
   safetyCard: {
     borderWidth: 1.5,
@@ -241,13 +286,6 @@ const styles = StyleSheet.create({
   safetyTitle: { fontSize: 16, fontWeight: '700', marginBottom: spacing.sm },
   safetyBody: { fontSize: 14, lineHeight: 20, marginBottom: spacing.sm },
   safetyBold: { fontSize: 14, fontWeight: '700', marginBottom: spacing.xs },
-  warningBox: {
-    borderWidth: 1,
-    borderRadius: borderRadius.sm,
-    padding: spacing.md,
-    marginTop: spacing.sm,
-  },
-  warningText: { fontSize: 13, lineHeight: 19, fontWeight: '500' },
 
   // Code section
   codeSection: {
@@ -280,7 +318,6 @@ const styles = StyleSheet.create({
   },
   fullWidthBtnText: { fontSize: 15, fontWeight: '700' },
   smsBtn: {
-    // extra prominence via shadow offset
     shadowColor: '#FF2D55',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,

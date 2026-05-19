@@ -58,6 +58,7 @@ export const validateReferralCode = async (
 /**
  * Marks the referral code as used by the given userId.
  * Increments usedCount and appends userId to usedBy array.
+ * Also sets referredBy on the user document to the code's createdBy userId.
  */
 export const redeemReferralCode = async (
   code: string,
@@ -72,16 +73,32 @@ export const redeemReferralCode = async (
   if (snapshot.empty) {
     throw new Error('Referral code not found');
   }
-  const docRef = snapshot.docs[0].ref;
+  const codeDoc = snapshot.docs[0];
+  const docRef = codeDoc.ref;
+  const createdBy = codeDoc.data().createdBy as string;
+
+  // Atomically update the referral code document
   await updateDoc(docRef, {
     usedCount: increment(1),
     usedBy: arrayUnion(userId),
   });
+
+  // Set referredBy on the user's document
+  try {
+    await updateDoc(doc(db, 'users', userId), {
+      referredBy: createdBy,
+      updatedAt: serverTimestamp(),
+    });
+  } catch {
+    // User doc may not exist yet at this point (called from ReferralCodeScreen
+    // before auth signup) — that's OK; useAuth.signUp will set referredBy.
+  }
 };
 
 /**
- * Generates a new unique 8-char alphanumeric referral code for a user
- * and writes it to the referral_codes collection.
+ * Generates a new unique 8-char alphanumeric referral code for a user,
+ * writes it to the referral_codes collection, and stores it on the
+ * user's own document for quick access.
  * Returns the generated code string.
  */
 export const generateReferralCode = async (userId: string): Promise<string> => {
@@ -105,6 +122,31 @@ export const generateReferralCode = async (userId: string): Promise<string> => {
   return code;
 };
 
+/**
+ * Ensures the user has a referral code. If they already have one (on their
+ * user doc), returns it. Otherwise generates a new one, writes it to both
+ * `referral_codes` and the user document, then returns it.
+ */
+export const ensureReferralCode = async (userId: string): Promise<string> => {
+  // Check the user doc first
+  const userDocSnap = await getDoc(doc(db, 'users', userId));
+  if (userDocSnap.exists()) {
+    const existing = userDocSnap.data().referralCode as string | undefined;
+    if (existing && existing.trim().length > 0) return existing;
+  }
+
+  // Generate a new code
+  const newCode = await generateReferralCode(userId);
+
+  // Persist it on the user doc so it's visible immediately via userProfile
+  await updateDoc(doc(db, 'users', userId), {
+    referralCode: newCode,
+    updatedAt: serverTimestamp(),
+  });
+
+  return newCode;
+};
+
 // ── Referral list helpers ────────────────────────────────────────────────────
 
 /**
@@ -113,7 +155,6 @@ export const generateReferralCode = async (userId: string): Promise<string> => {
  */
 export const getMyReferrals = async (userId: string): Promise<import('../models/types').User[]> => {
   try {
-    const { toDate } = await import('../utils/firestoreConverters');
     const q = query(
       collection(db, 'users'),
       where('referredBy', '==', userId),

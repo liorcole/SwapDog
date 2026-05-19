@@ -7,7 +7,6 @@ import {
   where,
   orderBy,
   serverTimestamp,
-  or,
   updateDoc,
   doc,
 } from 'firebase/firestore';
@@ -65,12 +64,19 @@ export const useMessaging = () => {
       collection(db, 'conversations', convId, 'messages'),
       orderBy('createdAt', 'asc')
     );
-    return onSnapshot(q, (snap) => {
-      const msgs = snap.docs.map((d) =>
-        parseMessage(d.id, d.data() as Record<string, unknown>)
-      );
-      cb(msgs);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        const msgs = snap.docs.map((d) =>
+          parseMessage(d.id, d.data() as Record<string, unknown>)
+        );
+        cb(msgs);
+      },
+      (error) => {
+        console.warn('[useMessaging] subscribeToMessages error:', error.message);
+        cb([]);
+      }
+    );
   };
 
   const getConversations = async (userId: string): Promise<Conversation[]> => {
@@ -79,24 +85,43 @@ export const useMessaging = () => {
       where('participantIds', 'array-contains', userId)
     );
     const snap = await getDocs(q);
-    return snap.docs.map((d) => parseConversation(d.id, d.data() as Record<string, unknown>));
+    return snap.docs
+      .map((d) => parseConversation(d.id, d.data() as Record<string, unknown>))
+      .sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0));
   };
 
+  /**
+   * Subscribe to conversations for a user.
+   *
+   * NOTE: Firestore does not allow combining array-contains with orderBy on a
+   * different field without a composite index. To avoid requiring a manually
+   * deployed index (which breaks the app until deployed), we query with
+   * array-contains only and sort the results client-side.
+   */
   const subscribeToConversations = (
     userId: string,
     cb: (conversations: Conversation[]) => void
   ): (() => void) => {
     const q = query(
       collection(db, 'conversations'),
-      where('participantIds', 'array-contains', userId),
-      orderBy('updatedAt', 'desc')
+      where('participantIds', 'array-contains', userId)
+      // ⚠️ orderBy('updatedAt', 'desc') intentionally omitted — requires a
+      // composite index. Sorting is done client-side below instead.
     );
-    return onSnapshot(q, (snap) => {
-      const convs = snap.docs.map((d) =>
-        parseConversation(d.id, d.data() as Record<string, unknown>)
-      );
-      cb(convs);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        const convs = snap.docs
+          .map((d) => parseConversation(d.id, d.data() as Record<string, unknown>))
+          // Sort most-recently-updated first (mirrors the removed orderBy)
+          .sort((a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0));
+        cb(convs);
+      },
+      (error) => {
+        console.warn('[useMessaging] subscribeToConversations error:', error.message);
+        cb([]);
+      }
+    );
   };
 
   /**
@@ -146,7 +171,7 @@ const SYSTEM_SENDER_ID = 'swapdog-team';
 const WELCOME_TEXT =
   'Welcome to SwapDog! 🐾\n\n' +
   "We're so happy to have you in the family! You're now part of a trusted " +
-  'community of dog lovers who look out for each other\'s pups.\n\n' +
+  "community of dog lovers who look out for each other's pups.\n\n" +
   'If you ever need help or have questions, reach out to us at hello@swapdog.com.\n\n' +
   'Happy swapping! 🐕';
 
@@ -179,7 +204,9 @@ export const sendWelcomeMessageIfNeeded = async (userId: string): Promise<void> 
     updatedAt: serverTimestamp(),
   });
 
-  // Add the welcome message itself
+  // Add the welcome message itself.
+  // Security rules allow senderId === 'swapdog-team' when written by an
+  // authenticated participant, so this is permitted without a Cloud Function.
   await addDoc(collection(db, 'conversations', convRef.id, 'messages'), {
     conversationId: convRef.id,
     senderId: SYSTEM_SENDER_ID,

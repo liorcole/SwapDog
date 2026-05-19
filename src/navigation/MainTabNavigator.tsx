@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import {
   MainTabParamList,
   DiscoverStackParamList,
@@ -10,6 +10,8 @@ import {
   ProfileStackParamList,
 } from './types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuthContext } from '../contexts/AuthContext';
+import { useMessaging } from '../hooks/useMessaging';
 import AppHeader from '../components/common/AppHeader';
 
 // Discover stack
@@ -141,6 +143,42 @@ const ProfileNavigator: React.FC = () => {
 
 const MainTabNavigator: React.FC = () => {
   const { colors } = useTheme();
+  const { user } = useAuthContext();
+  const { subscribeToConversations } = useMessaging();
+  const [hasUnread, setHasUnread] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeToConversations(user.uid, (convs) => {
+      const anyUnread = convs.some((c) => (c.unreadCounts[user.uid] ?? 0) > 0);
+      setHasUnread(anyUnread);
+    });
+    return unsub;
+  }, [user, subscribeToConversations]);
+
+  const MessagesIcon = useCallback(
+    ({ color }: { color: string }) => (
+      <View style={{ position: 'relative' }}>
+        <Text style={{ fontSize: 20, color }}>💬</Text>
+        {hasUnread && (
+          <View
+            style={{
+              position: 'absolute',
+              top: -1,
+              right: -3,
+              width: 9,
+              height: 9,
+              borderRadius: 4.5,
+              backgroundColor: '#FF2D55',
+              borderWidth: 1.5,
+              borderColor: colors.surface,
+            }}
+          />
+        )}
+      </View>
+    ),
+    [hasUnread, colors.surface],
+  );
 
   return (
     <Tab.Navigator
@@ -168,7 +206,7 @@ const MainTabNavigator: React.FC = () => {
       <Tab.Screen
         name="MessagesTab"
         component={MessagesNavigator}
-        options={{ tabBarLabel: 'Messages', tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>💬</Text> }}
+        options={{ tabBarLabel: 'Messages', tabBarIcon: MessagesIcon }}
       />
       <Tab.Screen
         name="ProfileTab"

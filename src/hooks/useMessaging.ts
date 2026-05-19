@@ -156,12 +156,27 @@ export const useMessaging = () => {
     return ref.id;
   };
 
+  /**
+   * Mark a conversation as read for the current user by resetting their
+   * unreadCount to 0 in the conversation document.
+   */
+  const markConversationRead = async (convId: string, userId: string): Promise<void> => {
+    try {
+      await updateDoc(doc(db, 'conversations', convId), {
+        [`unreadCounts.${userId}`]: 0,
+      });
+    } catch {
+      // Non-fatal — don't surface to user
+    }
+  };
+
   return {
     sendMessage,
     subscribeToMessages,
     getConversations,
     subscribeToConversations,
     getOrCreateConversation,
+    markConversationRead,
   };
 };
 

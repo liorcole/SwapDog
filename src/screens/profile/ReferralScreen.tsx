@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import * as SMS from 'expo-sms';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -34,14 +33,8 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
   const [referralCount, setReferralCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [codeGenerating, setCodeGenerating] = useState(false);
-  const [smsAvailable, setSmsAvailable] = useState(false);
   // Local referral code — starts from profile, may be freshly generated
   const [referralCode, setReferralCode] = useState(userProfile?.referralCode ?? '');
-
-  // Check SMS availability on mount
-  useEffect(() => {
-    SMS.isAvailableAsync().then(setSmsAvailable).catch(() => setSmsAvailable(false));
-  }, []);
 
   // Auto-generate a referral code if the user doesn't have one yet
   useEffect(() => {
@@ -95,20 +88,6 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
     Alert.alert('Copied!', `Your referral code "${referralCode}" has been copied to the clipboard.`);
   };
 
-  const handleTextFriend = async () => {
-    if (!referralCode) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const message =
-      `Hey! 🐾 I've been using SwapDog — a trusted community for peer-to-peer dog ` +
-      `sitting. Use my code ${referralCode} to join! ` +
-      `Download: ${APP_LINK}`;
-    try {
-      await SMS.sendSMSAsync([], message);
-    } catch {
-      Alert.alert('Oops', 'Could not open the SMS app. Please try again.');
-    }
-  };
-
   const handleShare = async () => {
     if (!referralCode) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -146,7 +125,7 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
       <View style={[styles.warningCard, { backgroundColor: '#F8D7DA', borderColor: '#F5C2C7' }]}>
         <Text style={[styles.warningText, { color: '#842029' }]}>
           ⚠️ If someone you refer is reported for conduct violations, your account will be
-          reviewed and may be subject to suspension.
+          reviewed and may be subject to suspension or complete termination.
         </Text>
       </View>
 
@@ -178,40 +157,25 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
             YOUR REFERRAL CODE
           </Text>
-          <View style={[styles.codeBox, { backgroundColor: colors.background, borderColor: colors.primary }]}>
-            <Text style={[styles.codeText, { color: colors.primary }]}>{referralCode}</Text>
-          </View>
-
-          {/* Copy code */}
+          {/* Copy code button — referral code text is INSIDE the button */}
           <TouchableOpacity
-            style={[styles.fullWidthBtn, { borderColor: colors.primary, borderWidth: 1.5 }]}
+            style={[styles.copyCodeBtn, { backgroundColor: colors.background, borderColor: colors.primary }]}
             onPress={handleCopyCode}
             accessibilityLabel={`Copy referral code ${referralCode}`}
             accessibilityRole="button"
           >
-            <Text style={[styles.fullWidthBtnText, { color: colors.primary }]}>📋  Copy Code</Text>
+            <Text style={[styles.copyCodeText, { color: colors.primary }]}>{referralCode}</Text>
+            <Text style={[styles.copyCodeLabel, { color: colors.primary }]}>  📋 Copy Code</Text>
           </TouchableOpacity>
 
-          {/* Text a Friend — only shown when SMS is available */}
-          {smsAvailable && (
-            <TouchableOpacity
-              style={[styles.fullWidthBtn, styles.smsBtn, { backgroundColor: colors.primary }]}
-              onPress={handleTextFriend}
-              accessibilityLabel="Text a friend your referral code"
-              accessibilityRole="button"
-            >
-              <Text style={[styles.fullWidthBtnText, { color: '#fff' }]}>📱  Text a Friend</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* General share */}
+          {/* Share — opens native share sheet (includes text, WhatsApp, email, etc.) */}
           <TouchableOpacity
-            style={[styles.fullWidthBtn, { borderColor: '#4ECDC4', borderWidth: 1.5 }]}
+            style={[styles.fullWidthBtn, { backgroundColor: colors.primary }]}
             onPress={handleShare}
             accessibilityLabel="Share your referral code"
             accessibilityRole="button"
           >
-            <Text style={[styles.fullWidthBtnText, { color: '#4ECDC4' }]}>🔗  Share via…</Text>
+            <Text style={[styles.fullWidthBtnText, { color: '#fff' }]}>🔗  Share</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -301,14 +265,16 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: spacing.xs,
   },
-  codeBox: {
+  copyCodeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 2,
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    alignItems: 'center',
-    marginBottom: spacing.xs,
   },
-  codeText: { fontSize: 28, fontWeight: '800', letterSpacing: 4 },
+  copyCodeText: { fontSize: 22, fontWeight: '800', letterSpacing: 3 },
+  copyCodeLabel: { fontSize: 15, fontWeight: '700' },
 
   // Buttons
   fullWidthBtn: {
@@ -317,13 +283,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   fullWidthBtnText: { fontSize: 15, fontWeight: '700' },
-  smsBtn: {
-    shadowColor: SPLASH_COLOR,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
 
   noCodeText: { fontSize: 14, textAlign: 'center', paddingVertical: spacing.md },
 

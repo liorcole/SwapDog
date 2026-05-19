@@ -21,14 +21,9 @@ import {
   Dimensions,
   Animated,
   PanResponder,
+  TextInput,
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
-import {
-  GooglePlacesAutocomplete,
-  GooglePlaceData,
-  GooglePlaceDetail,
-} from 'react-native-google-places-autocomplete';
-import * as Location from 'expo-location';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { DiscoverStackParamList } from '../../navigation/types';
@@ -61,8 +56,6 @@ const CIRCLE_SIZE = Math.min(Math.round(SCREEN_WIDTH * 0.60), 280);
 // How long to wait after the last region change before updating radius/query
 const REGION_DEBOUNCE_MS = 600;
 
-// Google Maps API key (same project as Firebase — swapdog-d0cfe)
-const GOOGLE_API_KEY = 'AIzaSyBOF66WalEIXlKnowKip26mxkIAR4EfTpA';
 
 // Preset radius options in miles
 const RADIUS_OPTIONS = [1, 5, 10, 25] as const;
@@ -183,7 +176,7 @@ const UserRow: React.FC<UserRowProps> = memo(({ user, distanceMiles, dogCount, o
   );
 });
 
-// ─── Location Override Modal (with Google Places Autocomplete) ───────────────
+// ─── Location Override Modal (Nominatim OpenStreetMap autocomplete) ───────────
 
 interface LocationModalProps {
   visible: boolean;
@@ -191,6 +184,13 @@ interface LocationModalProps {
   onConfirm: (coords: GeoPoint, label: string) => void;
   onUseCurrentLocation: () => void;
   isOverride: boolean;
+}
+
+interface NominatimResult {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
 }
 
 const LocationModal: React.FC<LocationModalProps> = ({
@@ -201,30 +201,53 @@ const LocationModal: React.FC<LocationModalProps> = ({
   isOverride,
 }) => {
   const { colors } = useTheme();
-  const [resolving, setResolving] = useState(false);
+  const [query, setQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
+  const [fetching, setFetching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handlePlaceSelect = useCallback(
-    (data: GooglePlaceData, details: GooglePlaceDetail | null) => {
-      if (!details?.geometry?.location) {
-        // Fallback: geocode using expo-location if details are missing
-        setResolving(true);
-        void Location.geocodeAsync(data.description)
-          .then((results) => {
-            if (results.length === 0) {
-              Alert.alert('Not found', 'Could not find that location. Try a different address.');
-              return;
-            }
-            const { latitude, longitude } = results[0];
-            onConfirm({ latitude, longitude }, data.description);
-          })
-          .catch(() => {
-            Alert.alert('Error', 'Could not resolve that location. Please try again.');
-          })
-          .finally(() => setResolving(false));
-        return;
-      }
-      const { lat, lng } = details.geometry.location;
-      onConfirm({ latitude: lat, longitude: lng }, data.description);
+  // Reset when modal is dismissed
+  useEffect(() => {
+    if (!visible) {
+      setQuery('');
+      setSuggestions([]);
+    }
+  }, [visible]);
+
+  const fetchSuggestions = useCallback((q: string) => {
+    if (q.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    setFetching(true);
+    void fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&limit=5&countrycodes=us`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'SwapDogApp/1.0' } },
+    )
+      .then((r) => r.json() as Promise<NominatimResult[]>)
+      .then((results) => setSuggestions(results))
+      .catch(() => setSuggestions([]))
+      .finally(() => setFetching(false));
+  }, []);
+
+  const handleChangeText = useCallback(
+    (text: string) => {
+      setQuery(text);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => fetchSuggestions(text), 300);
+    },
+    [fetchSuggestions],
+  );
+
+  const handleSelectSuggestion = useCallback(
+    (item: NominatimResult) => {
+      const lat = parseFloat(item.lat);
+      const lng = parseFloat(item.lon);
+      const parts = item.display_name.split(',');
+      const label = parts.slice(0, 3).join(',').trim();
+      setSuggestions([]);
+      setQuery('');
+      onConfirm({ latitude: lat, longitude: lng }, label);
     },
     [onConfirm],
   );
@@ -241,65 +264,60 @@ const LocationModal: React.FC<LocationModalProps> = ({
             Search for a city, neighborhood, or address to find dogs nearby.
           </Text>
 
-          {/* Google Places Autocomplete */}
+          {/* Nominatim autocomplete search */}
           <View style={styles.autocompleteWrapper}>
-            <GooglePlacesAutocomplete
-              placeholder="e.g. Brooklyn, NY or 27 Ridge Dr"
-              onPress={handlePlaceSelect}
-              fetchDetails
-              query={{
-                key: GOOGLE_API_KEY,
-                language: 'en',
-                components: 'country:us',
-              }}
-              enablePoweredByContainer={false}
-              keepResultsAfterBlur={false}
-              autoFillOnNotFound={false}
-              styles={{
-                textInput: {
+            <TextInput
+              style={[
+                styles.searchInput,
+                {
                   backgroundColor: colors.background,
                   borderColor: colors.border,
-                  borderWidth: 1.5,
-                  borderRadius: borderRadius.md,
                   color: colors.text,
-                  fontSize: 16,
-                  paddingHorizontal: spacing.md,
-                  height: 48,
                 },
-                textInputContainer: {
-                  paddingHorizontal: 0,
-                  backgroundColor: 'transparent',
-                },
-                listView: {
-                  backgroundColor: colors.surface,
-                  borderRadius: borderRadius.md,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  marginTop: 4,
-                  maxHeight: 220,
-                },
-                row: {
-                  backgroundColor: colors.surface,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.sm,
-                },
-                description: {
-                  color: colors.text,
-                  fontSize: 14,
-                },
-                poweredContainer: { display: 'none' },
-              }}
+              ]}
+              placeholder="e.g. Brooklyn, NY or 27 Ridge Dr"
+              placeholderTextColor={colors.textSecondary}
+              value={query}
+              onChangeText={handleChangeText}
+              autoFocus
+              clearButtonMode="while-editing"
+              returnKeyType="search"
+              accessibilityLabel="Search for a location"
             />
+            {fetching && (
+              <View style={styles.resolvingRow}>
+                <ActivityIndicator color={colors.primary} size="small" />
+                <Text style={[styles.resolvingText, { color: colors.textSecondary }]}>
+                  Searching…
+                </Text>
+              </View>
+            )}
+            {suggestions.length > 0 && (
+              <View
+                style={[
+                  styles.dropdown,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                {suggestions.map((item) => (
+                  <TouchableOpacity
+                    key={item.place_id}
+                    style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                    onPress={() => handleSelectSuggestion(item)}
+                    accessibilityLabel={item.display_name}
+                    accessibilityRole="button"
+                  >
+                    <Text
+                      style={[styles.dropdownItemText, { color: colors.text }]}
+                      numberOfLines={2}
+                    >
+                      {item.display_name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
-
-          {resolving && (
-            <View style={styles.resolvingRow}>
-              <ActivityIndicator color={colors.primary} size="small" />
-              <Text style={[styles.resolvingText, { color: colors.textSecondary }]}>
-                Resolving location…
-              </Text>
-            </View>
-          )}
 
           {isOverride && (
             <TouchableOpacity
@@ -353,6 +371,8 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const [mapViewHeight, setMapViewHeight] = useState(MAP_HEIGHT_DEFAULT);
 
   const mapRef = useRef<MapView>(null);
+  // Prevent re-processing onRegionChangeComplete events we triggered ourselves
+  const isProgrammaticMoveRef = useRef(false);
 
   // Debounce timer ref for region changes
   const regionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -450,6 +470,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         latitudeDelta: delta,
         longitudeDelta: delta,
       };
+      isProgrammaticMoveRef.current = true;
       mapRef.current.animateToRegion(region, 600);
     },
     [],
@@ -472,6 +493,11 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   // Inverse formula: visibleRadiusMiles = (latitudeDelta * 69 / 2) * (CIRCLE_SIZE / mapViewHeight)
   const handleRegionChangeComplete = useCallback(
     (region: Region) => {
+      // Skip events we triggered programmatically (re-center / radius animations)
+      if (isProgrammaticMoveRef.current) {
+        isProgrammaticMoveRef.current = false;
+        return;
+      }
       // Debounce to avoid firing on every micro-movement
       if (regionDebounceRef.current) {
         clearTimeout(regionDebounceRef.current);
@@ -486,9 +512,23 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         setRadiusMiles((prev) => {
           return Math.abs(rounded - prev) >= 0.2 ? rounded : prev;
         });
+        // Re-center map on the pin so the fixed circle overlay always tracks the pin.
+        // Preserves the current zoom level (keeps latitudeDelta/longitudeDelta from user's gesture).
+        if (mapRef.current && location) {
+          isProgrammaticMoveRef.current = true;
+          mapRef.current.animateToRegion(
+            {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              latitudeDelta: region.latitudeDelta,
+              longitudeDelta: region.longitudeDelta,
+            },
+            400,
+          );
+        }
       }, REGION_DEBOUNCE_MS);
     },
-    [mapViewHeight],
+    [mapViewHeight, location],
   );
 
   // ── Preset button taps: animate map to show that radius ──────────────────
@@ -819,9 +859,31 @@ const styles = StyleSheet.create({
   modalSubtitle: { ...typography.bodySmall, marginBottom: spacing.md },
   autocompleteWrapper: {
     marginBottom: spacing.md,
-    // Must have a fixed or min-height so the dropdown doesn't get clipped by the sheet
     zIndex: 10,
-    minHeight: 50,
+  },
+  searchInput: {
+    borderWidth: 1.5,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    height: 48,
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    maxHeight: 220,
+    marginTop: 2,
+  },
+  dropdownItem: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    lineHeight: 19,
   },
   resolvingRow: {
     flexDirection: 'row',

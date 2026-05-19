@@ -21,11 +21,18 @@ type Props = {
 const ChatScreen: React.FC<Props> = ({ route }) => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
-  const { subscribeToMessages, sendMessage } = useMessaging();
+  const { subscribeToMessages, sendMessage, markConversationRead } = useMessaging();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
+
+  // Mark conversation as read when the user opens the chat
+  useEffect(() => {
+    if (user?.uid) {
+      void markConversationRead(route.params.conversationId, user.uid);
+    }
+  }, [route.params.conversationId, user?.uid, markConversationRead]);
 
   useEffect(() => {
     const unsub = subscribeToMessages(route.params.conversationId, (msgs) => {

@@ -64,9 +64,10 @@ const ConversationsListScreen: React.FC<Props> = ({ navigation }) => {
           )}
         </View>
         {unread > 0 && (
-          <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-            <Text style={styles.badgeText} accessibilityLabel={`${unread} unread messages`}>{unread}</Text>
-          </View>
+          <View
+            style={[styles.dot, { backgroundColor: '#FF2D55' }]}
+            accessibilityLabel="Unread message"
+          />
         )}
       </TouchableOpacity>
     );
@@ -99,11 +100,12 @@ const styles = StyleSheet.create({
   otherName: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   preview: { fontSize: 15 },
   time: { fontSize: 12, marginTop: 2 },
-  badge: {
-    width: 22, height: 22, borderRadius: 11,
-    justifyContent: 'center', alignItems: 'center', marginLeft: spacing.sm,
+  dot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    marginLeft: spacing.sm,
   },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });
 
 export default ConversationsListScreen;

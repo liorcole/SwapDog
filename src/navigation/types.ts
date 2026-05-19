@@ -22,11 +22,17 @@ export type DiscoverStackParamList = {
   UserDetail: { userId: string };
   DogDetail: { dogId: string };
   CreateSwap: { userId: string };
+  /** New: navigate directly to create a public post */
+  CreatePost: undefined;
 };
 
 export type RequestsStackParamList = {
   Requests: undefined;
   WriteReview: { swapRequestId: string; revieweeId: string };
+  /** Full detail view for a public area post */
+  PostDetail: { postId: string };
+  /** Create a new public post */
+  CreatePost: undefined;
 };
 
 export type MessagesStackParamList = {

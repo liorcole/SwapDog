@@ -1,407 +1,277 @@
-import React, { useEffect, useState, useCallback } from 'react';
+/**
+ * RequestsScreen — two tabs:
+ *   "Area Posts"  : feed of open posts from people in the user's area
+ *   "My Posts"    : the user's own posts so they can see responses / cancel
+ */
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, RefreshControl, Image,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  RefreshControl, Image, Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { RequestsStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useSwaps } from '../../hooks/useSwaps';
-import { useDogs } from '../../hooks/useDogs';
-import { useUsers } from '../../hooks/useUsers';
-import { useMessaging } from '../../hooks/useMessaging';
-import { SwapRequest, SwapStatus, Dog, SitterPreference } from '../../models/types';
+import { SwapPost } from '../../models/types';
 import { spacing, borderRadius, shadow, typography } from '../../config/theme';
 import EmptyStateView from '../../components/common/EmptyStateView';
-import { formatDogAge } from '../../utils/formatDogAge';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 type Props = {
   navigation: NativeStackNavigationProp<RequestsStackParamList, 'Requests'>;
 };
 
-const STATUS_COLORS: Record<SwapStatus, string> = {
-  [SwapStatus.pending]: '#FDCB6E',
-  [SwapStatus.accepted]: '#00B894',
-  [SwapStatus.declined]: '#E17055',
-  [SwapStatus.cancelled]: '#636E72',
-  [SwapStatus.completed]: '#4ECDC4',
-};
-
-type TabType = 'incoming' | 'outgoing';
+type TabType = 'area' | 'mine';
 
 const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
-  const { getSwapsByUser, updateSwapStatus, updateSwapSitterPreference } = useSwaps();
-  const { getDogsByOwner } = useDogs();
-  const { getUser } = useUsers();
-  const { getOrCreateConversation, sendMessage } = useMessaging();
-  const [swaps, setSwaps] = useState<SwapRequest[]>([]);
-  const [dogMap, setDogMap] = useState<Record<string, Dog>>({});
+  const { getAreaPosts, getMyPosts, cancelPost } = useSwaps();
+
+  const [tab, setTab] = useState<TabType>('area');
+  const [areaPosts, setAreaPosts] = useState<SwapPost[]>([]);
+  const [myPosts, setMyPosts] = useState<SwapPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [tab, setTab] = useState<TabType>('incoming');
-  // Track sitter preference selections per swap (before confirming)
-  const [pendingPreferences, setPendingPreferences] = useState<Record<string, SitterPreference>>({});
 
-  const fetchSwaps = useCallback(async () => {
+  const fetchPosts = useCallback(async () => {
     if (!user) return;
-    const data = await getSwapsByUser(user.uid);
-    setSwaps(data);
+    try {
+      // Get user location for distance filtering
+      let location: { latitude: number; longitude: number } | undefined;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          location = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        }
+      } catch {
+        // proceed without location
+      }
 
-    const myDogs = await getDogsByOwner(user.uid);
-    const map: Record<string, Dog> = {};
-    myDogs.forEach((d) => { map[d.id] = d; });
-    setDogMap(map);
+      const [area, mine] = await Promise.all([
+        getAreaPosts(location, 25),
+        getMyPosts(user.uid),
+      ]);
 
-    setLoading(false);
-    setRefreshing(false);
+      // Exclude own posts from area feed
+      setAreaPosts(area.filter((p) => p.posterId !== user.uid));
+      setMyPosts(mine);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [user]);
 
-  useFocusEffect(useCallback(() => { fetchSwaps(); }, [fetchSwaps]));
+  useFocusEffect(useCallback(() => { fetchPosts(); }, [fetchPosts]));
 
-  const handleDecline = async (id: string) => {
-    Alert.alert('Decline', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Decline',
-        style: 'destructive',
-        onPress: async () => {
-          await updateSwapStatus(id, SwapStatus.declined);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          fetchSwaps();
-        },
-      },
-    ]);
-  };
-
-  const handleCancel = async (id: string) => {
-    Alert.alert('Cancel', 'Are you sure?', [
+  const handleCancel = async (postId: string) => {
+    Alert.alert('Cancel Post', 'Remove your post from the area feed?', [
       { text: 'No', style: 'cancel' },
       {
-        text: 'Cancel Request',
+        text: 'Cancel Post',
         style: 'destructive',
         onPress: async () => {
-          await updateSwapStatus(id, SwapStatus.cancelled);
+          await cancelPost(postId);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          fetchSwaps();
+          fetchPosts();
         },
       },
     ]);
   };
 
-  const handleComplete = async (id: string) => {
-    Alert.alert('Complete', 'Mark this swap as completed?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Complete',
-        onPress: async () => {
-          await updateSwapStatus(id, SwapStatus.completed);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          fetchSwaps();
-        },
-      },
-    ]);
-  };
-
-  /**
-   * Accept a swap request:
-   * 1. Validate sitter preference when paymentType === 'either'
-   * 2. Update swap status + sitterPreference
-   * 3. Send inbox notification to the owner
-   */
-  const handleAccept = async (swap: SwapRequest) => {
-    if (!user) return;
-
-    // Determine the sitter's preference
-    let sitterPref: SitterPreference;
-    if (swap.paymentType === 'either') {
-      const chosen = pendingPreferences[swap.id];
-      if (!chosen) {
-        Alert.alert('Choose Payment', 'Please select how you want to be compensated before accepting.');
-        return;
-      }
-      sitterPref = chosen;
-    } else {
-      sitterPref = swap.paymentType === 'payment' ? 'payment' : 'points';
+  const compensationLabel = (post: SwapPost): string => {
+    if (post.compensationType === 'points') {
+      return `🪙 ${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
     }
-
-    Alert.alert('Accept Request', 'Are you sure you want to accept this swap?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Accept',
-        onPress: async () => {
-          try {
-            // 1. Update swap with status + sitter preference
-            await updateSwapSitterPreference(swap.id, sitterPref, SwapStatus.accepted);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-            // 2. Send inbox notification to the owner
-            try {
-              const sitterProfile = await getUser(user.uid);
-              const sitterName = sitterProfile?.displayName ?? 'Your sitter';
-
-              // Format dates
-              const startStr = swap.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-              const endStr = swap.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-              const compensationLabel = sitterPref === 'points'
-                ? `${swap.pointsCost.toFixed(1)} points`
-                : `$${swap.paymentOffered}`;
-
-              const notificationText = `🎉 ${sitterName} has accepted your swap request! They chose ${compensationLabel}. Dates: ${startStr} – ${endStr}.`;
-
-              // Get or create conversation between sitter and owner
-              const convId = await getOrCreateConversation(user.uid, swap.requesterId, swap.id);
-              await sendMessage(convId, user.uid, notificationText);
-            } catch {
-              // Non-fatal: accept went through even if notification fails
-            }
-
-            fetchSwaps();
-          } catch (err: unknown) {
-            Alert.alert('Error', err instanceof Error ? err.message : 'Failed to accept');
-          }
-        },
-      },
-    ]);
+    if (post.totalPayment && post.paymentAmount && post.totalUnits && post.paymentRate) {
+      const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';
+      const unitLabel = post.paymentRate === 'per_hour'
+        ? `${post.totalUnits} hr${post.totalUnits !== 1 ? 's' : ''}`
+        : `${post.totalUnits} day${post.totalUnits !== 1 ? 's' : ''}`;
+      return `💰 $${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
+    }
+    return '💰 Payment offered';
   };
 
-  const incoming = swaps.filter((s) => s.receiverId === user?.uid);
-  const outgoing = swaps.filter((s) => s.requesterId === user?.uid);
-  const displayed = tab === 'incoming' ? incoming : outgoing;
-
-  const renderSwap = ({ item }: { item: SwapRequest }) => {
-    const dogIds = item.requesterDogIds;
-    const representativeDog: Dog | undefined = dogIds
-      .map((id) => dogMap[id])
-      .find(Boolean);
-
-    const showPreferenceChoice =
-      tab === 'incoming' &&
-      item.status === SwapStatus.pending &&
-      item.paymentType === 'either';
-
-    const selectedPref = pendingPreferences[item.id];
+  const renderAreaPost = ({ item }: { item: SwapPost }) => {
+    const startStr = item.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endStr = item.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const isPayment = item.compensationType === 'payment' || item.compensationType === 'either';
 
     return (
-      <View style={[styles.card, { backgroundColor: colors.surface, ...shadow.sm }]} accessibilityRole="none">
+      <TouchableOpacity
+        style={[styles.card, { backgroundColor: colors.surface, ...shadow.sm }]}
+        onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.posterName}'s post for ${item.dogName}`}
+      >
+        {/* Poster header */}
         <View style={styles.cardHeader}>
-          <View style={[styles.badge, { backgroundColor: STATUS_COLORS[item.status] }]}>
-            <Text style={styles.badgeText} accessibilityLabel={`Status: ${item.status}`}>
-              {item.status.toUpperCase()}
+          {item.posterPhotoURL ? (
+            <Image source={{ uri: item.posterPhotoURL }} style={[styles.avatarSmall, { borderColor: colors.border }]} />
+          ) : (
+            <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary + '22' }]}>
+              <Text style={styles.avatarEmoji}>🧑</Text>
+            </View>
+          )}
+          <View style={styles.headerInfo}>
+            <Text style={[styles.posterName, { color: colors.text }]}>{item.posterName}</Text>
+            <Text style={[styles.dateRange, { color: colors.textSecondary }]}>
+              {startStr} – {endStr}
             </Text>
           </View>
-          <Text style={[styles.date, { color: colors.textSecondary }]}>
-            {item.startDate.toLocaleDateString()} → {item.endDate.toLocaleDateString()}
+          {item.dogPhotoURL ? (
+            <Image source={{ uri: item.dogPhotoURL }} style={[styles.dogThumbSmall, { borderColor: colors.border }]} />
+          ) : (
+            <View style={[styles.dogThumbPlaceholder, { backgroundColor: colors.primary + '15' }]}>
+              <Text style={styles.dogThumbEmoji}>🐕</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Dog info */}
+        <Text style={[styles.dogLine, { color: colors.text }]}>
+          {item.dogName}{item.dogBreed ? ` · ${item.dogBreed}` : ''}
+        </Text>
+
+        {/* Compensation */}
+        <View style={[styles.compBadge, {
+          backgroundColor: isPayment ? '#00B89418' : colors.primary + '18',
+          borderColor: isPayment ? '#00B894' : colors.primary,
+        }]}>
+          <Text style={[styles.compBadgeText, { color: isPayment ? '#00B894' : colors.primary }]}>
+            {compensationLabel(item)}
           </Text>
         </View>
 
-        {/* Points & payment info */}
-        <View style={styles.compensationRow}>
-          <View style={[styles.compensationBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}>
-            <Text style={[styles.compensationBadgeText, { color: colors.primary }]}>
-              🪙 {item.pointsCost.toFixed(1)} pts
-            </Text>
-          </View>
-          {item.paymentOffered !== undefined && item.paymentOffered > 0 && (
-            <View style={[styles.compensationBadge, { backgroundColor: '#00B89418', borderColor: '#00B894' }]}>
-              <Text style={[styles.compensationBadgeText, { color: '#00B894' }]}>
-                💰 ${item.paymentOffered} also offered
-              </Text>
-            </View>
-          )}
-          {item.sitterPreference && (
-            <View style={[styles.compensationBadge, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Text style={[styles.compensationBadgeText, { color: colors.textSecondary }]}>
-                {item.sitterPreference === 'points' ? '🪙 Sitter chose points' : '💰 Sitter chose payment'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Dog preview row */}
-        {representativeDog && (
-          <View style={styles.dogPreview}>
-            {representativeDog.photoURLs.length > 0 && (
-              <Image
-                source={{ uri: representativeDog.photoURLs[0] }}
-                style={[styles.dogThumb, { borderColor: colors.border }]}
-                accessibilityLabel={`${representativeDog.name}'s photo`}
-              />
-            )}
-            <View style={styles.dogPreviewInfo}>
-              <Text style={[styles.dogPreviewName, { color: colors.text }]}>{representativeDog.name}</Text>
-              <Text style={[styles.dogPreviewBreed, { color: colors.textSecondary }]}>
-                {representativeDog.breed} • {formatDogAge(representativeDog.ageYears, representativeDog.ageMonths)}
-              </Text>
-              {(representativeDog.vaccinated !== undefined || representativeDog.isSpayedNeutered !== undefined) && (
-                <Text style={[styles.dogPreviewTags, { color: colors.textSecondary }]}>
-                  {representativeDog.vaccinated ? '✅ Vaccinated' : ''}
-                  {representativeDog.vaccinated && representativeDog.isSpayedNeutered ? '  ' : ''}
-                  {representativeDog.isSpayedNeutered ? '✅ Neutered' : ''}
-                </Text>
-              )}
-            </View>
-          </View>
+        {/* Off-app note if payment */}
+        {isPayment && (
+          <Text style={[styles.offAppInline, { color: colors.textSecondary }]}>
+            💰 Payments made outside SwapDog
+          </Text>
         )}
 
         {/* Care details preview */}
-        {item.careDetails && (
-          <View style={[styles.carePreview, { backgroundColor: colors.background }]}>
-            <Text style={[styles.carePreviewLabel, { color: colors.textSecondary }]}>Care Details</Text>
-            <Text style={[styles.carePreviewText, { color: colors.text }]} numberOfLines={2}>
-              {item.careDetails}
-            </Text>
-          </View>
-        )}
+        <Text style={[styles.carePreview, { color: colors.textSecondary }]} numberOfLines={2}>
+          {item.careDetails}
+        </Text>
 
-        {item.message && (
-          <Text style={[styles.message, { color: colors.text }]}>"{item.message}"</Text>
-        )}
-
-        {/* Sitter preference selection (required when paymentType === 'either') */}
-        {showPreferenceChoice && (
-          <View style={[styles.preferenceSection, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            <Text style={[styles.preferenceTitle, { color: colors.text }]}>
-              How would you like to be compensated?
-            </Text>
-            <TouchableOpacity
-              style={[
-                styles.radioOption,
-                {
-                  borderColor: selectedPref === 'points' ? colors.primary : colors.border,
-                  backgroundColor: selectedPref === 'points' ? colors.primary + '18' : colors.surface,
-                },
-              ]}
-              onPress={() => {
-                setPendingPreferences((prev) => ({ ...prev, [item.id]: 'points' }));
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-              accessibilityLabel={`Take points: ${item.pointsCost.toFixed(1)} pts`}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: selectedPref === 'points' }}
-            >
-              <View style={[styles.radioCircle, { borderColor: selectedPref === 'points' ? colors.primary : colors.border }]}>
-                {selectedPref === 'points' && <View style={[styles.radioFill, { backgroundColor: colors.primary }]} />}
-              </View>
-              <Text style={[styles.radioLabel, { color: colors.text }]}>
-                🪙 I'll take points ({item.pointsCost.toFixed(1)} pts)
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.radioOption,
-                {
-                  borderColor: selectedPref === 'payment' ? '#00B894' : colors.border,
-                  backgroundColor: selectedPref === 'payment' ? '#00B89418' : colors.surface,
-                },
-              ]}
-              onPress={() => {
-                setPendingPreferences((prev) => ({ ...prev, [item.id]: 'payment' }));
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-              accessibilityLabel={`Take payment: $${item.paymentOffered}`}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: selectedPref === 'payment' }}
-            >
-              <View style={[styles.radioCircle, { borderColor: selectedPref === 'payment' ? '#00B894' : colors.border }]}>
-                {selectedPref === 'payment' && <View style={[styles.radioFill, { backgroundColor: '#00B894' }]} />}
-              </View>
-              <Text style={[styles.radioLabel, { color: colors.text }]}>
-                💰 I'll take payment (${item.paymentOffered})
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.actions}>
-          {tab === 'incoming' && item.status === SwapStatus.pending && (
-            <>
-              <TouchableOpacity
-                style={[
-                  styles.actionBtn,
-                  {
-                    backgroundColor: colors.success,
-                    opacity: showPreferenceChoice && !selectedPref ? 0.5 : 1,
-                  },
-                ]}
-                onPress={() => handleAccept(item)}
-                accessibilityLabel="Accept swap request"
-                accessibilityRole="button"
-              >
-                <Text style={styles.actionBtnText}>Accept</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: colors.error }]}
-                onPress={() => handleDecline(item.id)}
-                accessibilityLabel="Decline swap request"
-                accessibilityRole="button"
-              >
-                <Text style={styles.actionBtnText}>Decline</Text>
-              </TouchableOpacity>
-            </>
-          )}
-          {tab === 'outgoing' && item.status === SwapStatus.pending && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.error }]}
-              onPress={() => handleCancel(item.id)}
-              accessibilityLabel="Cancel swap request"
-              accessibilityRole="button"
-            >
-              <Text style={styles.actionBtnText}>Cancel</Text>
-            </TouchableOpacity>
-          )}
-          {item.status === SwapStatus.accepted && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.secondary }]}
-              onPress={() => handleComplete(item.id)}
-              accessibilityLabel="Mark swap as completed"
-              accessibilityRole="button"
-            >
-              <Text style={styles.actionBtnText}>Mark Complete</Text>
-            </TouchableOpacity>
-          )}
-          {item.status === SwapStatus.completed && tab === 'outgoing' && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-              onPress={() => navigation.navigate('WriteReview', { swapRequestId: item.id, revieweeId: item.receiverId })}
-              accessibilityLabel="Write a review"
-              accessibilityRole="button"
-            >
-              <Text style={styles.actionBtnText}>Write Review</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+        <Text style={[styles.tapHint, { color: colors.primary }]}>Tap to see full details →</Text>
+      </TouchableOpacity>
     );
   };
 
+  const renderMyPost = ({ item }: { item: SwapPost }) => {
+    const startStr = item.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endStr = item.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const isOpen = item.status === 'open';
+    const statusColor: Record<SwapPost['status'], string> = {
+      open: '#00B894',
+      claimed: '#FDCB6E',
+      completed: '#4ECDC4',
+      cancelled: '#636E72',
+    };
+
+    return (
+      <TouchableOpacity
+        style={[styles.card, { backgroundColor: colors.surface, ...shadow.sm }]}
+        onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+        accessibilityRole="button"
+        accessibilityLabel={`Your post for ${item.dogName}`}
+      >
+        <View style={styles.cardHeader}>
+          {item.dogPhotoURL ? (
+            <Image source={{ uri: item.dogPhotoURL }} style={[styles.dogThumbSmall, { borderColor: colors.border }]} />
+          ) : (
+            <View style={[styles.dogThumbPlaceholder, { backgroundColor: colors.primary + '15' }]}>
+              <Text style={styles.dogThumbEmoji}>🐕</Text>
+            </View>
+          )}
+          <View style={styles.headerInfo}>
+            <Text style={[styles.posterName, { color: colors.text }]}>{item.dogName}</Text>
+            <Text style={[styles.dateRange, { color: colors.textSecondary }]}>
+              {startStr} – {endStr}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusColor[item.status] + '25' }]}>
+            <Text style={[styles.statusBadgeText, { color: statusColor[item.status] }]}>
+              {item.status.toUpperCase()}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[styles.compBadge, {
+          backgroundColor: item.compensationType !== 'points' ? '#00B89418' : colors.primary + '18',
+          borderColor: item.compensationType !== 'points' ? '#00B894' : colors.primary,
+        }]}>
+          <Text style={[styles.compBadgeText, { color: item.compensationType !== 'points' ? '#00B894' : colors.primary }]}>
+            {compensationLabel(item)}
+          </Text>
+        </View>
+
+        {isOpen && (
+          <TouchableOpacity
+            style={[styles.cancelBtn, { borderColor: colors.error }]}
+            onPress={() => handleCancel(item.id)}
+            accessibilityLabel="Cancel post"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.cancelBtnText, { color: colors.error }]}>Cancel Post</Text>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  if (loading) return <LoadingSpinner />;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Tabs */}
       <View style={[styles.tabs, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        {(['incoming', 'outgoing'] as TabType[]).map((t) => (
+        {(['area', 'mine'] as TabType[]).map((t) => (
           <TouchableOpacity
             key={t}
             style={[styles.tab, tab === t && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
             onPress={() => setTab(t)}
-            accessibilityLabel={`${t === 'incoming' ? 'Incoming' : 'Outgoing'} requests`}
+            accessibilityLabel={t === 'area' ? 'Area Posts' : 'My Posts'}
             accessibilityRole="tab"
             accessibilityState={{ selected: tab === t }}
           >
             <Text style={[styles.tabText, { color: tab === t ? colors.primary : colors.textSecondary }]}>
-              {t === 'incoming' ? 'Incoming' : 'Outgoing'}
+              {t === 'area' ? '📍 Area Posts' : '📋 My Posts'}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Post Request FAB */}
+      {(tab === 'area' || tab === 'mine') && (
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: colors.primary }]}
+          onPress={() => navigation.navigate('CreatePost')}
+          accessibilityLabel="Post a request"
+          accessibilityRole="button"
+        >
+          <Text style={styles.fabText}>+ Post a Request</Text>
+        </TouchableOpacity>
+      )}
+
       <FlatList
-        data={displayed}
-        keyExtractor={(s) => s.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchSwaps(); }} />}
-        ListEmptyComponent={<EmptyStateView emoji="🔄" title="No requests" subtitle="Send a swap request from the Discover tab" />}
-        renderItem={renderSwap}
+        data={tab === 'area' ? areaPosts : myPosts}
+        keyExtractor={(p) => p.id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchPosts(); }} />}
+        ListEmptyComponent={
+          tab === 'area'
+            ? <EmptyStateView emoji="📍" title="No posts nearby" subtitle="Be the first — post a request for your area!" />
+            : <EmptyStateView emoji="📋" title="No posts yet" subtitle="Post a request and local sitters will reach out" />
+        }
+        renderItem={tab === 'area' ? renderAreaPost : renderMyPost}
         contentContainerStyle={styles.list}
       />
     </View>
@@ -413,59 +283,32 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', borderBottomWidth: 1 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
   tabText: { fontSize: 15, fontWeight: '600' },
-  list: { padding: spacing.md },
+  list: { padding: spacing.md, paddingBottom: spacing.xl * 3 },
+  // Card
   card: { borderRadius: borderRadius.lg, padding: spacing.md, marginBottom: spacing.md },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  badge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: borderRadius.full },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  date: { fontSize: 13 },
-  // Compensation
-  compensationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },
-  compensationBadge: { borderWidth: 1, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  compensationBadgeText: { fontSize: 12, fontWeight: '600' },
-  // Dog preview
-  dogPreview: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.sm },
-  dogThumb: { width: 52, height: 52, borderRadius: borderRadius.sm, borderWidth: 1 },
-  dogPreviewInfo: { flex: 1 },
-  dogPreviewName: { fontSize: 15, fontWeight: '700' },
-  dogPreviewBreed: { fontSize: 13, marginTop: 1 },
-  dogPreviewTags: { fontSize: 12, marginTop: 2 },
-  // Care details
-  carePreview: { borderRadius: borderRadius.sm, padding: spacing.sm, marginBottom: spacing.sm },
-  carePreviewLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-  carePreviewText: { fontSize: 13, lineHeight: 18 },
-  message: { fontSize: 14, fontStyle: 'italic', marginBottom: spacing.sm },
-  // Preference section
-  preferenceSection: {
-    borderWidth: 1,
-    borderRadius: borderRadius.md,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  preferenceTitle: { fontSize: 14, fontWeight: '700', marginBottom: spacing.sm },
-  radioOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderRadius: borderRadius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-    gap: spacing.sm,
-  },
-  radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioFill: { width: 10, height: 10, borderRadius: 5 },
-  radioLabel: { fontSize: 14, fontWeight: '600', flex: 1 },
-  // Actions
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  actionBtn: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: borderRadius.sm },
-  actionBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+  avatarSmall: { width: 40, height: 40, borderRadius: 20, borderWidth: 1 },
+  avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  avatarEmoji: { fontSize: 18 },
+  headerInfo: { flex: 1 },
+  posterName: { fontSize: 15, fontWeight: '700' },
+  dateRange: { fontSize: 12, marginTop: 1 },
+  dogThumbSmall: { width: 44, height: 44, borderRadius: borderRadius.sm, borderWidth: 1 },
+  dogThumbPlaceholder: { width: 44, height: 44, borderRadius: borderRadius.sm, alignItems: 'center', justifyContent: 'center' },
+  dogThumbEmoji: { fontSize: 20 },
+  dogLine: { fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
+  compBadge: { borderWidth: 1.5, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: spacing.xs },
+  compBadgeText: { fontSize: 13, fontWeight: '700' },
+  offAppInline: { fontSize: 11, marginBottom: spacing.xs },
+  carePreview: { fontSize: 13, lineHeight: 18, marginBottom: spacing.xs },
+  tapHint: { fontSize: 12, fontWeight: '600', textAlign: 'right' },
+  statusBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.full },
+  statusBadgeText: { fontSize: 11, fontWeight: '700' },
+  cancelBtn: { borderWidth: 1.5, borderRadius: borderRadius.sm, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, alignSelf: 'flex-start', marginTop: spacing.xs },
+  cancelBtnText: { fontSize: 13, fontWeight: '600' },
+  // FAB
+  fab: { flexDirection: 'row', alignSelf: 'flex-end', margin: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4 },
+  fabText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });
 
 export default RequestsScreen;

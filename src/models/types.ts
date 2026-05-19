@@ -17,6 +17,7 @@ export enum DogSex {
   female = 'female',
 }
 
+// Legacy enum kept for old data compatibility — new posts use string literals
 export enum SwapStatus {
   pending = 'pending',
   accepted = 'accepted',
@@ -98,6 +99,59 @@ export interface Dog {
 export type PaymentType = 'points' | 'payment' | 'either';
 export type SitterPreference = 'points' | 'payment';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NEW: Public post model — replaces targeted SwapRequest
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PostStatus = 'open' | 'claimed' | 'completed' | 'cancelled';
+export type PaymentRate = 'per_hour' | 'per_day';
+export type CompensationType = 'points' | 'payment' | 'either';
+
+export interface SwapPost {
+  id: string;
+
+  // Poster info (denormalised for feed performance)
+  posterId: string;
+  posterName: string;
+  posterPhotoURL?: string;
+  posterLocation?: GeoPoint;
+
+  // Dog info (denormalised for feed performance)
+  dogId: string;
+  dogName: string;
+  dogBreed?: string;
+  dogPhotoURL?: string;
+
+  // Coverage
+  startDate: Date;
+  endDate: Date;
+  /** Free-text description of what the sitter needs to know */
+  careDetails: string;
+
+  // Compensation
+  compensationType: CompensationType;
+  /** Auto-calculated: 1 day = 1 point, same day = 0.5 */
+  pointsCost: number;
+  /** Dollar amount per unit (per_hour or per_day). Only set when compensationType !== 'points' */
+  paymentAmount?: number;
+  paymentRate?: PaymentRate;
+  /** Total calculated compensation = paymentAmount × totalUnits */
+  totalPayment?: number;
+  /** Number of hours or days used for calculation */
+  totalUnits?: number;
+
+  // Status
+  status: PostStatus;
+  /** userId of the sitter who claimed the post */
+  claimedBy?: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy SwapRequest — kept for backward compat with existing Firestore records
+// ─────────────────────────────────────────────────────────────────────────────
 export interface SwapRequest {
   id: string;
   requesterId: string;

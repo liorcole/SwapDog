@@ -22,6 +22,8 @@ import CreateSwapScreen from '../screens/booking/CreateSwapScreen';
 
 // Requests stack
 import RequestsScreen from '../screens/requests/RequestsScreen';
+import PostDetailScreen from '../screens/requests/PostDetailScreen';
+import CreatePostScreen from '../screens/booking/CreatePostScreen';
 import WriteReviewScreen from '../screens/booking/WriteReviewScreen';
 
 // Messages stack
@@ -84,6 +86,8 @@ const RequestsNavigator: React.FC = () => {
     >
       <RequestsStack.Screen name="Requests" component={RequestsScreen} options={{ title: 'Swap Requests' }} />
       <RequestsStack.Screen name="WriteReview" component={WriteReviewScreen} options={{ title: 'Write Review', presentation: 'modal' }} />
+      <RequestsStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: 'Post Details' }} />
+      <RequestsStack.Screen name="CreatePost" component={CreatePostScreen} options={{ title: 'Post a Request', presentation: 'modal' }} />
     </RequestsStack.Navigator>
   );
 };

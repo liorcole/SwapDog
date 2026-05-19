@@ -61,6 +61,30 @@ service cloud.firestore {
       }
     }
 
+    // SwapPosts (public bulletin board): any authenticated user can read open posts.
+    // Only the poster can create/update their own posts.
+    match /swapPosts/{postId} {
+      // Any authenticated user can read open posts (the area feed)
+      allow read: if request.auth != null;
+      // Only the poster can create a post
+      allow create: if request.auth != null
+        && request.resource.data.posterId == request.auth.uid;
+      // Poster can update their own post; any authenticated user can claim it
+      // (set claimedBy + status=claimed) but cannot change posterId
+      allow update: if request.auth != null
+        && (
+          // Poster updating their own post
+          resource.data.posterId == request.auth.uid
+          // Sitter claiming: only status + claimedBy change, posterId unchanged
+          || (
+            request.resource.data.posterId == resource.data.posterId
+            && request.resource.data.status == 'claimed'
+            && request.resource.data.claimedBy == request.auth.uid
+          )
+        );
+      allow delete: if false;
+    }
+
     // Reviews: read if authenticated, create only (immutable)
     match /reviews/{reviewId} {
       allow read: if request.auth != null;

@@ -10,6 +10,7 @@ import {
   ProfileStackParamList,
 } from './types';
 import { useTheme } from '../contexts/ThemeContext';
+import AppHeader from '../components/common/AppHeader';
 
 // Discover stack
 import DiscoverScreen from '../screens/discover/DiscoverScreen';
@@ -39,24 +40,20 @@ const RequestsStack = createNativeStackNavigator<RequestsStackParamList>();
 const MessagesStack = createNativeStackNavigator<MessagesStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
 
+const sharedHeaderOptions = {
+  header: (props: Parameters<typeof AppHeader>[0]) => <AppHeader {...props} />,
+};
+
 const DiscoverNavigator: React.FC = () => {
   const { colors } = useTheme();
-  const headerStyle = {
-    backgroundColor: colors.surface,
-  };
-  const headerTitleStyle = {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: colors.text,
-  };
   return (
     <DiscoverStack.Navigator
       screenOptions={{
         animation: 'slide_from_right',
-        headerStyle,
-        headerTitleStyle,
+        headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.primary,
         headerShadowVisible: false,
+        ...sharedHeaderOptions,
       }}
     >
       <DiscoverStack.Screen
@@ -73,22 +70,14 @@ const DiscoverNavigator: React.FC = () => {
 
 const RequestsNavigator: React.FC = () => {
   const { colors } = useTheme();
-  const headerStyle = {
-    backgroundColor: colors.surface,
-  };
-  const headerTitleStyle = {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: colors.text,
-  };
   return (
     <RequestsStack.Navigator
       screenOptions={{
         animation: 'slide_from_right',
-        headerStyle,
-        headerTitleStyle,
+        headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.primary,
         headerShadowVisible: false,
+        ...sharedHeaderOptions,
       }}
     >
       <RequestsStack.Screen name="Requests" component={RequestsScreen} options={{ title: 'Swap Requests' }} />
@@ -99,22 +88,14 @@ const RequestsNavigator: React.FC = () => {
 
 const MessagesNavigator: React.FC = () => {
   const { colors } = useTheme();
-  const headerStyle = {
-    backgroundColor: colors.surface,
-  };
-  const headerTitleStyle = {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: colors.text,
-  };
   return (
     <MessagesStack.Navigator
       screenOptions={{
         animation: 'slide_from_right',
-        headerStyle,
-        headerTitleStyle,
+        headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.primary,
         headerShadowVisible: false,
+        ...sharedHeaderOptions,
       }}
     >
       <MessagesStack.Screen name="ConversationsList" component={ConversationsListScreen} options={{ title: 'Messages' }} />
@@ -125,22 +106,14 @@ const MessagesNavigator: React.FC = () => {
 
 const ProfileNavigator: React.FC = () => {
   const { colors } = useTheme();
-  const headerStyle = {
-    backgroundColor: colors.surface,
-  };
-  const headerTitleStyle = {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: colors.text,
-  };
   return (
     <ProfileStack.Navigator
       screenOptions={{
         animation: 'slide_from_right',
-        headerStyle,
-        headerTitleStyle,
+        headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.primary,
         headerShadowVisible: false,
+        ...sharedHeaderOptions,
       }}
     >
       <ProfileStack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile', headerShown: true }} />
@@ -160,7 +133,7 @@ const ProfileNavigator: React.FC = () => {
       <ProfileStack.Screen
         name="Referral"
         component={ReferralScreen}
-        options={{ headerShown: false }}
+        options={{ title: 'Invite a Friend', headerBackTitle: 'Back' }}
       />
     </ProfileStack.Navigator>
   );

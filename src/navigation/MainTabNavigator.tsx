@@ -149,13 +149,13 @@ const MainTabNavigator: React.FC = () => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
   const { subscribeToConversations } = useMessaging();
-  const [hasUnread, setHasUnread] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeToConversations(user.uid, (convs) => {
-      const anyUnread = convs.some((c) => (c.unreadCounts[user.uid] ?? 0) > 0);
-      setHasUnread(anyUnread);
+      const total = convs.reduce((sum, c) => sum + (c.unreadCounts[user.uid] ?? 0), 0);
+      setUnreadCount(total);
     });
     return unsub;
   }, [user, subscribeToConversations]);
@@ -164,24 +164,31 @@ const MainTabNavigator: React.FC = () => {
     ({ color }: { color: string }) => (
       <View style={{ position: 'relative' }}>
         <Text style={{ fontSize: 20, color }}>💬</Text>
-        {hasUnread && (
+        {unreadCount > 0 && (
           <View
             style={{
               position: 'absolute',
-              top: -1,
-              right: -3,
-              width: 9,
-              height: 9,
-              borderRadius: 4.5,
+              top: -4,
+              right: -6,
+              minWidth: 18,
+              height: 18,
+              borderRadius: 9,
               backgroundColor: '#FF2D55',
               borderWidth: 1.5,
               borderColor: colors.surface,
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingHorizontal: 3,
             }}
-          />
+          >
+            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700', lineHeight: 13 }}>
+              {unreadCount > 99 ? '99+' : String(unreadCount)}
+            </Text>
+          </View>
         )}
       </View>
     ),
-    [hasUnread, colors.surface],
+    [unreadCount, colors.surface],
   );
 
   return (

@@ -26,7 +26,7 @@ type Props = {
 const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { user, userProfile } = useAuthContext();
-  const { getAreaPosts } = useSwaps();
+  const { getAreaPosts, getMyPosts, addResponder } = useSwaps();
   const { getOrCreateConversation, sendMessage } = useMessaging();
 
   const [post, setPost] = useState<SwapPost | null>(null);
@@ -34,13 +34,27 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [claiming, setClaiming] = useState(false);
 
   useEffect(() => {
-    // Fetch the single post by loading all posts and filtering by id
-    // (Simple approach without an extra getPostById util)
-    getAreaPosts().then((posts) => {
-      const found = posts.find((p) => p.id === route.params.postId) ?? null;
-      setPost(found);
-    }).finally(() => setLoading(false));
-  }, [route.params.postId]);
+    // Fetch the post — check area posts first, then user's own posts as fallback
+    const fetchPost = async () => {
+      try {
+        const areaPosts = await getAreaPosts();
+        const found = areaPosts.find((p) => p.id === route.params.postId) ?? null;
+        if (found) {
+          setPost(found);
+          return;
+        }
+        // Fallback: might be the owner viewing their own post
+        if (user?.uid) {
+          const myPosts = await getMyPosts(user.uid);
+          const ownPost = myPosts.find((p) => p.id === route.params.postId) ?? null;
+          setPost(ownPost);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPost();
+  }, [route.params.postId, user?.uid]);
 
   const handleHelp = async () => {
     if (!user || !post) return;
@@ -52,14 +66,15 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     setClaiming(true);
     try {
       const sitterName = userProfile?.displayName ?? user.displayName ?? 'Someone';
+      const sitterPhoto = userProfile?.photoURL ?? user.photoURL ?? undefined;
       const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
       // Create / open conversation
       const convId = await getOrCreateConversation(user.uid, post.posterId, post.id);
 
-      // Auto-send introduction message
-      const introText = `${sitterName} is interested in watching ${post.dogName} from ${startStr} to ${endStr}! 🐾`;
+      // FIX 6: warm, friendly auto-message copy
+      const introText = `🐾 Hey! I'd love to help watch ${post.dogName} from ${startStr} to ${endStr}. Let me know if you'd like to set something up!`;
       await sendMessage(convId, user.uid, introText);
 
       // If payment was offered, add reminder
@@ -71,6 +86,13 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         );
       }
 
+      // FIX 4: add this user to respondedBy on the post
+      await addResponder(post.id, {
+        userId: user.uid,
+        userName: sitterName,
+        userPhotoURL: sitterPhoto,
+      });
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // Navigate to the conversation
@@ -80,6 +102,22 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       });
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to send message');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const handleMessageResponder = async (responderId: string) => {
+    if (!user || !post) return;
+    setClaiming(true);
+    try {
+      const convId = await getOrCreateConversation(user.uid, responderId, post.id);
+      navigation.getParent()?.navigate('MessagesTab', {
+        screen: 'Chat',
+        params: { conversationId: convId, otherUserId: responderId },
+      });
+    } catch (err: unknown) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Could not open chat');
     } finally {
       setClaiming(false);
     }
@@ -97,6 +135,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   const isOwner = user?.uid === post.posterId;
+  const respondents = post.respondedBy ?? [];
 
   const compensationLabel = () => {
     if (post.compensationType === 'points') {
@@ -195,6 +234,36 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         <Text style={[styles.careDetails, { color: colors.text }]}>{post.careDetails}</Text>
       </View>
 
+      {/* FIX 4: Interested Helpers section — only visible to post owner */}
+      {isOwner && respondents.length > 0 && (
+        <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            🙋 Interested Helpers ({respondents.length})
+          </Text>
+          {respondents.map((r) => (
+            <TouchableOpacity
+              key={r.userId}
+              style={[styles.responderRow, { borderTopColor: colors.border }]}
+              onPress={() => handleMessageResponder(r.userId)}
+              accessibilityRole="button"
+              accessibilityLabel={`Message ${r.userName}`}
+            >
+              {r.userPhotoURL ? (
+                <Image source={{ uri: r.userPhotoURL }} style={[styles.responderAvatar, { borderColor: colors.border }]} />
+              ) : (
+                <View style={[styles.responderAvatarPlaceholder, { backgroundColor: colors.primary + '22' }]}>
+                  <Text style={styles.responderAvatarEmoji}>🧑</Text>
+                </View>
+              )}
+              <View style={styles.responderInfo}>
+                <Text style={[styles.responderName, { color: colors.text }]}>{r.userName}</Text>
+                <Text style={[styles.responderTap, { color: colors.primary }]}>Tap to message →</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* I Can Help button (not shown for own posts) */}
       {!isOwner && post.status === 'open' && (
         <TouchableOpacity
@@ -208,7 +277,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         </TouchableOpacity>
       )}
 
-      {isOwner && (
+      {isOwner && respondents.length === 0 && (
         <View style={[styles.ownerNote, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.ownerNoteText, { color: colors.textSecondary }]}>
             👆 This is your post. Interested sitters will message you.
@@ -253,6 +322,14 @@ const styles = StyleSheet.create({
   offAppNoteText: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
   // Care details
   careDetails: { fontSize: 14, lineHeight: 22 },
+  // Respondents
+  responderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth },
+  responderAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 1 },
+  responderAvatarPlaceholder: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  responderAvatarEmoji: { fontSize: 20 },
+  responderInfo: { flex: 1 },
+  responderName: { fontSize: 15, fontWeight: '600' },
+  responderTap: { fontSize: 12, marginTop: 2 },
   // Help button
   helpBtn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.sm, marginBottom: spacing.sm },
   helpBtnText: { color: '#fff', ...typography.button, fontSize: 17 },

@@ -18,7 +18,7 @@ type Props = {
   route: RouteProp<MessagesStackParamList, 'Chat'>;
 };
 
-const ChatScreen: React.FC<Props> = ({ route }) => {
+const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
   const { subscribeToMessages, sendMessage, markConversationRead } = useMessaging();
@@ -26,6 +26,23 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
+
+  // Add a back button to the header so users can return from "I Can Help" flow
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={{ fontSize: 30, color: colors.primary, lineHeight: 36 }}>‹</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, colors.primary]);
 
   // Mark conversation as read when the user opens the chat
   useEffect(() => {

@@ -145,6 +145,14 @@ export interface SwapPost {
   /** userId of the sitter who claimed the post */
   claimedBy?: string;
 
+  /** Users who responded 'I Can Help' to this post */
+  respondedBy?: Array<{
+    userId: string;
+    userName: string;
+    userPhotoURL?: string;
+    respondedAt: Date;
+  }>;
+
   createdAt: Date;
   updatedAt: Date;
 }

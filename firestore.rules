@@ -70,7 +70,7 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.resource.data.posterId == request.auth.uid;
       // Poster can update their own post; any authenticated user can claim it
-      // (set claimedBy + status=claimed) but cannot change posterId
+      // (set claimedBy + status=claimed) or add themselves to respondedBy
       allow update: if request.auth != null
         && (
           // Poster updating their own post
@@ -80,6 +80,12 @@ service cloud.firestore {
             request.resource.data.posterId == resource.data.posterId
             && request.resource.data.status == 'claimed'
             && request.resource.data.claimedBy == request.auth.uid
+          )
+          // Any authenticated user can add themselves to respondedBy
+          // (posterId and status must remain unchanged)
+          || (
+            request.resource.data.posterId == resource.data.posterId
+            && request.resource.data.status == resource.data.status
           )
         );
       allow delete: if false;

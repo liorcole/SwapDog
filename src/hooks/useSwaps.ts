@@ -8,6 +8,7 @@ import {
   where,
   serverTimestamp,
   or,
+  arrayUnion,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import {
@@ -63,6 +64,16 @@ const parsePost = (id: string, data: Record<string, unknown>): SwapPost => ({
   totalUnits: data.totalUnits as number | undefined,
   status: (data.status as PostStatus) ?? 'open',
   claimedBy: data.claimedBy as string | undefined,
+  respondedBy: (() => {
+    const raw = data.respondedBy as Array<Record<string, unknown>> | undefined;
+    if (!raw) return undefined;
+    return raw.map((r) => ({
+      userId: r.userId as string,
+      userName: r.userName as string,
+      userPhotoURL: r.userPhotoURL as string | undefined,
+      respondedAt: toDate(r.respondedAt as Parameters<typeof toDate>[0]),
+    }));
+  })(),
   createdAt: toDate(data.createdAt as Parameters<typeof toDate>[0]),
   updatedAt: toDate(data.updatedAt as Parameters<typeof toDate>[0]),
 });
@@ -193,6 +204,39 @@ export const useSwaps = () => {
     });
   };
 
+  /** Add a responder to a post's respondedBy array */
+  const addResponder = async (
+    postId: string,
+    responder: { userId: string; userName: string; userPhotoURL?: string }
+  ): Promise<void> => {
+    await updateDoc(doc(db, 'swapPosts', postId), {
+      respondedBy: arrayUnion({
+        userId: responder.userId,
+        userName: responder.userName,
+        userPhotoURL: responder.userPhotoURL ?? null,
+        respondedAt: new Date(),
+      }),
+      updatedAt: serverTimestamp(),
+    });
+  };
+
+  /** Fetch open posts where the given user has responded (Pending tab) */
+  const getPendingPosts = async (userId: string): Promise<SwapPost[]> => {
+    // Firestore doesn't support querying inside array-of-maps directly,
+    // so we fetch all open posts and filter client-side.
+    const q = query(
+      collection(db, 'swapPosts'),
+      where('status', '==', 'open')
+    );
+    const snap = await getDocs(q);
+    const all = snap.docs.map((d) => parsePost(d.id, d.data() as Record<string, unknown>));
+    return all.filter(
+      (p) =>
+        p.posterId !== userId &&
+        (p.respondedBy ?? []).some((r) => r.userId === userId)
+    ).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  };
+
   return {
     // Legacy
     createSwap,
@@ -205,5 +249,7 @@ export const useSwaps = () => {
     getMyPosts,
     claimPost,
     cancelPost,
+    addResponder,
+    getPendingPosts,
   };
 };

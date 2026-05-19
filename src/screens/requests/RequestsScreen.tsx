@@ -1,7 +1,8 @@
 /**
- * RequestsScreen — two tabs:
+ * RequestsScreen — three tabs:
  *   "Area Posts"  : feed of open posts from people in the user's area
  *   "My Posts"    : the user's own posts so they can see responses / cancel
+ *   "Pending"     : posts the current user responded to, awaiting owner selection
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -17,7 +18,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useSwaps } from '../../hooks/useSwaps';
 import { SwapPost } from '../../models/types';
-import { spacing, borderRadius, shadow, typography } from '../../config/theme';
+import { spacing, borderRadius, shadow } from '../../config/theme';
 import EmptyStateView from '../../components/common/EmptyStateView';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -25,16 +26,17 @@ type Props = {
   navigation: NativeStackNavigationProp<RequestsStackParamList, 'Requests'>;
 };
 
-type TabType = 'area' | 'mine';
+type TabType = 'area' | 'mine' | 'pending';
 
 const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
-  const { getAreaPosts, getMyPosts, cancelPost } = useSwaps();
+  const { getAreaPosts, getMyPosts, getPendingPosts, cancelPost } = useSwaps();
 
   const [tab, setTab] = useState<TabType>('area');
   const [areaPosts, setAreaPosts] = useState<SwapPost[]>([]);
   const [myPosts, setMyPosts] = useState<SwapPost[]>([]);
+  const [pendingPosts, setPendingPosts] = useState<SwapPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -53,14 +55,16 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         // proceed without location
       }
 
-      const [area, mine] = await Promise.all([
+      const [area, mine, pending] = await Promise.all([
         getAreaPosts(location, 25),
         getMyPosts(user.uid),
+        getPendingPosts(user.uid),
       ]);
 
       // Exclude own posts from area feed
       setAreaPosts(area.filter((p) => p.posterId !== user.uid));
       setMyPosts(mine);
+      setPendingPosts(pending);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -214,6 +218,13 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
           </Text>
         </View>
 
+        {/* Show helper count if there are respondents */}
+        {(item.respondedBy?.length ?? 0) > 0 && (
+          <Text style={[styles.respondentCount, { color: colors.primary }]}>
+            🙋 {item.respondedBy!.length} helper{item.respondedBy!.length !== 1 ? 's' : ''} interested — tap to see
+          </Text>
+        )}
+
         {isOpen && (
           <TouchableOpacity
             style={[styles.cancelBtn, { borderColor: colors.error }]}
@@ -228,29 +239,76 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
+  const renderPendingPost = ({ item }: { item: SwapPost }) => {
+    const startStr = item.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endStr = item.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+    return (
+      <TouchableOpacity
+        style={[styles.card, { backgroundColor: colors.surface, ...shadow.sm }]}
+        onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+        accessibilityRole="button"
+        accessibilityLabel={`Pending response to ${item.posterName}'s post for ${item.dogName}`}
+      >
+        <View style={styles.cardHeader}>
+          {item.posterPhotoURL ? (
+            <Image source={{ uri: item.posterPhotoURL }} style={[styles.avatarSmall, { borderColor: colors.border }]} />
+          ) : (
+            <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary + '22' }]}>
+              <Text style={styles.avatarEmoji}>🧑</Text>
+            </View>
+          )}
+          <View style={styles.headerInfo}>
+            <Text style={[styles.posterName, { color: colors.text }]}>{item.posterName}</Text>
+            <Text style={[styles.dateRange, { color: colors.textSecondary }]}>
+              {item.dogName}{item.dogBreed ? ` · ${item.dogBreed}` : ''}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: '#FDCB6E25' }]}>
+            <Text style={[styles.statusBadgeText, { color: '#B8860B' }]}>PENDING</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.dateRange, { color: colors.textSecondary, marginBottom: spacing.xs }]}>
+          📅 {startStr} – {endStr}
+        </Text>
+
+        <Text style={[styles.pendingNote, { color: colors.textSecondary }]}>
+          ⏳ You responded — waiting for {item.posterName} to choose a sitter.
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   if (loading) return <LoadingSpinner />;
+
+  const tabs: { key: TabType; label: string }[] = [
+    { key: 'area', label: '📍 Area Posts' },
+    { key: 'mine', label: '📋 My Posts' },
+    { key: 'pending', label: `⏳ Pending${pendingPosts.length > 0 ? ` (${pendingPosts.length})` : ''}` },
+  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Tabs */}
       <View style={[styles.tabs, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        {(['area', 'mine'] as TabType[]).map((t) => (
+        {tabs.map((t) => (
           <TouchableOpacity
-            key={t}
-            style={[styles.tab, tab === t && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
-            onPress={() => setTab(t)}
-            accessibilityLabel={t === 'area' ? 'Area Posts' : 'My Posts'}
+            key={t.key}
+            style={[styles.tab, tab === t.key && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
+            onPress={() => setTab(t.key)}
+            accessibilityLabel={t.label}
             accessibilityRole="tab"
-            accessibilityState={{ selected: tab === t }}
+            accessibilityState={{ selected: tab === t.key }}
           >
-            <Text style={[styles.tabText, { color: tab === t ? colors.primary : colors.textSecondary }]}>
-              {t === 'area' ? '📍 Area Posts' : '📋 My Posts'}
+            <Text style={[styles.tabText, { color: tab === t.key ? colors.primary : colors.textSecondary }]}>
+              {t.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Post Request FAB */}
+      {/* Post Request FAB — only on area and mine tabs */}
       {(tab === 'area' || tab === 'mine') && (
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: colors.primary }]}
@@ -263,15 +321,17 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
       )}
 
       <FlatList
-        data={tab === 'area' ? areaPosts : myPosts}
+        data={tab === 'area' ? areaPosts : tab === 'mine' ? myPosts : pendingPosts}
         keyExtractor={(p) => p.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchPosts(); }} />}
         ListEmptyComponent={
           tab === 'area'
             ? <EmptyStateView emoji="📍" title="No posts nearby" subtitle="Be the first — post a request for your area!" />
-            : <EmptyStateView emoji="📋" title="No posts yet" subtitle="Post a request and local sitters will reach out" />
+            : tab === 'mine'
+            ? <EmptyStateView emoji="📋" title="No posts yet" subtitle="Post a request and local sitters will reach out" />
+            : <EmptyStateView emoji="⏳" title="No pending responses" subtitle="Tap 'I Can Help' on an area post to offer your help!" />
         }
-        renderItem={tab === 'area' ? renderAreaPost : renderMyPost}
+        renderItem={tab === 'area' ? renderAreaPost : tab === 'mine' ? renderMyPost : renderPendingPost}
         contentContainerStyle={styles.list}
       />
     </View>
@@ -282,7 +342,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
-  tabText: { fontSize: 15, fontWeight: '600' },
+  tabText: { fontSize: 13, fontWeight: '600' },
   list: { padding: spacing.md, paddingBottom: spacing.xl * 3 },
   // Card
   card: { borderRadius: borderRadius.lg, padding: spacing.md, marginBottom: spacing.md },
@@ -306,6 +366,8 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 11, fontWeight: '700' },
   cancelBtn: { borderWidth: 1.5, borderRadius: borderRadius.sm, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, alignSelf: 'flex-start', marginTop: spacing.xs },
   cancelBtnText: { fontSize: 13, fontWeight: '600' },
+  respondentCount: { fontSize: 13, fontWeight: '600', marginBottom: spacing.xs },
+  pendingNote: { fontSize: 13, lineHeight: 18, fontStyle: 'italic' },
   // FAB
   fab: { flexDirection: 'row', alignSelf: 'flex-end', margin: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4 },
   fabText: { color: '#fff', fontWeight: '700', fontSize: 14 },

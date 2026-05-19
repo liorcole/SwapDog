@@ -16,7 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { spacing, borderRadius, typography, shadow } from '../../config/theme';
+import { spacing, borderRadius, typography, shadow, SPLASH_COLOR } from '../../config/theme';
 import { getMyReferrals, getReferralCount, ensureReferralCode } from '../../hooks/useReferrals';
 import { User } from '../../models/types';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   },
   fullWidthBtnText: { fontSize: 15, fontWeight: '700' },
   smsBtn: {
-    shadowColor: '#FF2D55',
+    shadowColor: SPLASH_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

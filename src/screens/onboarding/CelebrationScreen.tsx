@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ApprovalStackParamList } from '../../navigation/types';
 import { useTheme } from '../../contexts/ThemeContext';
-import { spacing, borderRadius, typography, shadow } from '../../config/theme';
+import { spacing, borderRadius, typography, shadow, SPLASH_COLOR } from '../../config/theme';
 
 type Props = {
   navigation: NativeStackNavigationProp<ApprovalStackParamList, 'Celebration'>;
@@ -20,7 +20,7 @@ type Props = {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const CONFETTI_COLORS = [
-  '#FF2D55', // coral (primary)
+  SPLASH_COLOR, // primary
   '#4ECDC4', // teal (secondary)
   '#FDCB6E', // gold (warning)
   '#A29BFE', // lavender

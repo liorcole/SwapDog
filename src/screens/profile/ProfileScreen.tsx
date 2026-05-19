@@ -83,8 +83,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         )}
         {userProfile?.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{userProfile.bio}</Text>}
         {/* Points balance badge */}
-        <View style={[styles.pointsBadge, { backgroundColor: '#FF2D5518', borderColor: '#FF2D55' }]}>
-          <Text style={[styles.pointsBadgeText, { color: '#FF2D55' }]}>
+        <View style={[styles.pointsBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}>
+          <Text style={[styles.pointsBadgeText, { color: colors.primary }]}>
             🪙 {(userProfile?.points ?? 0).toFixed(1)} points
           </Text>
         </View>

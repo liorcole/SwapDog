@@ -583,7 +583,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
             radius={radiusMeters}
             strokeColor={colors.primary}
             strokeWidth={2}
-            fillColor="rgba(255, 45, 85, 0.12)"
+            fillColor={colors.primary + "1E"}
           />
         </MapView>
 

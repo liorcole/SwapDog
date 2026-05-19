@@ -1,27 +1,32 @@
+// ── SPLASH SCREEN COLOR ──────────────────────────────────────────────────────
+// The vibrant hot pink-red from the splash screen.  All primary/accent colors
+// throughout the app must reference this constant or colors.primary / darkColors.primary.
+export const SPLASH_COLOR = '#FF2D55';
+
 export const colors = {
-  primary: '#FF2D55',
+  primary: SPLASH_COLOR,
   secondary: '#4ECDC4',
-  background: '#FFF5F5',
+  background: '#FFFFFF',
   surface: '#FFFFFF',
   text: '#2D3436',
   textSecondary: '#636E72',
   error: '#E17055',
   success: '#00B894',
   warning: '#FDCB6E',
-  border: '#F0D9D9',
+  border: '#E8E8E8',
 };
 
 export const darkColors = {
-  primary: '#FF2D55',
+  primary: SPLASH_COLOR,
   secondary: '#4ECDC4',
-  background: '#1C0812',
-  surface: '#2D1420',
+  background: '#1A1A1A',
+  surface: '#2C2C2C',
   text: '#FAFAFA',
-  textSecondary: '#D4B0BC',
+  textSecondary: '#ABABAB',
   error: '#E17055',
   success: '#00B894',
   warning: '#FDCB6E',
-  border: '#4A2034',
+  border: '#3A3A3A',
 };
 
 export const spacing = {
@@ -51,21 +56,21 @@ export const typography = {
 
 export const shadow = {
   sm: {
-    shadowColor: '#FF2D55',
+    shadowColor: SPLASH_COLOR,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 2,
     elevation: 2,
   },
   md: {
-    shadowColor: '#FF2D55',
+    shadowColor: SPLASH_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.10,
     shadowRadius: 4,
     elevation: 4,
   },
   lg: {
-    shadowColor: '#FF2D55',
+    shadowColor: SPLASH_COLOR,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.14,
     shadowRadius: 8,

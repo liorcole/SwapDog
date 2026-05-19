@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, FlatList, Image, Dimensions, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, FlatList, Image, Dimensions, StyleSheet, Text } from 'react-native';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -9,6 +10,7 @@ interface Props {
 }
 
 const PhotoCarousel: React.FC<Props> = ({ photos, height = 240 }) => {
+  const { colors } = useTheme();
   const [index, setIndex] = useState(0);
 
   if (photos.length === 0) {
@@ -41,7 +43,13 @@ const PhotoCarousel: React.FC<Props> = ({ photos, height = 240 }) => {
       {photos.length > 1 && (
         <View style={styles.dots} accessibilityElementsHidden>
           {photos.map((_, i) => (
-            <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                i === index && { backgroundColor: colors.primary },
+              ]}
+            />
           ))}
         </View>
       )}
@@ -54,7 +62,6 @@ const styles = StyleSheet.create({
   placeholderText: { fontSize: 48 },
   dots: { flexDirection: 'row', justifyContent: 'center', marginTop: 8 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ccc', marginHorizontal: 3 },
-  dotActive: { backgroundColor: '#FF2D55' },
 });
 
 export default PhotoCarousel;

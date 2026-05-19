@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { doc, updateDoc } from 'firebase/firestore';
+import { SPLASH_COLOR } from '../config/theme';
 import { db } from '../config/firebase';
 
 Notifications.setNotificationHandler({
@@ -20,7 +21,7 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
       name: 'default',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF2D55',
+      lightColor: SPLASH_COLOR,
     });
   }
 

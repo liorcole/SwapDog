@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -8,7 +8,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useUsers } from '../../hooks/useUsers';
 import { useDogs } from '../../hooks/useDogs';
-import { User, Dog } from '../../models/types';
+import { useSwaps } from '../../hooks/useSwaps';
+import { useMessaging } from '../../hooks/useMessaging';
+import { User, Dog, SwapPost } from '../../models/types';
 import { spacing, borderRadius, shadow, typography } from '../../config/theme';
 import { formatDogAge } from '../../utils/formatDogAge';
 import StarRating from '../../components/common/StarRating';
@@ -19,23 +21,79 @@ type Props = {
   route: RouteProp<DiscoverStackParamList, 'UserDetail'>;
 };
 
+/** Build the message text for a SwapPost share */
+function buildPostMessage(post: SwapPost): string {
+  const start = post.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const end = post.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return (
+    `🐾 Hey! I posted a request for dog sitting — check it out!\n\n` +
+    `🐶 Dog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\n` +
+    `📅 Dates: ${start} – ${end}\n` +
+    `📝 Details: ${post.careDetails}`
+  );
+}
+
 const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { userProfile: me } = useAuthContext();
   const { getUser } = useUsers();
   const { getDogsByOwner } = useDogs();
+  const { getMyPosts } = useSwaps();
+  const { getOrCreateConversation, sendMessage } = useMessaging();
+
   const [user, setUser] = useState<User | null>(null);
   const [dogs, setDogs] = useState<Dog[]>([]);
+  const [myOpenPost, setMyOpenPost] = useState<SwapPost | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    Promise.all([getUser(route.params.userId), getDogsByOwner(route.params.userId)])
-      .then(([u, d]) => { setUser(u); setDogs(d); })
-      .finally(() => setLoading(false));
-  }, [route.params.userId]);
+    const load = async () => {
+      const [u, d] = await Promise.all([
+        getUser(route.params.userId),
+        getDogsByOwner(route.params.userId),
+      ]);
+      setUser(u);
+      setDogs(d);
+
+      // Load the current user's open post (if any)
+      if (me?.id) {
+        const myPosts = await getMyPosts(me.id);
+        const open = myPosts.find((p) => p.status === 'open') ?? null;
+        setMyOpenPost(open);
+      }
+      setLoading(false);
+    };
+    void load();
+  }, [route.params.userId, me?.id]);
+
+  const handleSendPost = async () => {
+    if (!me?.id || !user || !myOpenPost) return;
+    setSending(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const convId = await getOrCreateConversation(me.id, user.id);
+      await sendMessage(convId, me.id, buildPostMessage(myOpenPost));
+      // Navigate to the chat
+      navigation.navigate('Discover'); // pop to Discover first, then navigate via parent
+      // Use the Messages tab instead — navigate directly
+      // We rely on the parent navigator's navigate approach
+      Alert.alert(
+        'Post Sent! 🐾',
+        `Your post was sent to ${user.displayName}. Check Messages to continue the conversation.`,
+        [{ text: 'OK' }],
+      );
+    } catch {
+      Alert.alert('Error', 'Failed to send post. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   if (loading) return <LoadingSpinner />;
   if (!user) return null;
+
+  const showSendButton = me && me.id !== user.id;
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -74,17 +132,30 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         ))}
       </View>
 
-      {me && me.id !== user.id && (
+      {showSendButton && (
         <View style={styles.section}>
-          <TouchableOpacity
-            style={[styles.swapBtn, { backgroundColor: colors.primary }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); navigation.navigate('CreateSwap', { userId: user.id }); }}
-            accessibilityLabel={`Request swap with ${user.displayName}`}
-            accessibilityRole="button"
-            accessibilityHint="Opens the swap request form"
-          >
-            <Text style={styles.swapBtnText}>Request Swap 🔄</Text>
-          </TouchableOpacity>
+          {myOpenPost ? (
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: colors.primary, opacity: sending ? 0.7 : 1 }]}
+              onPress={() => { void handleSendPost(); }}
+              disabled={sending}
+              accessibilityLabel={`Send your post to ${user.displayName}`}
+              accessibilityRole="button"
+              accessibilityHint="Sends your active post and opens a chat"
+            >
+              {sending ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.actionBtnText}>📩 Send My Post</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={[styles.disabledBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.disabledBannerText, { color: colors.textSecondary }]}>
+                Post a request first to connect with {user.displayName}
+              </Text>
+            </View>
+          )}
         </View>
       )}
     </ScrollView>
@@ -105,8 +176,15 @@ const styles = StyleSheet.create({
   dogCard: { padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm },
   dogName: { fontSize: 16, fontWeight: '700' },
   dogBreed: { fontSize: 13, marginTop: 2 },
-  swapBtn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
-  swapBtnText: { color: '#fff', ...typography.button },
+  actionBtn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  actionBtnText: { color: '#fff', ...typography.button },
+  disabledBanner: {
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  disabledBannerText: { fontSize: 14, textAlign: 'center' },
 });
 
 export default UserDetailScreen;

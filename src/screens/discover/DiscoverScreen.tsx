@@ -31,7 +31,9 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useUsers } from '../../hooks/useUsers';
 import { useDiscoverLocation } from '../../hooks/useDiscoverLocation';
-import { User, GeoPoint } from '../../models/types';
+import { useSwaps } from '../../hooks/useSwaps';
+import { useMessaging } from '../../hooks/useMessaging';
+import { User, GeoPoint, SwapPost } from '../../models/types';
 import { calculateDistance, formatDistance } from '../../utils/calculateDistance';
 import { spacing, borderRadius, shadow, typography } from '../../config/theme';
 import EmptyStateView from '../../components/common/EmptyStateView';
@@ -354,6 +356,8 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { userProfile } = useAuthContext();
   const { getUsersByLocation } = useUsers();
+  const { getMyPosts } = useSwaps();
+  const { getOrCreateConversation, sendMessage } = useMessaging();
 
   const {
     location,
@@ -367,6 +371,8 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [myOpenPost, setMyOpenPost] = useState<SwapPost | null>(null);
+  const [broadcastSending, setBroadcastSending] = useState(false);
 
   // Track the current map view height so we can calculate the circle/map ratio
   const [mapViewHeight, setMapViewHeight] = useState(MAP_HEIGHT_DEFAULT);
@@ -453,6 +459,15 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     void fetchNearby();
   }, [fetchNearby]);
+
+  // ── Load current user's open post for the broadcast button ──────────────────
+  useEffect(() => {
+    if (!userProfile?.id) return;
+    void getMyPosts(userProfile.id).then((posts) => {
+      const open = posts.find((p) => p.status === 'open') ?? null;
+      setMyOpenPost(open);
+    });
+  }, [userProfile?.id]);
 
   // ── Animate map zoom so the fixed circle represents the given radius ─────────
   // Formula: latitudeDelta such that CIRCLE_SIZE pixels == radiusMiles on screen.
@@ -549,6 +564,55 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     [location, animateMapToRadius, mapViewHeight],
   );
 
+  // ── Build post share message ─────────────────────────────────────────────
+  const buildPostMessage = useCallback((post: SwapPost): string => {
+    const start = post.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const end = post.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return (
+      `🐾 Hey! I posted a request for dog sitting — check it out!\n\n` +
+      `🐶 Dog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\n` +
+      `📅 Dates: ${start} – ${end}\n` +
+      `📝 Details: ${post.careDetails}`
+    );
+  }, []);
+
+  // ── Broadcast post to all nearby users ───────────────────────────────────────
+  const handleBroadcast = useCallback(() => {
+    if (!myOpenPost || !userProfile?.id || nearbyUsers.length === 0) return;
+    const count = nearbyUsers.length;
+    const miles =
+      radiusMiles < 10
+        ? radiusMiles.toFixed(1)
+        : Math.round(radiusMiles).toString();
+    Alert.alert(
+      '📢 Share My Post Nearby',
+      `Send your post to ${count} dog owner${count !== 1 ? 's' : ''} within ${miles} mi?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send to All',
+          onPress: async () => {
+            setBroadcastSending(true);
+            try {
+              const msg = buildPostMessage(myOpenPost);
+              await Promise.all(
+                nearbyUsers.map(async (nu) => {
+                  const convId = await getOrCreateConversation(userProfile.id, nu.user.id);
+                  await sendMessage(convId, userProfile.id, msg);
+                }),
+              );
+              Alert.alert('✅ Done!', `Post sent to ${count} dog owner${count !== 1 ? 's' : ''}!`);
+            } catch {
+              Alert.alert('Error', 'Something went wrong. Some messages may not have sent.');
+            } finally {
+              setBroadcastSending(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [myOpenPost, userProfile?.id, nearbyUsers, radiusMiles, buildPostMessage, getOrCreateConversation, sendMessage]);
+
   // ── Handle location override confirmed ──────────────────────────────────────
   const handleLocationConfirm = useCallback(
     async (coords: GeoPoint, label: string) => {
@@ -576,17 +640,39 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   // ── Memoized list header ──────────────────────────────────────────────────
   const listHeader = useMemo(
     () => (
-      <Text style={[styles.listHeader, { color: colors.textSecondary }]}>
-        {nearbyUsers.length === 0
-          ? 'No dog owners found in this area'
-          : `${nearbyUsers.length} dog owner${nearbyUsers.length !== 1 ? 's' : ''} within ${
-              radiusMiles < 10
-                ? radiusMiles.toFixed(1)
-                : Math.round(radiusMiles).toString()
-            } mi`}
-      </Text>
+      <View>
+        {myOpenPost && nearbyUsers.length > 0 && (
+          <TouchableOpacity
+            style={[
+              styles.broadcastBtn,
+              { backgroundColor: colors.primary, opacity: broadcastSending ? 0.7 : 1 },
+            ]}
+            onPress={handleBroadcast}
+            disabled={broadcastSending}
+            accessibilityLabel={`Share your post with all ${nearbyUsers.length} nearby dog owners`}
+            accessibilityRole="button"
+          >
+            {broadcastSending ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.broadcastBtnText}>
+                📢 Share My Post Nearby ({nearbyUsers.length})
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+        <Text style={[styles.listHeader, { color: colors.textSecondary }]}>
+          {nearbyUsers.length === 0
+            ? 'No dog owners found in this area'
+            : `${nearbyUsers.length} dog owner${nearbyUsers.length !== 1 ? 's' : ''} within ${
+                radiusMiles < 10
+                  ? radiusMiles.toFixed(1)
+                  : Math.round(radiusMiles).toString()
+              } mi`}
+        </Text>
+      </View>
     ),
-    [nearbyUsers.length, radiusMiles, colors.textSecondary],
+    [myOpenPost, nearbyUsers.length, radiusMiles, colors.textSecondary, colors.primary, broadcastSending, handleBroadcast],
   );
 
   // ── Loading state ────────────────────────────────────────────────────────────
@@ -823,6 +909,13 @@ const styles = StyleSheet.create({
   // List
   listLoadingContainer: { flex: 1, paddingTop: spacing.md },
   list: { padding: spacing.md, paddingTop: spacing.sm },
+  broadcastBtn: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  broadcastBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   listHeader: {
     ...typography.caption,
     marginBottom: spacing.sm,

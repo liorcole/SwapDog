@@ -72,6 +72,10 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       },
     });
 
+    if (!uploadResult) {
+      throw new Error('Upload failed: no response from server');
+    }
+
     console.log('[PhotoUpload] Upload status:', uploadResult.status);
 
     if (uploadResult.status !== 200) {

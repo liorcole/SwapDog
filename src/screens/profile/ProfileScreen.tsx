@@ -6,7 +6,8 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
+import { ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../config/firebase';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -46,62 +47,65 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   /**
-   * Convert a local URI (from expo-image-picker) to a Blob.
-   * Uses fetch first; falls back to XHR on platforms where fetch returns an
-   * empty or non-Blob response (certain Expo/RN environments).
-   */
-  const uriToBlob = (uri: string): Promise<Blob> =>
-    new Promise<Blob>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.onload = () => {
-        const b: Blob = xhr.response as Blob;
-        if (!b || b.size === 0) {
-          reject(new Error('XHR returned empty blob'));
-        } else {
-          resolve(b);
-        }
-      };
-      xhr.onerror = () => reject(new Error('XHR network error while reading image'));
-      xhr.responseType = 'blob';
-      xhr.open('GET', uri, true);
-      xhr.send(null);
-    });
-
-  /**
    * Upload a local image URI to Firebase Storage and return the download URL.
-   * Each step is wrapped individually so we can surface a specific error.
+   *
+   * Uses expo-file-system base64 + uploadString — the most reliable approach for
+   * Expo + Firebase JS SDK v12 in React Native. Avoids XHR/fetch blob issues entirely.
+   * Each step has explicit logging so the exact failure point is visible in the console.
    */
   const uploadPhotoToStorage = async (uri: string, dogId: string): Promise<string> => {
-    // Step 1 — Convert URI to Blob
-    let blob: Blob;
+    // Step 1 — Read the image file as a base64 string
+    console.log('[PhotoUpload] Step 1: Reading URI as base64:', uri);
+    let base64Data: string;
     try {
-      blob = await uriToBlob(uri);
-    } catch (blobErr) {
-      console.error('[PhotoUpload] Step 1 blob conversion failed:', blobErr);
-      throw new Error('Could not read the selected image from your device.');
+      base64Data = await readAsStringAsync(uri, {
+        encoding: EncodingType.Base64,
+      });
+      console.log('[PhotoUpload] Step 1 success: base64 length =', base64Data.length);
+      if (!base64Data || base64Data.length === 0) {
+        throw new Error('FileSystem.readAsStringAsync returned empty data');
+      }
+    } catch (readErr: unknown) {
+      const msg = readErr instanceof Error ? readErr.message : String(readErr);
+      console.error('[PhotoUpload] Step 1 FAILED — could not read file from device:', readErr);
+      throw new Error(`Could not read image from device: ${msg}`);
     }
 
-    // Step 2 — Upload blob to Firebase Storage
+    // Step 2 — Build storage ref path
     const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-    const fileRef = storageRef(storage, `dogs/${dogId}/${fileName}`);
+    const path = `dogs/${dogId}/${fileName}`;
+    console.log('[PhotoUpload] Step 2: Storage ref path:', path, '| dogId:', dogId);
+    if (!dogId) {
+      console.error('[PhotoUpload] Step 2 FAILED — dogId is falsy:', dogId);
+      throw new Error('Cannot upload: dog ID is missing');
+    }
+    const fileRef = storageRef(storage, path);
+
+    // Step 3 — Upload base64 to Firebase Storage
+    console.log('[PhotoUpload] Step 3: Calling uploadString...');
     try {
-      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
+      const snapshot = await uploadString(fileRef, base64Data, 'base64', {
+        contentType: 'image/jpeg',
+      });
+      console.log('[PhotoUpload] Step 3 success: uploadString completed, bytesTransferred =', snapshot.metadata.size);
     } catch (uploadErr: unknown) {
       const code = (uploadErr as { code?: string })?.code ?? 'unknown';
-      console.error('[PhotoUpload] Step 2 uploadBytes failed (code=' + code + '):', uploadErr);
-      if (code === 'storage/unauthorized') {
-        throw new Error('Storage permission denied. Please contact support.');
-      }
-      throw new Error('Upload to storage failed. Check your internet connection.');
+      const message = (uploadErr as { message?: string })?.message ?? String(uploadErr);
+      console.error('[PhotoUpload] Step 3 FAILED — uploadString error:', { code, message, raw: uploadErr });
+      throw new Error(`Upload failed [${code}]: ${message}`);
     }
 
-    // Step 3 — Get public download URL
+    // Step 4 — Get public download URL
+    console.log('[PhotoUpload] Step 4: Getting download URL...');
     let downloadURL: string;
     try {
       downloadURL = await getDownloadURL(fileRef);
-    } catch (urlErr) {
-      console.error('[PhotoUpload] Step 3 getDownloadURL failed:', urlErr);
-      throw new Error('Photo uploaded but URL could not be retrieved. Try again.');
+      console.log('[PhotoUpload] Step 4 success: downloadURL =', downloadURL);
+    } catch (urlErr: unknown) {
+      const code = (urlErr as { code?: string })?.code ?? 'unknown';
+      const message = (urlErr as { message?: string })?.message ?? String(urlErr);
+      console.error('[PhotoUpload] Step 4 FAILED — getDownloadURL error:', { code, message });
+      throw new Error(`URL retrieval failed [${code}]: ${message}`);
     }
 
     return downloadURL;

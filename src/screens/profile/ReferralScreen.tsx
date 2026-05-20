@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   Share,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -14,10 +13,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { spacing, borderRadius, typography, shadow, SPLASH_COLOR } from '../../config/theme';
-import { getMyReferrals, getReferralCount, ensureReferralCode } from '../../hooks/useReferrals';
-import { User } from '../../models/types';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { spacing, borderRadius, shadow } from '../../config/theme';
+import { ensureReferralCode } from '../../hooks/useReferrals';
 
 type Props = {
   navigation: NativeStackNavigationProp<ProfileStackParamList, 'Referral'>;
@@ -25,29 +22,24 @@ type Props = {
 
 const APP_LINK = 'https://swapdog.app';
 
-const ReferralScreen: React.FC<Props> = ({ navigation }) => {
+const ReferralScreen: React.FC<Props> = ({ navigation: _navigation }) => {
   const { colors } = useTheme();
   const { user, userProfile, refreshUserProfile } = useAuthContext();
-  const [referrals, setReferrals] = useState<User[]>([]);
-  const [referralCount, setReferralCount] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [codeGenerating, setCodeGenerating] = useState(false);
-  // Local referral code — starts from profile, may be freshly generated
   const [referralCode, setReferralCode] = useState(userProfile?.referralCode ?? '');
 
   // Auto-generate a referral code if the user doesn't have one yet
   useEffect(() => {
     if (!user) return;
-    if (referralCode && referralCode.trim().length > 0) return; // already have one
+    if (referralCode && referralCode.trim().length > 0) return;
     setCodeGenerating(true);
     ensureReferralCode(user.uid)
       .then((code) => {
         setReferralCode(code);
-        // Refresh so AuthContext/userProfile reflects the new code
         return refreshUserProfile();
       })
       .catch(() => {
-        // Non-fatal — user will see "generating" message
+        // Non-fatal — share button stays disabled until code is ready
       })
       .finally(() => setCodeGenerating(false));
   }, [user, referralCode, refreshUserProfile]);
@@ -59,26 +51,6 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
       setReferralCode(profileCode);
     }
   }, [userProfile?.referralCode]);
-
-  const loadReferrals = useCallback(async () => {
-    if (!user) return;
-    try {
-      const [users, count] = await Promise.all([
-        getMyReferrals(user.uid),
-        getReferralCount(user.uid),
-      ]);
-      setReferrals(users);
-      setReferralCount(count);
-    } catch {
-      // fail silently
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    loadReferrals();
-  }, [loadReferrals]);
 
   const handleShare = async () => {
     if (!referralCode) return;
@@ -95,38 +67,17 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const getStatusBadge = (status: User['accountStatus']) => {
-    switch (status) {
-      case 'active':
-        return { label: 'Active', color: '#00B894', bg: '#00B89415' };
-      case 'suspended':
-        return { label: 'Suspended', color: '#E17055', bg: '#E1705515' };
-      default:
-        return { label: 'Pending', color: '#FDCB6E', bg: '#FDCB6E20' };
-    }
-  };
-
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
     >
-      <Text style={[styles.title, { color: colors.text }]}>🎁 Invite a Friend</Text>
-
-      {/* Accountability Warning — prominent per spec */}
-      <View style={[styles.warningCard, { backgroundColor: '#F8D7DA', borderColor: '#F5C2C7' }]}>
-        <Text style={[styles.warningText, { color: '#842029' }]}>
-          ⚠️ If someone you refer is reported for conduct violations, your account will be
-          reviewed and may be subject to suspension or complete termination.
-        </Text>
-      </View>
-
-      {/* Trust & Safety Card */}
+      {/* ── SUB-TASK 1 & 2: Yellow "Built on Trust & Safety" box with warning blurb ── */}
       <View style={[styles.safetyCard, { backgroundColor: '#FFF3CD', borderColor: '#F0AD4E' }]}>
         <Text style={[styles.safetyTitle, { color: '#856404' }]}>🐾 Built on Trust & Safety</Text>
         <Text style={[styles.safetyBody, { color: '#664D03' }]}>
-          SwapDog is built on trust and safety. Our community thrives because every member is vouched
-          for by someone we already trust.
+          SwapDog is built on trust and safety. Our community thrives because every member is
+          vouched for by someone we already trust.
         </Text>
         <Text style={[styles.safetyBold, { color: '#664D03' }]}>
           Your referrals reflect on you.
@@ -134,80 +85,44 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={[styles.safetyBody, { color: '#664D03' }]}>
           Only refer trusted friends or family members who share our values of responsible pet care.
         </Text>
+
+        {/* SUB-TASK 2: Warning blurb — bottom of yellow box, same background */}
+        <View style={styles.warningBlurb}>
+          <Text style={[styles.warningText, { color: '#664D03' }]}>
+            ⚠️ If someone you refer is reported for conduct violations or violates community
+            standards, it may reflect on your account and your account may be subject to suspension
+            or complete termination. So please refer responsibly!
+          </Text>
+        </View>
       </View>
 
-      {/* Referral Code Section */}
+      {/* ── SUB-TASK 4: Points incentive text above Share button ── */}
+      <Text style={[styles.pointsText, { color: colors.text }]}>
+        🎉 Earn 2 points for every friend who joins!
+      </Text>
+
+      {/* ── SUB-TASK 3: Red Share button only — referral code is never shown as text ── */}
       {codeGenerating ? (
-        <View style={[styles.codeSection, { backgroundColor: colors.surface, ...shadow.sm }]}>
-          <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
-          <Text style={[styles.noCodeText, { color: colors.textSecondary }]}>
-            Generating your referral code…
-          </Text>
-        </View>
-      ) : referralCode ? (
-        <View style={[styles.codeSection, { backgroundColor: colors.surface, ...shadow.sm }]}>
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-            YOUR REFERRAL CODE
-          </Text>
-          {/* Referral code — display only */}
-          <View style={[styles.codeDisplay, { borderColor: colors.border, backgroundColor: colors.background }]}>
-            <Text style={[styles.copyCodeText, { color: colors.primary }]}>{referralCode}</Text>
-          </View>
-
-          {/* Share — opens native share sheet (includes text, WhatsApp, email, etc.) */}
-          <TouchableOpacity
-            style={[styles.fullWidthBtn, { backgroundColor: colors.primary }]}
-            onPress={handleShare}
-            accessibilityLabel="Share your referral code"
-            accessibilityRole="button"
-          >
-            <Text style={[styles.fullWidthBtnText, { color: '#fff' }]}>🔗  Share</Text>
-          </TouchableOpacity>
-        </View>
+        <ActivityIndicator
+          color={colors.primary}
+          size="large"
+          style={{ marginVertical: spacing.md }}
+        />
       ) : (
-        <View style={[styles.codeSection, { backgroundColor: colors.surface, ...shadow.sm }]}>
-          <Text style={[styles.noCodeText, { color: colors.textSecondary }]}>
-            Your referral code is being set up. Check back soon!
-          </Text>
-        </View>
+        <TouchableOpacity
+          style={[
+            styles.shareBtn,
+            { backgroundColor: colors.primary },
+            !referralCode && styles.shareBtnDisabled,
+          ]}
+          onPress={handleShare}
+          disabled={!referralCode}
+          accessibilityLabel="Share your referral link"
+          accessibilityRole="button"
+        >
+          <Text style={styles.shareBtnText}>🔗  Share</Text>
+        </TouchableOpacity>
       )}
-
-      {/* My Referrals Section */}
-      <View style={styles.referralsSection}>
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>MY REFERRALS</Text>
-
-        {loading ? (
-          <LoadingSpinner />
-        ) : referralCount === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.surface, ...shadow.sm }]}>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              You haven't referred anyone yet. Share your code to invite trusted friends!
-            </Text>
-          </View>
-        ) : (
-          <>
-            <Text style={[styles.countText, { color: colors.text }]}>
-              You've referred {referralCount} {referralCount === 1 ? 'member' : 'members'}
-            </Text>
-            {referrals.map((referredUser) => {
-              const badge = getStatusBadge(referredUser.accountStatus);
-              return (
-                <View
-                  key={referredUser.id}
-                  style={[styles.referralRow, { backgroundColor: colors.surface, ...shadow.sm }]}
-                >
-                  <Text style={[styles.referralName, { color: colors.text }]}>
-                    {referredUser.displayName || 'New Member'}
-                  </Text>
-                  <View style={[styles.statusBadge, { backgroundColor: badge.bg, borderColor: badge.color }]}>
-                    <Text style={[styles.statusText, { color: badge.color }]}>{badge.label}</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </>
-        )}
-      </View>
     </ScrollView>
   );
 };
@@ -215,85 +130,44 @@ const ReferralScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: spacing.lg, paddingBottom: 60 },
-  title: { ...typography.h2, marginBottom: spacing.lg },
 
-  // Prominent accountability warning (top)
-  warningCard: {
-    borderWidth: 1.5,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  warningText: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
-
-  // Trust & Safety
+  // ── Yellow "Built on Trust & Safety" card ──
   safetyCard: {
     borderWidth: 1.5,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.lg,
+    ...shadow.sm,
   },
   safetyTitle: { fontSize: 16, fontWeight: '700', marginBottom: spacing.sm },
   safetyBody: { fontSize: 14, lineHeight: 20, marginBottom: spacing.sm },
-  safetyBold: { fontSize: 14, fontWeight: '700', marginBottom: spacing.xs },
+  safetyBold: { fontSize: 14, fontWeight: '700', marginBottom: spacing.sm },
 
-  // Code section
-  codeSection: {
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    gap: spacing.sm,
+  // Warning blurb — visually part of the yellow card, separated by a subtle divider
+  warningBlurb: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: '#F0AD4E',
   },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginBottom: spacing.xs,
-  },
-  codeDisplay: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-  },
-  copyCodeText: { fontSize: 22, fontWeight: '800', letterSpacing: 3 },
+  warningText: { fontSize: 13, lineHeight: 19, fontWeight: '500' },
 
-  // Buttons
-  fullWidthBtn: {
+  // ── Points incentive ──
+  pointsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+
+  // ── Red Share button ──
+  shareBtn: {
     padding: spacing.md,
     borderRadius: borderRadius.md,
     alignItems: 'center',
   },
-  fullWidthBtnText: { fontSize: 15, fontWeight: '700' },
-
-  noCodeText: { fontSize: 14, textAlign: 'center', paddingVertical: spacing.md },
-
-  // Referrals section
-  referralsSection: { marginBottom: spacing.lg },
-  emptyCard: {
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-  },
-  emptyText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
-  countText: { fontSize: 14, fontWeight: '600', marginBottom: spacing.sm },
-  referralRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  referralName: { fontSize: 15, fontWeight: '600' },
-  statusBadge: {
-    borderWidth: 1,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-  },
-  statusText: { fontSize: 12, fontWeight: '700' },
+  shareBtnDisabled: { opacity: 0.5 },
+  shareBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
 
 export default ReferralScreen;

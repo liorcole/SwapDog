@@ -45,6 +45,68 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     getDogsByOwner(user.uid).then(setDogs);
   };
 
+  /**
+   * Convert a local URI (from expo-image-picker) to a Blob.
+   * Uses fetch first; falls back to XHR on platforms where fetch returns an
+   * empty or non-Blob response (certain Expo/RN environments).
+   */
+  const uriToBlob = (uri: string): Promise<Blob> =>
+    new Promise<Blob>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = () => {
+        const b: Blob = xhr.response as Blob;
+        if (!b || b.size === 0) {
+          reject(new Error('XHR returned empty blob'));
+        } else {
+          resolve(b);
+        }
+      };
+      xhr.onerror = () => reject(new Error('XHR network error while reading image'));
+      xhr.responseType = 'blob';
+      xhr.open('GET', uri, true);
+      xhr.send(null);
+    });
+
+  /**
+   * Upload a local image URI to Firebase Storage and return the download URL.
+   * Each step is wrapped individually so we can surface a specific error.
+   */
+  const uploadPhotoToStorage = async (uri: string, dogId: string): Promise<string> => {
+    // Step 1 — Convert URI to Blob
+    let blob: Blob;
+    try {
+      blob = await uriToBlob(uri);
+    } catch (blobErr) {
+      console.error('[PhotoUpload] Step 1 blob conversion failed:', blobErr);
+      throw new Error('Could not read the selected image from your device.');
+    }
+
+    // Step 2 — Upload blob to Firebase Storage
+    const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+    const fileRef = storageRef(storage, `dogs/${dogId}/${fileName}`);
+    try {
+      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
+    } catch (uploadErr: unknown) {
+      const code = (uploadErr as { code?: string })?.code ?? 'unknown';
+      console.error('[PhotoUpload] Step 2 uploadBytes failed (code=' + code + '):', uploadErr);
+      if (code === 'storage/unauthorized') {
+        throw new Error('Storage permission denied. Please contact support.');
+      }
+      throw new Error('Upload to storage failed. Check your internet connection.');
+    }
+
+    // Step 3 — Get public download URL
+    let downloadURL: string;
+    try {
+      downloadURL = await getDownloadURL(fileRef);
+    } catch (urlErr) {
+      console.error('[PhotoUpload] Step 3 getDownloadURL failed:', urlErr);
+      throw new Error('Photo uploaded but URL could not be retrieved. Try again.');
+    }
+
+    return downloadURL;
+  };
+
   const handleAddDogPhoto = async (dogId: string, currentPhotos: string[]) => {
     if (currentPhotos.length >= 10) {
       Alert.alert('Limit reached', 'You can add up to 10 photos per dog');
@@ -59,23 +121,29 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     if (result.canceled || !result.assets[0]) return;
     setUploadingDogId(dogId);
     try {
-      const asset = result.assets[0];
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-      const fileRef = storageRef(storage, `dogs/${dogId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
-      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
-      const downloadURL = await getDownloadURL(fileRef);
+      const uri = result.assets[0].uri;
+      const downloadURL = await uploadPhotoToStorage(uri, dogId);
       const newPhotos = [...currentPhotos, downloadURL].slice(0, 10);
-      await updateDog(dogId, { photoURLs: newPhotos });
+
+      // Step 4 — Update Firestore
+      try {
+        await updateDog(dogId, { photoURLs: newPhotos });
+      } catch (firestoreErr) {
+        console.error('[PhotoUpload] Step 4 Firestore update failed:', firestoreErr);
+        throw new Error('Photo uploaded but profile could not be updated. Try again.');
+      }
+
       refreshDogs();
-    } catch {
-      Alert.alert('Error', 'Failed to upload photo. Please try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
+      console.error('[PhotoUpload] handleAddDogPhoto error:', err);
+      Alert.alert('Upload Failed', msg);
     } finally {
       setUploadingDogId(null);
     }
   };
 
-  // SUB-TASK 1: Tap photo → open crop editor directly (like Hinge/Bumble)
+  // Tap photo → open crop editor directly (like Hinge/Bumble)
   const handlePhotoTap = async (dogId: string, currentPhotos: string[], index: number) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
@@ -86,18 +154,23 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     if (result.canceled || !result.assets[0]) return;
     setUploadingDogId(dogId);
     try {
-      const asset = result.assets[0];
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-      const fileRef = storageRef(storage, `dogs/${dogId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
-      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
-      const downloadURL = await getDownloadURL(fileRef);
+      const uri = result.assets[0].uri;
+      const downloadURL = await uploadPhotoToStorage(uri, dogId);
       const newPhotos = [...currentPhotos];
       newPhotos[index] = downloadURL;
-      await updateDog(dogId, { photoURLs: newPhotos });
+
+      try {
+        await updateDog(dogId, { photoURLs: newPhotos });
+      } catch (firestoreErr) {
+        console.error('[PhotoUpload] handlePhotoTap Firestore update failed:', firestoreErr);
+        throw new Error('Photo uploaded but profile could not be updated. Try again.');
+      }
+
       refreshDogs();
-    } catch {
-      Alert.alert('Error', 'Failed to replace photo. Please try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
+      console.error('[PhotoUpload] handlePhotoTap error:', err);
+      Alert.alert('Upload Failed', msg);
     } finally {
       setUploadingDogId(null);
     }

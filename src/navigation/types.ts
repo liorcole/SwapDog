@@ -51,6 +51,7 @@ export type ProfileStackParamList = {
   CommunityStandards: undefined;
   MyAgreement: undefined;
   PointsHistory: undefined;
+  AdminPanel: undefined;
 };
 
 export type MainTabParamList = {

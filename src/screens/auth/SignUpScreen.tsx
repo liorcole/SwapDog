@@ -8,6 +8,7 @@ import { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../contexts/ThemeContext';
 import { spacing, borderRadius, typography } from '../../config/theme';
+import { getFriendlyAuthError } from '../../utils/authErrors';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'SignUp'>;
@@ -40,7 +41,8 @@ const SignUpScreen: React.FC<Props> = ({ navigation }) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Sign Up Failed', error instanceof Error ? error.message : 'An error occurred');
+      const { title, message } = getFriendlyAuthError(error);
+      Alert.alert(title, message);
     } finally {
       setLoading(false);
     }

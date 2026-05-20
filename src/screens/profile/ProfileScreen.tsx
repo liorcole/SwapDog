@@ -152,6 +152,11 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     navigation.navigate('Referral');
   };
 
+  const handleAdminPanel = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate('AdminPanel');
+  };
+
   if (loading) return <LoadingSpinner />;
 
   const hasContract = !!userProfile?.contractSignedAt;
@@ -335,7 +340,23 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
+      {/* Admin Panel — only visible to admin */}
+      {userProfile?.isAdmin === true && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Admin</Text>
+          <TouchableOpacity
+            style={[styles.prefRow, { backgroundColor: '#3D2E00', borderWidth: 1.5, borderColor: '#FFD700' }]}
+            onPress={handleAdminPanel}
+            accessibilityLabel="Open Admin Panel"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.prefLabel, { color: '#FFD700' }]}>👑 Admin Panel</Text>
+            <Text style={[styles.prefChevron, { color: '#FFD700' }]}>›</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+            <TouchableOpacity
         style={[styles.signOutBtn, { backgroundColor: colors.error }]}
         onPress={handleSignOut}
         accessibilityLabel="Sign out"

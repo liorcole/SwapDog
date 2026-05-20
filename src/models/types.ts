@@ -31,7 +31,9 @@ export type AccountStatus =
   | 'pending_vetting'
   | 'pending_approval'
   | 'active'
-  | 'suspended';
+  | 'suspended'
+  | 'rejected'
+  | 'terminated';
 
 export interface GeoPoint {
   latitude: number;
@@ -60,6 +62,7 @@ export interface User {
   conductAgreedAt?: Date;
   contractSignedAt?: Date;
   vettingScheduledAt?: Date;
+  isAdmin?: boolean;
 }
 
 export interface ReferralCode {

@@ -2,23 +2,32 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Admin helper — Lior's UID has full read/write access
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == '5SUwrjPWPzbqf7qTYRS74Uj7CB82';
+    }
+
     // Users: read if authenticated (needed for referral lists), write own doc only
+    // Admin can read all user docs and update accountStatus
     match /users/{userId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (
+        request.auth.uid == userId
+        || isAdmin()
+      );
       allow delete: if false;
     }
 
-    // Dogs: read if authenticated, write if owner
+    // Dogs: read if authenticated, write if owner or admin
     match /dogs/{dogId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
         && request.resource.data.ownerId == request.auth.uid;
       allow update: if request.auth != null
-        && resource.data.ownerId == request.auth.uid;
+        && (resource.data.ownerId == request.auth.uid || isAdmin());
       allow delete: if request.auth != null
-        && resource.data.ownerId == request.auth.uid;
+        && (resource.data.ownerId == request.auth.uid || isAdmin());
     }
 
     // SwapRequests: read/write if participant

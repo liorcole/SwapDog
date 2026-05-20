@@ -479,6 +479,14 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const [myOpenPost, setMyOpenPost] = useState<SwapPost | null>(null);
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [mapViewHeight, setMapViewHeight] = useState(MAP_HEIGHT_DEFAULT);
+  // Track whether first location+data fetch has completed (eliminates feed flash)
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+  // "Last known good" refs — once loaded, feed never goes blank during re-fetches
+  const lastPostsRef = useRef<SwapPost[]>([]);
+  const lastUsersRef = useRef<NearbyUser[]>([]);
+  const initialPostsDoneRef = useRef(false);
+  const initialUsersDoneRef = useRef(false);
 
   const mapRef = useRef<MapView>(null);
   const isProgrammaticMoveRef = useRef(false);
@@ -530,8 +538,15 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         }))
         .sort((a, b) => a.distanceMiles - b.distanceMiles);
       setNearbyUsers(withDistance);
+      lastUsersRef.current = withDistance;
     } catch { /* silent */ }
-    finally { setUsersLoading(false); }
+    finally {
+      setUsersLoading(false);
+      if (!initialUsersDoneRef.current) {
+        initialUsersDoneRef.current = true;
+        if (initialPostsDoneRef.current) setInitialLoadDone(true);
+      }
+    }
   }, [location, radiusMiles, userProfile?.id, getUsersByLocation]);
 
 
@@ -544,9 +559,17 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         { latitude: location.coords.latitude, longitude: location.coords.longitude },
         radiusMiles,
       );
-      setAreaPosts(posts.filter((p) => p.posterId !== userProfile?.id));
+      const filtered = posts.filter((p) => p.posterId !== userProfile?.id);
+      setAreaPosts(filtered);
+      lastPostsRef.current = filtered;
     } catch { /* silent */ }
-    finally { setPostsLoading(false); }
+    finally {
+      setPostsLoading(false);
+      if (!initialPostsDoneRef.current) {
+        initialPostsDoneRef.current = true;
+        if (initialUsersDoneRef.current) setInitialLoadDone(true);
+      }
+    }
   }, [location, radiusMiles, userProfile?.id, getAreaPosts]);
 
   // ── Combined debounced fetch — prevents rapid re-fetches on radius changes ─────
@@ -663,25 +686,29 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   // ── Build flat feed data (discriminated union) ─────────────────────────────
   const feedData: FeedItem[] = useMemo(() => {
     const milesLabel = radiusMiles < 10 ? radiusMiles.toFixed(1) : Math.round(radiusMiles).toString();
+    // Use last-known-good refs as fallback so the feed never goes blank
+    // during subsequent location/radius changes after the initial load
+    const displayPosts = areaPosts.length > 0 ? areaPosts : lastPostsRef.current;
+    const displayUsers = nearbyUsers.length > 0 ? nearbyUsers : lastUsersRef.current;
     const items: FeedItem[] = [];
 
     // Section 1: Posts
-    items.push({ kind: 'section_header', id: 'header_posts', title: '🐾 Active Posts Nearby', count: areaPosts.length, isPosts: true });
-    if (areaPosts.length === 0) {
+    items.push({ kind: 'section_header', id: 'header_posts', title: '🐾 Active Posts Nearby', count: displayPosts.length, isPosts: true });
+    if (displayPosts.length === 0) {
       items.push({ kind: 'empty', id: 'empty_posts', text: 'No active posts in your area right now' });
     } else {
-      areaPosts.forEach((p) => items.push({ kind: 'post', id: p.id, post: p }));
+      displayPosts.forEach((p) => items.push({ kind: 'post', id: p.id, post: p }));
     }
 
     // Divider
     items.push({ kind: 'divider', id: 'divider_1' });
 
     // Section 2: Dog owners
-    items.push({ kind: 'section_header', id: 'header_users', title: `🏠 Dog Owners Within ${milesLabel} Miles`, count: nearbyUsers.length, isPosts: false });
-    if (nearbyUsers.length === 0) {
+    items.push({ kind: 'section_header', id: 'header_users', title: `🏠 Dog Owners Within ${milesLabel} Miles`, count: displayUsers.length, isPosts: false });
+    if (displayUsers.length === 0) {
       items.push({ kind: 'empty', id: 'empty_users', text: 'No dog owners found nearby — try a larger radius' });
     } else {
-      nearbyUsers.forEach((nu) => items.push({ kind: 'user', id: nu.user.id, nu }));
+      displayUsers.forEach((nu) => items.push({ kind: 'user', id: nu.user.id, nu }));
     }
 
     return items;
@@ -770,9 +797,6 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     longitudeDelta: Math.max(0.01, (radiusMiles / 69) * 2 * (MAP_HEIGHT_DEFAULT / CIRCLE_SIZE)),
   };
 
-  const isLoading = usersLoading || postsLoading;
-  // Only show shimmer on very first load — prevents flash on radius changes
-  const showLoadingShimmer = isLoading && nearbyUsers.length === 0 && areaPosts.length === 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -840,13 +864,12 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       {/* ── COMBINED FEED ── */}
-      {showLoadingShimmer ? (
-        <View style={styles.listLoadingContainer}>
-          {[1, 2, 3].map((i) => (
-            <View key={i} style={{ marginHorizontal: spacing.md, marginBottom: spacing.sm }}>
-              <ShimmerLoading height={72} borderRadius={borderRadius.md} />
-            </View>
-          ))}
+      {/* Show a clean loading indicator until the FIRST location+data fetch
+          completes. This eliminates the flash: empty feed → shimmer → data.
+          After initialLoadDone, ref fallbacks ensure we never go blank again. */}
+      {!initialLoadDone ? (
+        <View style={[styles.listLoadingContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator color={colors.primary} size="large" />
         </View>
       ) : (
         <FlatList<FeedItem>

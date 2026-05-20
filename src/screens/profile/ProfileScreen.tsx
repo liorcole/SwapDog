@@ -58,7 +58,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
     const bucket = 'swapdog-d0cfe.firebasestorage.app';
     const encodedPath = encodeURIComponent(storagePath);
-    const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}`;
+    const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?name=${encodedPath}`;
 
     console.log('[PhotoUpload] Uploading via REST to:', uploadUrl);
     console.log('[PhotoUpload] URI:', uri);

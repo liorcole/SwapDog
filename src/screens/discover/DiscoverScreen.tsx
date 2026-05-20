@@ -329,7 +329,10 @@ const LocationModal: React.FC<LocationModalProps> = ({
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&limit=5&countrycodes=us`,
       { headers: { 'Accept-Language': 'en', 'User-Agent': 'SwapDogApp/1.0' } },
     )
-      .then((r) => r.json() as Promise<NominatimResult[]>)
+      .then((r) => {
+        if (!r || !r.ok) throw new Error(`Geocode request failed: ${r?.status ?? 'no response'}`);
+        return r.json() as Promise<NominatimResult[]>;
+      })
       .then((results) => setSuggestions(results))
       .catch(() => setSuggestions([]))
       .finally(() => setFetching(false));

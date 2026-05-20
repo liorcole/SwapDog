@@ -80,6 +80,7 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
       const asset = result.assets[0];
       const tempId = dogId ?? `temp_${user?.uid ?? 'anon'}_${Date.now()}`;
       const response = await fetch(asset.uri);
+      if (!response) throw new Error('Failed to read image file');
       const blob = await response.blob();
       const fileRef = storageRef(storage, `dogs/${tempId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
       await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });

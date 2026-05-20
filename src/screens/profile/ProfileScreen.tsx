@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
+import { uploadPhotoToStorage } from '../../utils/uploadHelper';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
 import { auth } from '../../config/firebase';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -43,50 +43,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const refreshDogs = () => {
     if (!user) return;
     getDogsByOwner(user.uid).then(setDogs);
-  };
-
-  /**
-   * Upload a local image URI to Firebase Storage via REST API + expo-file-system.
-   *
-   * Bypasses the Firebase JS SDK entirely — avoids the "Creating blobs from ArrayBuffer
-   * and ArrayBufferView are not supported" error that breaks all SDK upload paths in RN.
-   */
-  const uploadPhotoToStorage = async (uri: string, storagePath: string): Promise<string> => {
-    const user = auth.currentUser;
-    if (!user) throw new Error('Not authenticated');
-    const token = await user.getIdToken();
-
-    const bucket = 'swapdog-d0cfe.firebasestorage.app';
-    const encodedPath = encodeURIComponent(storagePath);
-    const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?name=${encodedPath}`;
-
-    console.log('[PhotoUpload] Uploading via REST to:', uploadUrl);
-    console.log('[PhotoUpload] URI:', uri);
-
-    const uploadResult = await uploadAsync(uploadUrl, uri, {
-      httpMethod: 'POST',
-      uploadType: FileSystemUploadType.BINARY_CONTENT,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'image/jpeg',
-      },
-    });
-
-    if (!uploadResult) {
-      throw new Error('Upload failed: no response from server');
-    }
-
-    console.log('[PhotoUpload] Upload status:', uploadResult.status);
-
-    if (uploadResult.status !== 200) {
-      console.error('[PhotoUpload] Upload failed:', uploadResult.body);
-      throw new Error(`Upload failed (${uploadResult.status}): ${uploadResult.body}`);
-    }
-
-    const data = JSON.parse(uploadResult.body) as { downloadTokens: string };
-    const downloadURL = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media&token=${data.downloadTokens}`;
-    console.log('[PhotoUpload] Download URL:', downloadURL);
-    return downloadURL;
   };
 
   /**

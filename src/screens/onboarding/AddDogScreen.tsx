@@ -71,6 +71,7 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
       for (const asset of result.assets.slice(0, MAX_PHOTOS - form.photoURLs.length)) {
         const tempId = `temp_${user?.uid ?? 'anon'}_${Date.now()}`;
         const response = await fetch(asset.uri);
+        if (!response) throw new Error('Failed to read image file');
         const blob = await response.blob();
         const fileRef = storageRef(storage, `dogs/${tempId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
         await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });

@@ -389,8 +389,8 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>📅 Dates Needed</Text>
           <TouchableOpacity
-            style={[styles.dateButton, { borderColor: colors.primary }]}
-            onPress={() => setShowStart(true)}
+            style={[styles.dateButton, { borderColor: '#FFFFFF' }]}
+            onPress={() => { setShowStart(prev => !prev); setShowEnd(false); }}
             accessibilityLabel={`Start date: ${formatDate(startDate)}`}
             accessibilityRole="button"
           >
@@ -418,8 +418,8 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
             />
           )}
           <TouchableOpacity
-            style={[styles.dateButton, { borderColor: colors.secondary }]}
-            onPress={() => setShowEnd(true)}
+            style={[styles.dateButton, { borderColor: '#FFFFFF' }]}
+            onPress={() => { setShowEnd(prev => !prev); setShowStart(false); }}
             accessibilityLabel={`End date: ${formatDate(endDate)}`}
             accessibilityRole="button"
           >

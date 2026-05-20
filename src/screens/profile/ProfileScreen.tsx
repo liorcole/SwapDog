@@ -323,7 +323,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* SUB-TASK 2a: Add Another Dog button */}
         <TouchableOpacity
-          style={[styles.addAnotherDogBtn, { borderColor: colors.primary }]}
+          style={[styles.addAnotherDogBtn, { borderColor: '#888' }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             navigation.navigate('EditDog', {});
@@ -331,7 +331,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityLabel="Add another dog"
           accessibilityRole="button"
         >
-          <Text style={[styles.addAnotherDogBtnText, { color: colors.primary }]}>+ Add Another Dog</Text>
+          <Text style={[styles.addAnotherDogBtnText, { color: '#999' }]}>+ Add Another Dog</Text>
         </TouchableOpacity>
       </View>
 

@@ -624,9 +624,23 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
           const capped = Math.min(rounded, MAX_RADIUS_MILES);
           return Math.abs(capped - prev) >= 0.2 ? capped : prev;
         });
+        // Recenter the map on the pin with the new zoom level so the radius
+        // circle stays centered after a user pinch-zoom.
+        if (location && mapRef.current) {
+          isProgrammaticMoveRef.current = true;
+          mapRef.current.animateToRegion(
+            {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              latitudeDelta: region.latitudeDelta,
+              longitudeDelta: region.longitudeDelta,
+            },
+            300,
+          );
+        }
       }, REGION_DEBOUNCE_MS);
     },
-    [mapViewHeight],
+    [mapViewHeight, location],
   );
 
   const handlePresetSelect = useCallback(

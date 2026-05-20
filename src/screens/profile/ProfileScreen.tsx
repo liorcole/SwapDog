@@ -6,9 +6,8 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
-import { ref as storageRef, uploadString, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../config/firebase';
+import { uploadAsync, FileSystemUploadType } from 'expo-file-system/legacy';
+import { auth } from '../../config/firebase';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -47,67 +46,42 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   /**
-   * Upload a local image URI to Firebase Storage and return the download URL.
+   * Upload a local image URI to Firebase Storage via REST API + expo-file-system.
    *
-   * Uses expo-file-system base64 + uploadString — the most reliable approach for
-   * Expo + Firebase JS SDK v12 in React Native. Avoids XHR/fetch blob issues entirely.
-   * Each step has explicit logging so the exact failure point is visible in the console.
+   * Bypasses the Firebase JS SDK entirely — avoids the "Creating blobs from ArrayBuffer
+   * and ArrayBufferView are not supported" error that breaks all SDK upload paths in RN.
    */
-  const uploadPhotoToStorage = async (uri: string, dogId: string): Promise<string> => {
-    // Step 1 — Read the image file as a base64 string
-    console.log('[PhotoUpload] Step 1: Reading URI as base64:', uri);
-    let base64Data: string;
-    try {
-      base64Data = await readAsStringAsync(uri, {
-        encoding: EncodingType.Base64,
-      });
-      console.log('[PhotoUpload] Step 1 success: base64 length =', base64Data.length);
-      if (!base64Data || base64Data.length === 0) {
-        throw new Error('FileSystem.readAsStringAsync returned empty data');
-      }
-    } catch (readErr: unknown) {
-      const msg = readErr instanceof Error ? readErr.message : String(readErr);
-      console.error('[PhotoUpload] Step 1 FAILED — could not read file from device:', readErr);
-      throw new Error(`Could not read image from device: ${msg}`);
+  const uploadPhotoToStorage = async (uri: string, storagePath: string): Promise<string> => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+    const token = await user.getIdToken();
+
+    const bucket = 'swapdog-d0cfe.firebasestorage.app';
+    const encodedPath = encodeURIComponent(storagePath);
+    const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}`;
+
+    console.log('[PhotoUpload] Uploading via REST to:', uploadUrl);
+    console.log('[PhotoUpload] URI:', uri);
+
+    const uploadResult = await uploadAsync(uploadUrl, uri, {
+      httpMethod: 'POST',
+      uploadType: FileSystemUploadType.BINARY_CONTENT,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'image/jpeg',
+      },
+    });
+
+    console.log('[PhotoUpload] Upload status:', uploadResult.status);
+
+    if (uploadResult.status !== 200) {
+      console.error('[PhotoUpload] Upload failed:', uploadResult.body);
+      throw new Error(`Upload failed (${uploadResult.status}): ${uploadResult.body}`);
     }
 
-    // Step 2 — Build storage ref path
-    const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-    const path = `dogs/${dogId}/${fileName}`;
-    console.log('[PhotoUpload] Step 2: Storage ref path:', path, '| dogId:', dogId);
-    if (!dogId) {
-      console.error('[PhotoUpload] Step 2 FAILED — dogId is falsy:', dogId);
-      throw new Error('Cannot upload: dog ID is missing');
-    }
-    const fileRef = storageRef(storage, path);
-
-    // Step 3 — Upload base64 to Firebase Storage
-    console.log('[PhotoUpload] Step 3: Calling uploadString...');
-    try {
-      const snapshot = await uploadString(fileRef, base64Data, 'base64', {
-        contentType: 'image/jpeg',
-      });
-      console.log('[PhotoUpload] Step 3 success: uploadString completed, bytesTransferred =', snapshot.metadata.size);
-    } catch (uploadErr: unknown) {
-      const code = (uploadErr as { code?: string })?.code ?? 'unknown';
-      const message = (uploadErr as { message?: string })?.message ?? String(uploadErr);
-      console.error('[PhotoUpload] Step 3 FAILED — uploadString error:', { code, message, raw: uploadErr });
-      throw new Error(`Upload failed [${code}]: ${message}`);
-    }
-
-    // Step 4 — Get public download URL
-    console.log('[PhotoUpload] Step 4: Getting download URL...');
-    let downloadURL: string;
-    try {
-      downloadURL = await getDownloadURL(fileRef);
-      console.log('[PhotoUpload] Step 4 success: downloadURL =', downloadURL);
-    } catch (urlErr: unknown) {
-      const code = (urlErr as { code?: string })?.code ?? 'unknown';
-      const message = (urlErr as { message?: string })?.message ?? String(urlErr);
-      console.error('[PhotoUpload] Step 4 FAILED — getDownloadURL error:', { code, message });
-      throw new Error(`URL retrieval failed [${code}]: ${message}`);
-    }
-
+    const data = JSON.parse(uploadResult.body) as { downloadTokens: string };
+    const downloadURL = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}?alt=media&token=${data.downloadTokens}`;
+    console.log('[PhotoUpload] Download URL:', downloadURL);
     return downloadURL;
   };
 
@@ -126,10 +100,11 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     setUploadingDogId(dogId);
     try {
       const uri = result.assets[0].uri;
-      const downloadURL = await uploadPhotoToStorage(uri, dogId);
+      const storagePath = `dogs/${dogId}/${Date.now()}.jpg`;
+      const downloadURL = await uploadPhotoToStorage(uri, storagePath);
       const newPhotos = [...currentPhotos, downloadURL].slice(0, 10);
 
-      // Step 4 — Update Firestore
+      // Update Firestore
       try {
         await updateDog(dogId, { photoURLs: newPhotos });
       } catch (firestoreErr) {
@@ -159,7 +134,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     setUploadingDogId(dogId);
     try {
       const uri = result.assets[0].uri;
-      const downloadURL = await uploadPhotoToStorage(uri, dogId);
+      const storagePath = `dogs/${dogId}/${Date.now()}.jpg`;
+      const downloadURL = await uploadPhotoToStorage(uri, storagePath);
       const newPhotos = [...currentPhotos];
       newPhotos[index] = downloadURL;
 

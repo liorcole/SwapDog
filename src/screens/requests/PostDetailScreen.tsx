@@ -1,9 +1,11 @@
 /**
- * PostDetailScreen — full details for a public swap post.
+ * PostDetailScreen — Wave 19B
  *
- * SUB-TASK 1: Big dog photos carousel at top (~40% screen, paginated, tap-to-fullscreen)
- * SUB-TASK 2: Multi-dog support (dogIds[] array + backward compat single-dog fields)
- * SUB-TASK 3: "(owner)" label next to poster name
+ * - Shows care type icon + label prominently
+ * - Shows schedule info per care type
+ * - Shows compensation: money OR points offered
+ * - "I Can Help" flow: accept at offered pts OR counter-offer
+ * - Owner sees counter offers in Interested Helpers section (Accept/Decline)
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -21,6 +23,9 @@ import {
   NativeScrollEvent,
   StatusBar,
   SafeAreaView,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -38,15 +43,72 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { scheduleOwnerReminders, requestNotificationPermissions } from '../../services/ReminderService';
 
 const RED = '#FF2D55';
+const GREEN = '#00B894';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CAROUSEL_HEIGHT = Math.round(Dimensions.get('window').height * 0.4);
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Props = {
   navigation: NativeStackNavigationProp<RequestsStackParamList, 'PostDetail'>;
   route: RouteProp<RequestsStackParamList, 'PostDetail'>;
 };
+
+// ─── Care Type Helpers ────────────────────────────────────────────────────────
+
+function getCareTypeIcon(careType?: string): string {
+  switch (careType) {
+    case 'overnight': return '🏠';
+    case 'daySitting': return '☀️';
+    case 'feeding': return '🍽️';
+    case 'dogWalking': return '🐕';
+    default: return '🐾';
+  }
+}
+
+function getCareTypeLabel(careType?: string): string {
+  switch (careType) {
+    case 'overnight': return 'Overnight Care';
+    case 'daySitting': return 'Day Pet Sitting';
+    case 'feeding': return 'Feeding';
+    case 'dogWalking': return 'Dog Walking';
+    default: return 'Pet Care';
+  }
+}
+
+function getScheduleInfo(post: SwapPost): string {
+  const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+  switch (post.careType) {
+    case 'overnight': {
+      const MS_PER_DAY = 1000 * 60 * 60 * 24;
+      const nights = Math.max(1, Math.round((post.endDate.getTime() - post.startDate.getTime()) / MS_PER_DAY));
+      return `📅 ${startStr} → ${endStr} (${nights} night${nights !== 1 ? 's' : ''})`;
+    }
+    case 'daySitting': {
+      const timeInfo = post.startTime && post.endTime
+        ? `, ${post.startTime} → ${post.endTime}`
+        : '';
+      return `📅 ${startStr}${timeInfo}`;
+    }
+    case 'feeding': {
+      const timeInfo = post.feedingTime ? ` at ${post.feedingTime}` : '';
+      return `📅 ${startStr}${timeInfo}`;
+    }
+    case 'dogWalking': {
+      if (post.walkDurationMinutes) {
+        const hrs = Math.floor(post.walkDurationMinutes / 60);
+        const mins = post.walkDurationMinutes % 60;
+        const label = hrs > 0
+          ? `${hrs} hr${hrs !== 1 ? 's' : ''}${mins > 0 ? ` ${mins} min` : ''}`
+          : `${mins} min`;
+        return `🐕 ${label} walk`;
+      }
+      return '🐕 Dog Walking';
+    }
+    default:
+      return `📅 ${startStr} – ${endStr}`;
+  }
+}
 
 // ─── Photo Carousel ───────────────────────────────────────────────────────────
 
@@ -87,24 +149,16 @@ const PhotoCarouselSection: React.FC<PhotoCarouselProps> = ({ photos, onPhotoPre
             onPress={() => onPhotoPress(index)}
             style={carouselStyles.slide}
           >
-            <Image
-              source={{ uri: item }}
-              style={carouselStyles.image}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: item }} style={carouselStyles.image} resizeMode="cover" />
           </TouchableOpacity>
         )}
       />
-      {/* Pagination dots */}
       {photos.length > 1 && (
         <View style={carouselStyles.dotsRow}>
           {photos.map((_, i) => (
             <View
               key={i}
-              style={[
-                carouselStyles.dot,
-                i === activeIndex ? carouselStyles.dotActive : carouselStyles.dotInactive,
-              ]}
+              style={[carouselStyles.dot, i === activeIndex ? carouselStyles.dotActive : carouselStyles.dotInactive]}
             />
           ))}
         </View>
@@ -122,19 +176,12 @@ interface FullscreenModalProps {
   onClose: () => void;
 }
 
-const FullscreenPhotoModal: React.FC<FullscreenModalProps> = ({
-  photos,
-  initialIndex,
-  visible,
-  onClose,
-}) => {
+const FullscreenPhotoModal: React.FC<FullscreenModalProps> = ({ photos, initialIndex, visible, onClose }) => {
   const flatRef = useRef<FlatList<string>>(null);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
 
-  // Scroll to initial photo when modal opens
   useEffect(() => {
     if (visible && flatRef.current && photos.length > 1) {
-      // Small timeout to allow FlatList to mount
       const timer = setTimeout(() => {
         flatRef.current?.scrollToIndex({ index: initialIndex, animated: false });
       }, 50);
@@ -148,28 +195,14 @@ const FullscreenPhotoModal: React.FC<FullscreenModalProps> = ({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.95)" />
       <View style={modalStyles.overlay}>
-        {/* Close button */}
         <SafeAreaView style={modalStyles.safeTop} pointerEvents="box-none">
-          <TouchableOpacity
-            style={modalStyles.closeBtn}
-            onPress={onClose}
-            accessibilityLabel="Close photo"
-            accessibilityRole="button"
-          >
+          <TouchableOpacity style={modalStyles.closeBtn} onPress={onClose} accessibilityLabel="Close photo" accessibilityRole="button">
             <Text style={modalStyles.closeBtnText}>✕</Text>
           </TouchableOpacity>
         </SafeAreaView>
-
-        {/* Full-screen photo list */}
         <FlatList
           ref={flatRef}
           data={photos}
@@ -178,34 +211,18 @@ const FullscreenPhotoModal: React.FC<FullscreenModalProps> = ({
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={handleScroll}
-          getItemLayout={(_, index) => ({
-            length: SCREEN_WIDTH,
-            offset: SCREEN_WIDTH * index,
-            index,
-          })}
+          getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
           renderItem={({ item }) => (
             <View style={modalStyles.slide}>
-              <Image
-                source={{ uri: item }}
-                style={modalStyles.image}
-                resizeMode="contain"
-              />
+              <Image source={{ uri: item }} style={modalStyles.image} resizeMode="contain" />
             </View>
           )}
         />
-
-        {/* Pagination dots */}
         {photos.length > 1 && (
           <SafeAreaView style={modalStyles.safeBottom} pointerEvents="none">
             <View style={modalStyles.dotsRow}>
               {photos.map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    modalStyles.dot,
-                    i === activeIndex ? modalStyles.dotActive : modalStyles.dotInactive,
-                  ]}
-                />
+                <View key={i} style={[modalStyles.dot, i === activeIndex ? modalStyles.dotActive : modalStyles.dotInactive]} />
               ))}
             </View>
           </SafeAreaView>
@@ -220,7 +237,7 @@ const FullscreenPhotoModal: React.FC<FullscreenModalProps> = ({
 const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { user, userProfile } = useAuthContext();
-  const { getAreaPosts, getMyPosts, addResponder, approveHelper, saveOwnerReminderIds } = useSwaps();
+  const { getAreaPosts, getMyPosts, addResponder, approveHelper, saveOwnerReminderIds, respondToCounter } = useSwaps();
   const { getOrCreateConversation, sendMessage } = useMessaging();
 
   const [post, setPost] = useState<SwapPost | null>(null);
@@ -228,78 +245,59 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [claiming, setClaiming] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
-  // Photo carousel / fullscreen state
+  // Photo carousel state
   const [allPhotos, setAllPhotos] = useState<string[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalInitialIndex, setModalInitialIndex] = useState(0);
 
+  // "I Can Help" modal state (for points posts)
+  const [helpModalVisible, setHelpModalVisible] = useState(false);
+  const [counterMode, setCounterMode] = useState(false);
+  const [counterPointsInput, setCounterPointsInput] = useState('');
+  const [counterSubmitting, setCounterSubmitting] = useState(false);
+
   const postId = route.params?.postId;
 
-  // Build photo list from post + optionally fetch dog doc for full photoURLs array
   const buildPhotos = async (p: SwapPost): Promise<string[]> => {
-    // Prefer multi-dog photo array if populated
-    if (p.dogPhotoURLs && p.dogPhotoURLs.length > 0) {
-      return p.dogPhotoURLs;
-    }
-
-    // Try fetching from Firestore Dog document (has photoURLs[])
+    if (p.dogPhotoURLs && p.dogPhotoURLs.length > 0) return p.dogPhotoURLs;
     if (p.dogId) {
       try {
         const dogSnap = await getDoc(doc(db, 'dogs', p.dogId));
         if (dogSnap.exists()) {
           const dogData = dogSnap.data() as { photoURLs?: string[] };
-          if (dogData.photoURLs && dogData.photoURLs.length > 0) {
-            return dogData.photoURLs;
-          }
+          if (dogData.photoURLs && dogData.photoURLs.length > 0) return dogData.photoURLs;
         }
-      } catch {
-        // Non-fatal — fall through
-      }
+      } catch { /* non-fatal */ }
     }
-
-    // Also try dogIds array (multi-dog — fetch first dog's photos)
     if (p.dogIds && p.dogIds.length > 0) {
       try {
         const dogSnap = await getDoc(doc(db, 'dogs', p.dogIds[0]));
         if (dogSnap.exists()) {
           const dogData = dogSnap.data() as { photoURLs?: string[] };
-          if (dogData.photoURLs && dogData.photoURLs.length > 0) {
-            return dogData.photoURLs;
-          }
+          if (dogData.photoURLs && dogData.photoURLs.length > 0) return dogData.photoURLs;
         }
-      } catch {
-        // Non-fatal
-      }
+      } catch { /* non-fatal */ }
     }
-
-    // Fallback to single denormalised photo on post
     if (p.dogPhotoURL) return [p.dogPhotoURL];
     return [];
   };
 
   useEffect(() => {
-    if (!postId) {
-      setLoading(false);
-      return;
-    }
+    if (!postId) { setLoading(false); return; }
     const fetchPost = async () => {
       try {
         const areaPosts = await getAreaPosts();
         const found = areaPosts.find((p) => p.id === postId) ?? null;
         if (found) {
           setPost(found);
-          const photos = await buildPhotos(found);
-          setAllPhotos(photos);
+          setAllPhotos(await buildPhotos(found));
           return;
         }
         if (user?.uid) {
           const myPosts = await getMyPosts(user.uid);
           const ownPost = myPosts.find((p) => p.id === postId) ?? null;
           setPost(ownPost);
-          if (ownPost) {
-            const photos = await buildPhotos(ownPost);
-            setAllPhotos(photos);
-          }
+          if (ownPost) setAllPhotos(await buildPhotos(ownPost));
         }
       } finally {
         setLoading(false);
@@ -313,44 +311,80 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     setModalVisible(true);
   };
 
-  const handleHelp = async () => {
+  // ── "I Can Help" flow ─────────────────────────────────────────────────────
+
+  const handleHelpButtonPress = () => {
     if (!user || !post) return;
     if (user.uid === post.posterId) {
       Alert.alert("That's your post!", "You can't respond to your own request.");
       return;
     }
+    // Points post: show accept/counter modal
+    if (post.compensationType === 'points') {
+      setCounterMode(false);
+      setCounterPointsInput('');
+      setHelpModalVisible(true);
+    } else {
+      // Payment post: go straight to messaging
+      handleHelp(undefined);
+    }
+  };
 
+  /** Accept at offered points or with a counter offer */
+  const handleAcceptOrCounter = async (counterPoints?: number) => {
+    if (!user || !post) return;
+    setCounterSubmitting(true);
+    try {
+      const sitterName = userProfile?.displayName ?? user.displayName ?? 'Someone';
+      const sitterPhoto = userProfile?.photoURL ?? user.photoURL ?? undefined;
+      const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      const dogDisplayName = post.dogNames && post.dogNames.length > 1
+        ? post.dogNames.join(' & ') : post.dogName;
+
+      const convId = await getOrCreateConversation(user.uid, post.posterId, post.id);
+
+      const introText = counterPoints !== undefined
+        ? `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'd like to counter-offer at ${counterPoints} points — let me know if that works!`
+        : `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'll take the job for the offered ${post.pointsOffered ?? post.pointsCost} points!`;
+      await sendMessage(convId, user.uid, introText);
+
+      await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto }, counterPoints);
+
+      setHelpModalVisible(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      navigation.getParent()?.navigate('MessagesTab', {
+        screen: 'Chat',
+        params: { conversationId: convId, otherUserId: post.posterId },
+      });
+    } catch (err: unknown) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to respond');
+    } finally {
+      setCounterSubmitting(false);
+    }
+  };
+
+  const handleHelp = async (counterPoints?: number) => {
+    if (!user || !post) return;
     setClaiming(true);
     try {
       const sitterName = userProfile?.displayName ?? user.displayName ?? 'Someone';
       const sitterPhoto = userProfile?.photoURL ?? user.photoURL ?? undefined;
       const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-
-      // Build dog name display (multi-dog aware)
       const dogDisplayName = post.dogNames && post.dogNames.length > 1
-        ? post.dogNames.join(' & ')
-        : post.dogName;
+        ? post.dogNames.join(' & ') : post.dogName;
 
       const convId = await getOrCreateConversation(user.uid, post.posterId, post.id);
-
       const introText = `🐾 Hey! I'd love to help watch ${dogDisplayName} from ${startStr} to ${endStr}. Let me know if you'd like to set something up!`;
       await sendMessage(convId, user.uid, introText);
 
       if (post.compensationType === 'payment' || post.compensationType === 'either') {
-        await sendMessage(
-          convId,
-          user.uid,
-          '💰 Reminder: All payments are arranged and made outside of SwapDog.'
-        );
+        await sendMessage(convId, user.uid, '💰 Reminder: All payments are arranged and made outside of SwapDog.');
       }
 
-      await addResponder(post.id, {
-        userId: user.uid,
-        userName: sitterName,
-        userPhotoURL: sitterPhoto,
-      });
-
+      await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto }, counterPoints);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       navigation.getParent()?.navigate('MessagesTab', {
@@ -382,49 +416,80 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleApprove = async (helperId: string, helperName: string) => {
     if (!user || !post) return;
+    Alert.alert('Approve Helper', `Choose ${helperName} as your dog sitter for this post?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Approve',
+        onPress: async () => {
+          setApprovingId(helperId);
+          try {
+            await approveHelper(post.id, helperId);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setPost((prev) => prev ? { ...prev, status: 'claimed', claimedBy: helperId } : prev);
+            try {
+              const hasPermission = await requestNotificationPermissions();
+              if (hasPermission) {
+                const dogDisplayName = post.dogNames && post.dogNames.length > 1
+                  ? post.dogNames.join(' & ') : post.dogName;
+                const ownerIds = await scheduleOwnerReminders({
+                  startDate: post.startDate,
+                  dogName: dogDisplayName,
+                  ownerName: post.posterName,
+                  sitterName: helperName,
+                });
+                if (ownerIds.length > 0) await saveOwnerReminderIds(post.id, ownerIds);
+              }
+            } catch (reminderErr) {
+              console.warn('[PostDetail] Failed to schedule reminders:', reminderErr);
+            }
+          } catch (err: unknown) {
+            Alert.alert('Error', err instanceof Error ? err.message : 'Could not approve helper');
+          } finally {
+            setApprovingId(null);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleCounterResponse = async (responderId: string, responderName: string, accept: boolean) => {
+    if (!post) return;
     Alert.alert(
-      'Approve Helper',
-      `Choose ${helperName} as your dog sitter for this post?`,
+      accept ? 'Accept Counter Offer' : 'Decline Counter Offer',
+      accept
+        ? `Accept ${responderName}'s counter offer?`
+        : `Decline ${responderName}'s counter offer?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Approve',
+          text: accept ? 'Accept' : 'Decline',
+          style: accept ? 'default' : 'destructive',
           onPress: async () => {
-            setApprovingId(helperId);
             try {
-              await approveHelper(post.id, helperId);
+              await respondToCounter(post.id, responderId, accept);
+              // Refresh local state
+              setPost((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  respondedBy: prev.respondedBy?.map((r) =>
+                    r.userId === responderId
+                      ? { ...r, counterStatus: accept ? 'accepted' : 'declined' }
+                      : r
+                  ),
+                };
+              });
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              setPost((prev) => prev ? { ...prev, status: 'claimed', claimedBy: helperId } : prev);
-
-              try {
-                const hasPermission = await requestNotificationPermissions();
-                if (hasPermission) {
-                  const dogDisplayName = post.dogNames && post.dogNames.length > 1
-                    ? post.dogNames.join(' & ')
-                    : post.dogName;
-                  const ownerIds = await scheduleOwnerReminders({
-                    startDate: post.startDate,
-                    dogName: dogDisplayName,
-                    ownerName: post.posterName,
-                    sitterName: helperName,
-                  });
-                  if (ownerIds.length > 0) {
-                    await saveOwnerReminderIds(post.id, ownerIds);
-                  }
-                }
-              } catch (reminderErr) {
-                console.warn('[PostDetail] Failed to schedule reminders:', reminderErr);
-              }
-            } catch (err: unknown) {
-              Alert.alert('Error', err instanceof Error ? err.message : 'Could not approve helper');
-            } finally {
-              setApprovingId(null);
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Could not update counter');
             }
           },
         },
       ]
     );
   };
+
+  // ── Loading / Not Found ────────────────────────────────────────────────────
 
   if (loading) return <LoadingSpinner />;
   if (!post) {
@@ -435,25 +500,21 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     );
   }
 
-  const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   const isOwner = user?.uid === post.posterId;
   const respondents = post.respondedBy ?? [];
-
-  // Multi-dog display helpers
   const dogDisplayName = post.dogNames && post.dogNames.length > 1
-    ? post.dogNames.join(' & ')
-    : post.dogName;
+    ? post.dogNames.join(' & ') : post.dogName;
   const dogDisplayBreed = post.dogBreeds && post.dogBreeds.length > 1
-    ? post.dogBreeds.join(', ')
-    : post.dogBreed;
+    ? post.dogBreeds.join(', ') : post.dogBreed;
 
   const compensationLabel = () => {
     if (post.compensationType === 'points') {
-      return `🪙 ${post.pointsCost.toFixed(1)} point${post.pointsCost !== 1 ? 's' : ''}`;
+      const pts = post.pointsOffered ?? post.pointsCost;
+      return `🪙 ${pts} point${pts !== 1 ? 's' : ''} offered`;
     }
-    if (post.totalPayment && post.paymentAmount && post.totalUnits && post.paymentRate) {
+    if (post.totalPayment && post.paymentAmount && post.paymentRate) {
       const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';
+      if (post.careType === 'feeding') return `💰 $${post.paymentAmount} per visit`;
       const unitLabel = post.paymentRate === 'per_hour'
         ? `${post.totalUnits} hr${post.totalUnits !== 1 ? 's' : ''}`
         : `${post.totalUnits} day${post.totalUnits !== 1 ? 's' : ''}`;
@@ -464,8 +525,107 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       : '💰 Payment offered';
   };
 
+  const offeredPoints = post.pointsOffered ?? post.pointsCost;
+
   return (
     <>
+      {/* ── "I Can Help" Modal (for points posts) ── */}
+      <Modal
+        visible={helpModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setHelpModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.helpModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setHelpModalVisible(false)}
+          />
+          <View style={[styles.helpModalCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.helpModalTitle, { color: colors.text }]}>
+              🐾 Respond to this post
+            </Text>
+            <Text style={[styles.helpModalSubtitle, { color: colors.textSecondary }]}>
+              This post is worth{' '}
+              <Text style={{ color: RED, fontWeight: '700' }}>{offeredPoints} points</Text>
+            </Text>
+
+            {!counterMode ? (
+              <>
+                {/* Accept at offered rate */}
+                <TouchableOpacity
+                  style={[styles.helpModalAcceptBtn, { backgroundColor: GREEN }]}
+                  onPress={() => handleAcceptOrCounter(undefined)}
+                  disabled={counterSubmitting}
+                >
+                  <Text style={styles.helpModalBtnText}>
+                    Accept for {offeredPoints} points ✓
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Counter offer */}
+                <TouchableOpacity
+                  style={[styles.helpModalCounterBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
+                  onPress={() => setCounterMode(true)}
+                >
+                  <Text style={[styles.helpModalCounterBtnText, { color: colors.text }]}>
+                    🔄 Counter Offer
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => setHelpModalVisible(false)} style={styles.helpModalCancelLink}>
+                  <Text style={[styles.helpModalCancelText, { color: colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.counterInputLabel, { color: colors.text }]}>
+                  Your counter offer (points):
+                </Text>
+                <View style={styles.counterInputRow}>
+                  <TextInput
+                    style={[styles.counterInput, { borderColor: RED, backgroundColor: colors.background, color: colors.text }]}
+                    placeholder={String(offeredPoints)}
+                    placeholderTextColor={colors.textSecondary}
+                    value={counterPointsInput}
+                    onChangeText={(t) => setCounterPointsInput(t.replace(/[^0-9]/g, ''))}
+                    keyboardType="number-pad"
+                    autoFocus
+                    accessibilityLabel="Counter offer points"
+                  />
+                  <Text style={[styles.counterInputUnit, { color: colors.textSecondary }]}>pts</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.helpModalAcceptBtn, { backgroundColor: RED, opacity: counterSubmitting ? 0.7 : 1 }]}
+                  onPress={() => {
+                    const pts = parseInt(counterPointsInput, 10);
+                    if (isNaN(pts) || pts < 1) {
+                      Alert.alert('Invalid', 'Please enter a valid points amount');
+                      return;
+                    }
+                    handleAcceptOrCounter(pts);
+                  }}
+                  disabled={counterSubmitting}
+                >
+                  <Text style={styles.helpModalBtnText}>
+                    {counterSubmitting ? 'Sending...' : `Send Counter: ${counterPointsInput || '?'} pts`}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => setCounterMode(false)} style={styles.helpModalCancelLink}>
+                  <Text style={[styles.helpModalCancelText, { color: colors.textSecondary }]}>← Back</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <FullscreenPhotoModal
         photos={allPhotos}
         initialIndex={modalInitialIndex}
@@ -477,13 +637,21 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
       >
-        {/* ── SUB-TASK 1: Big Dog Photo Carousel ── */}
-        <PhotoCarouselSection
-          photos={allPhotos}
-          onPhotoPress={handlePhotoPress}
-        />
+        {/* ── Photo Carousel ── */}
+        <PhotoCarouselSection photos={allPhotos} onPhotoPress={handlePhotoPress} />
 
-        {/* ── Poster info (SUB-TASK 3: "(owner)" label) ── */}
+        {/* ── Care Type Banner ── */}
+        {post.careType && (
+          <View style={[styles.careTypeBanner, { backgroundColor: RED + '12', borderColor: RED }]}>
+            <Text style={styles.careTypeBannerIcon}>{getCareTypeIcon(post.careType)}</Text>
+            <View>
+              <Text style={[styles.careTypeBannerLabel, { color: RED }]}>{getCareTypeLabel(post.careType)}</Text>
+              <Text style={[styles.careTypeSchedule, { color: colors.text }]}>{getScheduleInfo(post)}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* ── Poster info ── */}
         <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
           <View style={styles.posterRow}>
             {post.posterPhotoURL ? (
@@ -494,7 +662,6 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               </View>
             )}
             <View style={styles.posterInfo}>
-              {/* SUB-TASK 3: "(owner)" label inline with poster name */}
               <View style={styles.posterNameRow}>
                 <Text style={[styles.posterName, { color: colors.text }]}>{post.posterName}</Text>
                 <Text style={styles.ownerLabel}> (owner)</Text>
@@ -511,7 +678,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </View>
 
-        {/* ── Dog info (SUB-TASK 2: multi-dog names/breeds) ── */}
+        {/* ── Dog info ── */}
         <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>🐶 Dog{post.dogIds && post.dogIds.length > 1 ? 's' : ''}</Text>
           <View style={styles.dogRow}>
@@ -526,27 +693,26 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             )}
             <View style={styles.dogInfo}>
               <Text style={[styles.dogName, { color: colors.text }]}>{dogDisplayName}</Text>
-              {dogDisplayBreed && (
-                <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dogDisplayBreed}</Text>
-              )}
+              {dogDisplayBreed && <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dogDisplayBreed}</Text>}
             </View>
           </View>
         </View>
 
-        {/* Dates */}
-        <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>📅 Dates</Text>
-          <Text style={[styles.dates, { color: colors.text }]}>
-            {startStr} – {endStr}
-          </Text>
-        </View>
+        {/* ── Schedule (for non-care-type posts or fallback) ── */}
+        {!post.careType && (
+          <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>📅 Dates</Text>
+            <Text style={[styles.dates, { color: colors.text }]}>
+              {post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} –{' '}
+              {post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+            </Text>
+          </View>
+        )}
 
-        {/* Compensation */}
+        {/* ── Compensation ── */}
         <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>💰 Compensation</Text>
-          <Text style={[styles.compText, { color: colors.text }]}>
-            {compensationLabel()}
-          </Text>
+          <Text style={[styles.compText, { color: colors.text }]}>{compensationLabel()}</Text>
           {(post.compensationType === 'payment' || post.compensationType === 'either') && (
             <View style={[styles.offAppNote, { backgroundColor: '#FFF9E6', borderColor: '#F0C040' }]}>
               <Text style={[styles.offAppNoteText, { color: '#7A6000' }]}>
@@ -556,13 +722,13 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           )}
         </View>
 
-        {/* Care details */}
+        {/* ── Care Details ── */}
         <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Care Details</Text>
           <Text style={[styles.careDetails, { color: colors.text }]}>{post.careDetails}</Text>
         </View>
 
-        {/* ── Interested Helpers — RED accent section, owner only ── */}
+        {/* ── Interested Helpers (owner only) ── */}
         {isOwner && respondents.length > 0 && (
           <View style={styles.helpersSection}>
             <View style={styles.helpersSectionHeader}>
@@ -579,6 +745,9 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             {respondents.map((r) => {
               const isApproved = post.claimedBy === r.userId;
               const isApproving = approvingId === r.userId;
+              const hasCounter = r.counterPoints !== undefined;
+              const counterStatus = r.counterStatus;
+
               return (
                 <View key={r.userId} style={styles.helperRow}>
                   <TouchableOpacity
@@ -596,56 +765,87 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                     )}
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={() => handleMessageResponder(r.userId)}
-                    style={styles.helperInfo}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Message ${r.userName}`}
-                  >
+                  <View style={styles.helperInfo}>
                     <Text style={styles.helperName}>{r.userName}</Text>
+
                     {isApproved ? (
                       <Text style={styles.helperApprovedLabel}>✅ Approved sitter</Text>
+                    ) : hasCounter ? (
+                      // Counter offer display
+                      <View>
+                        <Text style={styles.helperCounterLabel}>
+                          🔄 Counter: {r.counterPoints} pts
+                          {counterStatus === 'accepted' ? ' ✅ Accepted' : counterStatus === 'declined' ? ' ❌ Declined' : ''}
+                        </Text>
+                        {/* Accept/Decline buttons for pending counters */}
+                        {counterStatus === 'pending' && (
+                          <View style={styles.counterBtnRow}>
+                            <TouchableOpacity
+                              style={[styles.counterAcceptBtn, { backgroundColor: GREEN }]}
+                              onPress={() => handleCounterResponse(r.userId, r.userName, true)}
+                            >
+                              <Text style={styles.counterBtnText}>Accept ✅</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.counterDeclineBtn, { borderColor: colors.error }]}
+                              onPress={() => handleCounterResponse(r.userId, r.userName, false)}
+                            >
+                              <Text style={[styles.counterDeclineBtnText, { color: colors.error }]}>Decline ❌</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
                     ) : (
-                      <Text style={styles.helperTap}>Tap to message →</Text>
+                      <Text style={styles.helperAcceptedPts}>
+                        ✓ Accepted {offeredPoints} pts
+                      </Text>
                     )}
-                  </TouchableOpacity>
+                  </View>
 
-                  {post.status === 'open' && !isApproved && (
+                  <View style={styles.helperActions}>
                     <TouchableOpacity
-                      style={[styles.approveBtn, isApproving && styles.approveBtnDisabled]}
-                      onPress={() => handleApprove(r.userId, r.userName)}
-                      disabled={isApproving}
+                      onPress={() => handleMessageResponder(r.userId)}
+                      style={styles.helperMsgBtn}
                       accessibilityRole="button"
-                      accessibilityLabel={`Approve ${r.userName}`}
+                      accessibilityLabel={`Message ${r.userName}`}
                     >
-                      <Text style={styles.approveBtnText}>{isApproving ? '…' : 'Approve'}</Text>
+                      <Text style={[styles.helperTap, { color: RED }]}>Message →</Text>
                     </TouchableOpacity>
-                  )}
+
+                    {post.status === 'open' && !isApproved && !hasCounter && (
+                      <TouchableOpacity
+                        style={[styles.approveBtn, isApproving && styles.approveBtnDisabled]}
+                        onPress={() => handleApprove(r.userId, r.userName)}
+                        disabled={isApproving}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Approve ${r.userName}`}
+                      >
+                        <Text style={styles.approveBtnText}>{isApproving ? '…' : 'Approve'}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               );
             })}
           </View>
         )}
 
-        {/* I Can Help button (not shown for own posts) */}
+        {/* ── I Can Help button ── */}
         {!isOwner && post.status === 'open' && (() => {
           const alreadyResponded = respondents.some((r) => r.userId === user?.uid);
           if (alreadyResponded) {
             return (
-              <View
-                style={[styles.helpBtn, styles.helpBtnAlreadyResponded]}
-                accessibilityLabel="Already responded to this post"
-              >
+              <View style={[styles.helpBtn, styles.helpBtnAlreadyResponded]} accessibilityLabel="Already responded">
                 <Text style={[styles.helpBtnText, { color: '#636E72' }]}>Already Responded ✓</Text>
               </View>
             );
           }
           return (
             <TouchableOpacity
-              style={[styles.helpBtn, { backgroundColor: colors.primary, opacity: claiming ? 0.7 : 1 }]}
-              onPress={handleHelp}
-              disabled={claiming}
-              accessibilityLabel={claiming ? 'Sending message...' : 'I can help!'}
+              style={[styles.helpBtn, { backgroundColor: colors.primary, opacity: (claiming || counterSubmitting) ? 0.7 : 1 }]}
+              onPress={handleHelpButtonPress}
+              disabled={claiming || counterSubmitting}
+              accessibilityLabel="I can help!"
               accessibilityRole="button"
             >
               <Text style={styles.helpBtnText}>{claiming ? 'Opening chat...' : 'I Can Help! 🐾'}</Text>
@@ -668,128 +868,32 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 // ─── Carousel Styles ──────────────────────────────────────────────────────────
 
 const carouselStyles = StyleSheet.create({
-  container: {
-    width: SCREEN_WIDTH,
-    height: CAROUSEL_HEIGHT,
-    backgroundColor: '#111',
-  },
-  slide: {
-    width: SCREEN_WIDTH,
-    height: CAROUSEL_HEIGHT,
-  },
-  image: {
-    width: SCREEN_WIDTH,
-    height: CAROUSEL_HEIGHT,
-  },
-  placeholder: {
-    width: SCREEN_WIDTH,
-    height: CAROUSEL_HEIGHT,
-    backgroundColor: '#1C1C1E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  placeholderEmoji: {
-    fontSize: 64,
-    marginBottom: 8,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
-  },
-  dotsRow: {
-    position: 'absolute',
-    bottom: 12,
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  dotActive: {
-    backgroundColor: '#FFFFFF',
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-  },
-  dotInactive: {
-    backgroundColor: 'rgba(255,255,255,0.45)',
-  },
+  container: { width: SCREEN_WIDTH, height: CAROUSEL_HEIGHT, backgroundColor: '#111' },
+  slide: { width: SCREEN_WIDTH, height: CAROUSEL_HEIGHT },
+  image: { width: SCREEN_WIDTH, height: CAROUSEL_HEIGHT },
+  placeholder: { width: SCREEN_WIDTH, height: CAROUSEL_HEIGHT, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center' },
+  placeholderEmoji: { fontSize: 64, marginBottom: 8 },
+  placeholderText: { fontSize: 16, color: '#666', fontWeight: '600' },
+  dotsRow: { position: 'absolute', bottom: 12, width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
+  dotActive: { backgroundColor: '#FFFFFF', width: 9, height: 9, borderRadius: 4.5 },
+  dotInactive: { backgroundColor: 'rgba(255,255,255,0.45)' },
 });
 
 // ─── Modal Styles ─────────────────────────────────────────────────────────────
 
 const modalStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.95)',
-    justifyContent: 'center',
-  },
-  safeTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  closeBtn: {
-    alignSelf: 'flex-end',
-    margin: 16,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeBtnText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  slide: {
-    width: SCREEN_WIDTH,
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  image: {
-    width: SCREEN_WIDTH,
-    height: '100%',
-  },
-  safeBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  dotsRow: {
-    paddingBottom: 24,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  dotActive: {
-    backgroundColor: '#FFFFFF',
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-  },
-  dotInactive: {
-    backgroundColor: 'rgba(255,255,255,0.4)',
-  },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center' },
+  safeTop: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
+  closeBtn: { alignSelf: 'flex-end', margin: 16, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  closeBtnText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', lineHeight: 20 },
+  slide: { width: SCREEN_WIDTH, flex: 1, justifyContent: 'center', alignItems: 'center' },
+  image: { width: SCREEN_WIDTH, height: '100%' },
+  safeBottom: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  dotsRow: { paddingBottom: 24, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
+  dot: { width: 7, height: 7, borderRadius: 3.5 },
+  dotActive: { backgroundColor: '#FFFFFF', width: 9, height: 9, borderRadius: 4.5 },
+  dotInactive: { backgroundColor: 'rgba(255,255,255,0.4)' },
 });
 
 // ─── Screen Styles ────────────────────────────────────────────────────────────
@@ -801,19 +905,36 @@ const styles = StyleSheet.create({
   notFound: { fontSize: 16 },
   section: { borderRadius: borderRadius.lg, padding: spacing.md, marginBottom: spacing.md, marginHorizontal: spacing.md, marginTop: spacing.md },
   sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: spacing.sm },
+
+  // Care type banner
+  careTypeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: 0,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    padding: spacing.md,
+  },
+  careTypeBannerIcon: { fontSize: 30 },
+  careTypeBannerLabel: { fontSize: 17, fontWeight: '800', marginBottom: 2 },
+  careTypeSchedule: { fontSize: 14, fontWeight: '500' },
+
   // Poster
   posterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   posterAvatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 1 },
   posterAvatarPlaceholder: { width: 48, height: 48, borderRadius: 24, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   posterAvatarEmoji: { fontSize: 22 },
   posterInfo: { flex: 1 },
-  // SUB-TASK 3: name row with (owner) label
   posterNameRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap' },
   posterName: { fontSize: 16, fontWeight: '700' },
   ownerLabel: { fontSize: 13, fontWeight: '400', color: '#999999' },
   postedAt: { fontSize: 12, marginTop: 2 },
   statusBadge: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: borderRadius.full },
   statusBadgeText: { fontSize: 11, fontWeight: '700' },
+
   // Dog
   dogRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   dogThumb: { width: 60, height: 60, borderRadius: borderRadius.md, borderWidth: 1 },
@@ -822,91 +943,76 @@ const styles = StyleSheet.create({
   dogInfo: { flex: 1 },
   dogName: { fontSize: 17, fontWeight: '700' },
   dogBreed: { fontSize: 13, marginTop: 2 },
+
   // Dates
   dates: { fontSize: 16, fontWeight: '600' },
+
   // Compensation
   compText: { fontSize: 15, fontWeight: '400', marginBottom: spacing.sm },
   offAppNote: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm, marginTop: spacing.xs },
   offAppNoteText: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
+
   // Care details
   careDetails: { fontSize: 14, lineHeight: 22 },
-  // ── Interested Helpers RED section ──────────────────────────────────────────
-  helpersSection: {
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.md,
-    marginHorizontal: spacing.md,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: RED,
-    backgroundColor: 'rgba(255,45,85,0.06)',
-    shadowColor: RED,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  helpersSectionHeader: {
-    backgroundColor: RED,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  helpersSectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  claimedBadge: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  claimedBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  helperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,45,85,0.25)',
-  },
+
+  // Interested Helpers RED section
+  helpersSection: { borderRadius: borderRadius.lg, marginBottom: spacing.md, marginHorizontal: spacing.md, overflow: 'hidden', borderWidth: 2, borderColor: RED, backgroundColor: 'rgba(255,45,85,0.06)', shadowColor: RED, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 6, elevation: 4 },
+  helpersSectionHeader: { backgroundColor: RED, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  helpersSectionTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  claimedBadge: { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 },
+  claimedBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  helperRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,45,85,0.25)' },
   helperAvatarTouchable: {},
   helperAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: RED },
-  helperAvatarPlaceholder: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,45,85,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: RED,
-  },
+  helperAvatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,45,85,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: RED },
   helperAvatarEmoji: { fontSize: 20 },
   helperInfo: { flex: 1 },
+  helperActions: { alignItems: 'flex-end', gap: spacing.xs },
   helperName: { fontSize: 15, fontWeight: '600', color: '#2D3436' },
-  helperTap: { fontSize: 12, marginTop: 2, color: RED },
+  helperTap: { fontSize: 12, marginTop: 2 },
   helperApprovedLabel: { fontSize: 12, marginTop: 2, color: '#00B894', fontWeight: '600' },
+  helperAcceptedPts: { fontSize: 12, marginTop: 2, color: '#00B894', fontWeight: '600' },
+  helperCounterLabel: { fontSize: 13, fontWeight: '700', color: '#E17055', marginTop: 2 },
+  helperMsgBtn: { paddingVertical: 2 },
+
+  // Counter offer buttons
+  counterBtnRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
+  counterAcceptBtn: { borderRadius: borderRadius.sm, paddingHorizontal: spacing.sm, paddingVertical: 5 },
+  counterDeclineBtn: { borderWidth: 1.5, borderRadius: borderRadius.sm, paddingHorizontal: spacing.sm, paddingVertical: 5 },
+  counterBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  counterDeclineBtnText: { fontSize: 12, fontWeight: '700' },
+
   // Approve button
-  approveBtn: {
-    backgroundColor: RED,
-    borderRadius: borderRadius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-  },
+  approveBtn: { backgroundColor: RED, borderRadius: borderRadius.sm, paddingHorizontal: spacing.md, paddingVertical: 7 },
   approveBtnDisabled: { opacity: 0.5 },
   approveBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+
   // Help button
   helpBtn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.sm, marginBottom: spacing.sm, marginHorizontal: spacing.md },
   helpBtnAlreadyResponded: { backgroundColor: '#E8E8E8' },
   helpBtnText: { color: '#fff', ...typography.button, fontSize: 17 },
+
   // Owner note
   ownerNote: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center', marginHorizontal: spacing.md },
   ownerNoteText: { fontSize: 14 },
+
+  // "I Can Help" modal
+  helpModalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  helpModalCard: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.xl, paddingBottom: spacing.xl * 2, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10 },
+  helpModalTitle: { fontSize: 20, fontWeight: '800', marginBottom: spacing.xs, textAlign: 'center' },
+  helpModalSubtitle: { fontSize: 15, textAlign: 'center', marginBottom: spacing.lg },
+  helpModalAcceptBtn: { borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center', marginBottom: spacing.sm },
+  helpModalBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  helpModalCounterBtn: { borderWidth: 1.5, borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center', marginBottom: spacing.sm },
+  helpModalCounterBtnText: { fontSize: 16, fontWeight: '600' },
+  helpModalCancelLink: { alignItems: 'center', paddingVertical: spacing.sm },
+  helpModalCancelText: { fontSize: 14 },
+
+  // Counter offer input
+  counterInputLabel: { fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
+  counterInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.md },
+  counterInput: { flex: 1, borderWidth: 2, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: 24, fontWeight: '700', textAlign: 'center' },
+  counterInputUnit: { fontSize: 16, fontWeight: '600' },
 });
 
 export default PostDetailScreen;

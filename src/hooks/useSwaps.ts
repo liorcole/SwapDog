@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   or,
   arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import {
@@ -78,10 +79,19 @@ const parsePost = (id: string, data: Record<string, unknown>): SwapPost => ({
       userName: r.userName as string,
       userPhotoURL: r.userPhotoURL as string | undefined,
       respondedAt: toDate(r.respondedAt as Parameters<typeof toDate>[0]),
+      counterPoints: r.counterPoints as number | undefined,
+      counterStatus: r.counterStatus as 'pending' | 'accepted' | 'declined' | undefined,
     }));
   })(),
   reminderNotificationIds: (data.reminderNotificationIds as string[] | undefined) ?? undefined,
   sitterReminderNotificationIds: (data.sitterReminderNotificationIds as string[] | undefined) ?? undefined,
+  // Wave 19B care type fields
+  careType: data.careType as SwapPost['careType'],
+  pointsOffered: data.pointsOffered as number | undefined,
+  walkDurationMinutes: data.walkDurationMinutes as number | undefined,
+  feedingTime: data.feedingTime as string | undefined,
+  startTime: data.startTime as string | undefined,
+  endTime: data.endTime as string | undefined,
   createdAt: toDate(data.createdAt as Parameters<typeof toDate>[0]),
   updatedAt: toDate(data.updatedAt as Parameters<typeof toDate>[0]),
 });
@@ -214,10 +224,13 @@ export const useSwaps = () => {
     });
   };
 
-  /** Add a responder to a post's respondedBy array (guards against duplicates) */
+  /** Add a responder to a post's respondedBy array (guards against duplicates).
+   *  Optional counterPoints: if provided, saves a counter-offer for points-compensated posts.
+   */
   const addResponder = async (
     postId: string,
-    responder: { userId: string; userName: string; userPhotoURL?: string }
+    responder: { userId: string; userName: string; userPhotoURL?: string },
+    counterPoints?: number
   ): Promise<void> => {
     // Server-side duplicate guard: read the doc first
     const postSnap = await getDoc(doc(db, 'swapPosts', postId));
@@ -229,13 +242,46 @@ export const useSwaps = () => {
         return;
       }
     }
+    const entry: Record<string, unknown> = {
+      userId: responder.userId,
+      userName: responder.userName,
+      userPhotoURL: responder.userPhotoURL ?? null,
+      respondedAt: new Date(),
+    };
+    if (counterPoints !== undefined) {
+      entry.counterPoints = counterPoints;
+      entry.counterStatus = 'pending';
+    }
     await updateDoc(doc(db, 'swapPosts', postId), {
-      respondedBy: arrayUnion({
-        userId: responder.userId,
-        userName: responder.userName,
-        userPhotoURL: responder.userPhotoURL ?? null,
-        respondedAt: new Date(),
-      }),
+      respondedBy: arrayUnion(entry),
+      updatedAt: serverTimestamp(),
+    });
+  };
+
+  /**
+   * Owner responds to a sitter's counter-offer on a points post.
+   * Uses arrayRemove + arrayUnion because Firestore can't update array elements in-place.
+   */
+  const respondToCounter = async (
+    postId: string,
+    responderId: string,
+    accept: boolean
+  ): Promise<void> => {
+    const postSnap = await getDoc(doc(db, 'swapPosts', postId));
+    if (!postSnap.exists()) throw new Error('Post not found');
+    const data = postSnap.data() as Record<string, unknown>;
+    const existing = (data.respondedBy as Array<Record<string, unknown>> | undefined) ?? [];
+    const entry = existing.find((r) => r.userId === responderId);
+    if (!entry) throw new Error('Responder not found');
+
+    // Remove old entry and re-add with updated counterStatus
+    const updatedEntry = { ...entry, counterStatus: accept ? 'accepted' : 'declined' };
+    await updateDoc(doc(db, 'swapPosts', postId), {
+      respondedBy: arrayRemove(entry),
+      updatedAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, 'swapPosts', postId), {
+      respondedBy: arrayUnion(updatedEntry),
       updatedAt: serverTimestamp(),
     });
   };
@@ -342,5 +388,6 @@ export const useSwaps = () => {
     getAcceptedPosts,
     saveOwnerReminderIds,
     saveSitterReminderIds,
+    respondToCounter,
   };
 };

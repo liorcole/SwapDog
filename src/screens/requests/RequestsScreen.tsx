@@ -40,6 +40,56 @@ import {
 const RED = '#FF2D55';
 const TEAL = '#2DD4BF';
 
+
+// ── Care type helpers (Wave 19B) ──────────────────────────────────────────────
+function getCareTypeIcon(careType?: string): string {
+  switch (careType) {
+    case 'overnight': return '🏠';
+    case 'daySitting': return '☀️';
+    case 'feeding': return '🍽️';
+    case 'dogWalking': return '🐕';
+    default: return '🐾';
+  }
+}
+
+function getCareTypeSummary(post: SwapPost): string {
+  switch (post.careType) {
+    case 'overnight': {
+      const MS_PER_DAY = 1000 * 60 * 60 * 24;
+      const nights = Math.max(1, Math.round(
+        (post.endDate.getTime() - post.startDate.getTime()) / MS_PER_DAY
+      ));
+      const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return `${startStr} → ${endStr} (${nights} night${nights !== 1 ? 's' : ''})`;
+    }
+    case 'daySitting': {
+      const dateStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      if (post.startTime && post.endTime) return `${dateStr}, ${post.startTime} → ${post.endTime}`;
+      return dateStr;
+    }
+    case 'feeding': {
+      const dateStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return post.feedingTime ? `${dateStr} at ${post.feedingTime}` : dateStr;
+    }
+    case 'dogWalking': {
+      if (post.walkDurationMinutes) {
+        const hrs = Math.floor(post.walkDurationMinutes / 60);
+        const mins = post.walkDurationMinutes % 60;
+        return hrs > 0
+          ? `${hrs} hr${hrs !== 1 ? 's' : ''}${mins > 0 ? ` ${mins} min` : ''} walk`
+          : `${mins} min walk`;
+      }
+      return 'Dog Walking';
+    }
+    default: {
+      const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return `${startStr} – ${endStr}`;
+    }
+  }
+}
+
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -259,6 +309,14 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
               {item.status.toUpperCase()}
             </Text>
           </View>
+        </View>
+
+        {/* Wave 19B: Care type icon + summary */}
+        <View style={styles.careTypeRow}>
+          <Text style={styles.careTypeIcon}>{getCareTypeIcon(item.careType)}</Text>
+          <Text style={[styles.careTypeSummaryText, { color: colors.textSecondary }]}>
+            {getCareTypeSummary(item)}
+          </Text>
         </View>
 
         <Text style={styles.compPlainText}>
@@ -704,6 +762,10 @@ const styles = StyleSheet.create({
   interestBadgeText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   // Points — plain bold white text
   compPlainText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', marginBottom: spacing.xs },
+  // Care type row (Wave 19B)
+  careTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.xs },
+  careTypeIcon: { fontSize: 14 },
+  careTypeSummaryText: { fontSize: 12, fontWeight: '500', flex: 1 },
 
   // Post Request Card (replaces FAB)
   postRequestCard: {

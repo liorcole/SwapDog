@@ -1,10 +1,13 @@
 /**
- * CreatePostScreen — lets the user post a "dog care needed" bulletin visible to
- * everyone in their area.
+ * CreatePostScreen — Wave 19B
  *
- * SUB-TASK 2: Multi-dog selection — show all dogs with toggle cards,
- * populate dogIds/dogNames/dogBreeds/dogPhotoURLs arrays on the post.
- * Backward compat: dogId = dogIds[0], dogName = dogNames[0], etc.
+ * - Care type selector (4 options: overnight, daySitting, feeding, dogWalking)
+ * - Dynamic form per care type
+ * - Points: poster sets the amount (pointsOffered)
+ * - Overnight: date range + day rate only
+ * - Day sitting: single date + start/end time + hourly rate only
+ * - Feeding: single date + feeding time + flat rate per visit
+ * - Dog walking: no calendar + duration pill selector + hourly rate
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -20,8 +23,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useDogs } from '../../hooks/useDogs';
 import { useSwaps } from '../../hooks/useSwaps';
-import { Dog, CompensationType } from '../../models/types';
-import { calculatePoints } from '../../utils/calculatePoints';
+import { Dog, CompensationType, CareType } from '../../models/types';
 import { spacing, borderRadius, typography } from '../../config/theme';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Chip from '../../components/common/Chip';
@@ -29,6 +31,29 @@ import { formatDogAge } from '../../utils/formatDogAge';
 
 const MIN_CARE_DETAILS = 50;
 const RED = '#FF2D55';
+
+// Walk duration options: 15-min increments up to 3 hours
+const WALK_DURATIONS: { label: string; minutes: number }[] = [
+  { label: '15 min', minutes: 15 },
+  { label: '30 min', minutes: 30 },
+  { label: '45 min', minutes: 45 },
+  { label: '1 hr', minutes: 60 },
+  { label: '1 hr 15 min', minutes: 75 },
+  { label: '1 hr 30 min', minutes: 90 },
+  { label: '1 hr 45 min', minutes: 105 },
+  { label: '2 hr', minutes: 120 },
+  { label: '2 hr 15 min', minutes: 135 },
+  { label: '2 hr 30 min', minutes: 150 },
+  { label: '2 hr 45 min', minutes: 165 },
+  { label: '3 hr', minutes: 180 },
+];
+
+const CARE_TYPE_OPTIONS: { type: CareType; icon: string; label: string }[] = [
+  { type: 'overnight', icon: '🏠', label: 'Overnight Care' },
+  { type: 'daySitting', icon: '☀️', label: 'Day Pet Sitting' },
+  { type: 'feeding', icon: '🍽️', label: 'Feeding' },
+  { type: 'dogWalking', icon: '🐕', label: 'Dog Walking' },
+];
 
 type Props = {
   navigation: NativeStackNavigationProp<RequestsStackParamList, 'Requests'>;
@@ -41,12 +66,14 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
   const { createPost } = useSwaps();
 
   const [myDogs, setMyDogs] = useState<Dog[]>([]);
-  // SUB-TASK 2: multi-select — set of selected dog IDs
   const [selectedDogIds, setSelectedDogIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Dates
+  // Care type
+  const [careType, setCareType] = useState<CareType | null>(null);
+
+  // Dates — used for overnight (range) and daySitting/feeding (single)
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -60,27 +87,33 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
   const [showStart, setShowStart] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
 
+  // Time fields
+  const [startTime, setStartTime] = useState('9:00 AM');
+  const [endTime, setEndTime] = useState('5:00 PM');
+  const [feedingTime, setFeedingTime] = useState('8:00 AM');
+
+  // Walk duration
+  const [walkDurationMinutes, setWalkDurationMinutes] = useState<number>(30);
+
   // Care details
   const [careDetails, setCareDetails] = useState('');
 
   // Compensation
   const [offerPayment, setOfferPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentRate, setPaymentRate] = useState<'per_hour' | 'per_day'>('per_day');
-  const [estimatedHours, setEstimatedHours] = useState('');
+  // Points offered (set by poster when NOT offering payment)
+  const [pointsOffered, setPointsOffered] = useState('');
 
   useEffect(() => {
     if (!user) return;
     getDogsByOwner(user.uid).then((dogs) => {
       setMyDogs(dogs);
-      // Pre-select first dog if only one
       if (dogs.length === 1) {
         setSelectedDogIds(new Set([dogs[0].id]));
       }
     }).finally(() => setLoading(false));
   }, [user]);
 
-  // Selected dog objects (in stable order)
   const selectedDogs = useMemo(
     () => myDogs.filter((d) => selectedDogIds.has(d.id)),
     [myDogs, selectedDogIds]
@@ -89,91 +122,118 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
   const toggleDog = (dogId: string) => {
     setSelectedDogIds((prev) => {
       const next = new Set(prev);
-      if (next.has(dogId)) {
-        next.delete(dogId);
-      } else {
-        next.add(dogId);
-      }
+      if (next.has(dogId)) next.delete(dogId); else next.add(dogId);
       return next;
     });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  // --- Calculated values ---
+
   const dayCount = useMemo(() => {
+    if (careType !== 'overnight') return 1;
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
-    const start = new Date(startDate); start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate); end.setHours(0, 0, 0, 0);
-    const diff = Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
-    return Math.max(1, diff);
-  }, [startDate, endDate]);
+    const s = new Date(startDate); s.setHours(0, 0, 0, 0);
+    const e = new Date(endDate); e.setHours(0, 0, 0, 0);
+    return Math.max(1, Math.round((e.getTime() - s.getTime()) / MS_PER_DAY));
+  }, [startDate, endDate, careType]);
 
-  const pointsCost = useMemo(() => calculatePoints(startDate, endDate), [startDate, endDate]);
+  /** Hours from startTime → endTime for day sitting */
+  const daySittingHours = useMemo(() => {
+    try {
+      const parse = (t: string) => {
+        const [timePart, meridiem] = t.trim().split(' ');
+        let [h, m] = timePart.split(':').map(Number);
+        if (meridiem === 'PM' && h !== 12) h += 12;
+        if (meridiem === 'AM' && h === 12) h = 0;
+        return h + m / 60;
+      };
+      const hrs = parse(endTime) - parse(startTime);
+      return hrs > 0 ? parseFloat(hrs.toFixed(2)) : undefined;
+    } catch {
+      return undefined;
+    }
+  }, [startTime, endTime]);
 
-  const totalUnits = useMemo(() => {
-    if (!offerPayment) return undefined;
-    if (paymentRate === 'per_day') return dayCount;
-    const hrs = parseFloat(estimatedHours);
-    return isNaN(hrs) || hrs <= 0 ? undefined : hrs;
-  }, [offerPayment, paymentRate, dayCount, estimatedHours]);
+  const walkHours = useMemo(() => {
+    return parseFloat((walkDurationMinutes / 60).toFixed(4));
+  }, [walkDurationMinutes]);
 
+  /** Total payment calculation per care type */
   const totalPayment = useMemo(() => {
     if (!offerPayment) return undefined;
     const amt = parseFloat(paymentAmount);
-    if (!amt || amt <= 0 || !totalUnits) return undefined;
-    return parseFloat((amt * totalUnits).toFixed(2));
-  }, [offerPayment, paymentAmount, totalUnits]);
+    if (!amt || amt <= 0) return undefined;
+    if (careType === 'overnight') return parseFloat((amt * dayCount).toFixed(2));
+    if (careType === 'daySitting') {
+      if (!daySittingHours || daySittingHours <= 0) return undefined;
+      return parseFloat((amt * daySittingHours).toFixed(2));
+    }
+    if (careType === 'feeding') return parseFloat(amt.toFixed(2)); // flat per visit
+    if (careType === 'dogWalking') return parseFloat((amt * walkHours).toFixed(2));
+    return undefined;
+  }, [offerPayment, paymentAmount, careType, dayCount, daySittingHours, walkHours]);
 
-  const compensationType: CompensationType = offerPayment ? 'payment' : 'points';
-
+  /** Breakdown label */
   const paymentBreakdownLabel = useMemo(() => {
     if (!offerPayment) return null;
     const amt = parseFloat(paymentAmount);
-    if (!amt || amt <= 0 || !totalUnits) return null;
-    const total = (amt * totalUnits).toFixed(2);
-    const rateLabel = paymentRate === 'per_hour' ? '/hr' : '/day';
-    const unitLabel = paymentRate === 'per_hour'
-      ? `${totalUnits} hr${totalUnits !== 1 ? 's' : ''}`
-      : `${totalUnits} day${totalUnits !== 1 ? 's' : ''}`;
-    return `💰 $${total} total ($${amt}${rateLabel} × ${unitLabel})`;
-  }, [offerPayment, paymentAmount, paymentRate, totalUnits]);
+    if (!amt || amt <= 0) return null;
+    if (careType === 'overnight') {
+      const total = (amt * dayCount).toFixed(2);
+      return `💰 $${total} total ($${amt}/day × ${dayCount} day${dayCount !== 1 ? 's' : ''})`;
+    }
+    if (careType === 'daySitting' && daySittingHours && daySittingHours > 0) {
+      const total = (amt * daySittingHours).toFixed(2);
+      return `💰 $${total} total ($${amt}/hr × ${daySittingHours} hr${daySittingHours !== 1 ? 's' : ''})`;
+    }
+    if (careType === 'feeding') {
+      return `💰 $${amt.toFixed(2)} per visit`;
+    }
+    if (careType === 'dogWalking') {
+      const total = (amt * walkHours).toFixed(2);
+      return `💰 $${total} total ($${amt}/hr × ${walkDurationMinutes} min)`;
+    }
+    return null;
+  }, [offerPayment, paymentAmount, careType, dayCount, daySittingHours, walkHours, walkDurationMinutes]);
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
-  // Auto-generate title hint for display (informational)
   const dogTitleHint = useMemo(() => {
     if (selectedDogs.length === 0) return '';
     if (selectedDogs.length === 1) return `Dog-sitting needed for ${selectedDogs[0].name}`;
-    const names = selectedDogs.map((d) => d.name);
+    const names = [...selectedDogs.map((d) => d.name)];
     const last = names.pop();
     return `Dog-sitting needed for ${names.join(', ')} & ${last}`;
   }, [selectedDogs]);
 
-  const handleSubmit = async () => {
+  const validateAndSubmit = async () => {
     if (selectedDogs.length === 0) {
-      Alert.alert('Required', 'Please select at least one dog');
-      return;
+      Alert.alert('Required', 'Please select at least one dog'); return;
     }
-    if (endDate <= startDate) {
-      Alert.alert('Invalid dates', 'End date must be after start date');
-      return;
+    if (!careType) {
+      Alert.alert('Required', 'Please select a type of care'); return;
+    }
+    if (careType === 'overnight' && endDate <= startDate) {
+      Alert.alert('Invalid dates', 'End date must be after start date'); return;
     }
     if (careDetails.trim().length < MIN_CARE_DETAILS) {
-      Alert.alert('Care Details Required', `Please provide at least ${MIN_CARE_DETAILS} characters of care details`);
+      Alert.alert('Care Details Required', `Please provide at least ${MIN_CARE_DETAILS} characters`);
       return;
     }
     if (offerPayment) {
       const amt = parseFloat(paymentAmount);
       if (!amt || amt <= 0) {
-        Alert.alert('Invalid Payment', 'Please enter a valid dollar amount');
-        return;
+        Alert.alert('Invalid Payment', 'Please enter a valid dollar amount'); return;
       }
-      if (paymentRate === 'per_hour') {
-        const hrs = parseFloat(estimatedHours);
-        if (!hrs || hrs <= 0) {
-          Alert.alert('Hours Required', 'Please enter estimated hours per day when using hourly rate');
-          return;
-        }
+      if (careType === 'daySitting' && (!daySittingHours || daySittingHours <= 0)) {
+        Alert.alert('Invalid Times', 'End time must be after start time'); return;
+      }
+    } else {
+      const pts = parseInt(pointsOffered, 10);
+      if (isNaN(pts) || pts < 1) {
+        Alert.alert('Points Required', 'Please enter how many points this job is worth'); return;
       }
     }
     if (!user) return;
@@ -187,11 +247,8 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           posterLocation = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         }
-      } catch {
-        // Location is optional
-      }
+      } catch { /* optional */ }
 
-      // ── Build multi-dog arrays ──
       const primaryDog = selectedDogs[0];
       const dogIds = selectedDogs.map((d) => d.id);
       const dogNames = selectedDogs.map((d) => d.name);
@@ -200,40 +257,68 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
         .map((d) => d.photoURLs?.[0])
         .filter((url): url is string => Boolean(url));
 
-      // Belt-and-suspenders: only include payment fields when payment is on
-      // so we never pass undefined to Firestore (Firestore rejects undefined values)
+      // Build payment fields conditionally
       const paymentFields = offerPayment
         ? {
             paymentAmount: parseFloat(paymentAmount),
-            paymentRate,
+            paymentRate: (careType === 'overnight' ? 'per_day' : 'per_hour') as 'per_day' | 'per_hour',
             totalPayment: totalPayment ?? undefined,
-            totalUnits: totalUnits ?? undefined,
+            totalUnits: careType === 'overnight' ? dayCount
+              : careType === 'daySitting' ? daySittingHours
+              : careType === 'dogWalking' ? walkHours
+              : 1,
           }
         : {};
 
-      await createPost({
+      // Care-type-specific optional fields
+      const careTypeFields: Record<string, unknown> = { careType };
+      if (!offerPayment) {
+        careTypeFields.pointsOffered = parseInt(pointsOffered, 10);
+      }
+      if (careType === 'dogWalking') {
+        careTypeFields.walkDurationMinutes = walkDurationMinutes;
+      }
+      if (careType === 'feeding') {
+        careTypeFields.feedingTime = feedingTime;
+      }
+      if (careType === 'daySitting') {
+        careTypeFields.startTime = startTime;
+        careTypeFields.endTime = endTime;
+      }
+
+      // Determine effective start/end date for non-range types
+      const effectiveStart = startDate;
+      const effectiveEnd = careType === 'overnight' ? endDate : startDate;
+
+      // Strip undefined values before Firestore write
+      const postData = {
         posterId: user.uid,
         posterName: userProfile?.displayName ?? user.displayName ?? 'SwapDog User',
         posterPhotoURL: userProfile?.photoURL ?? user.photoURL ?? undefined,
         posterLocation,
-        // Backward compat single-dog fields (primary dog)
         dogId: primaryDog.id,
         dogName: primaryDog.name,
         dogBreed: primaryDog.breed,
         dogPhotoURL: primaryDog.photoURLs?.[0],
-        // New multi-dog arrays
         dogIds,
         dogNames,
         dogBreeds,
         dogPhotoURLs: dogPhotoURLs.length > 0 ? dogPhotoURLs : undefined,
-        startDate,
-        endDate,
+        startDate: effectiveStart,
+        endDate: effectiveEnd,
         careDetails: careDetails.trim(),
-        compensationType,
-        pointsCost,
+        compensationType: (offerPayment ? 'payment' : 'points') as CompensationType,
+        pointsCost: offerPayment ? 0 : parseInt(pointsOffered, 10),
         ...paymentFields,
-        status: 'open',
-      });
+        ...careTypeFields,
+        status: 'open' as const,
+      };
+
+      const cleanData = Object.fromEntries(
+        Object.entries(postData).filter(([, v]) => v !== undefined)
+      );
+
+      await createPost(cleanData as unknown as Parameters<typeof createPost>[0]);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Posted! 🐾', 'Your request is now visible to people in your area.', [
@@ -278,9 +363,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
           ) : (
             <>
               <Text style={[styles.dogSelectHint, { color: colors.textSecondary }]}>
-                {myDogs.length > 1
-                  ? 'Tap to select one or more dogs for this post.'
-                  : 'Your dog for this post:'}
+                {myDogs.length > 1 ? 'Tap to select one or more dogs.' : 'Your dog for this post:'}
               </Text>
               <View style={styles.dogGrid}>
                 {myDogs.map((dog) => {
@@ -302,7 +385,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: isSelected }}
                     >
-                      {/* Dog photo or placeholder */}
                       {photoURL ? (
                         <Image source={{ uri: photoURL }} style={styles.dogCardPhoto} />
                       ) : (
@@ -310,25 +392,11 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                           <Text style={styles.dogCardPhotoEmoji}>🐕</Text>
                         </View>
                       )}
-                      {/* Dog name + breed */}
                       <View style={styles.dogCardInfo}>
-                        <Text
-                          style={[styles.dogCardName, { color: colors.text }]}
-                          numberOfLines={1}
-                        >
-                          {dog.name}
-                        </Text>
-                        <Text
-                          style={[styles.dogCardBreed, { color: colors.textSecondary }]}
-                          numberOfLines={1}
-                        >
-                          {dog.breed}
-                        </Text>
-                        <Text style={[styles.dogCardAge, { color: colors.textSecondary }]}>
-                          {formatDogAge(dog.ageYears, dog.ageMonths)}
-                        </Text>
+                        <Text style={[styles.dogCardName, { color: colors.text }]} numberOfLines={1}>{dog.name}</Text>
+                        <Text style={[styles.dogCardBreed, { color: colors.textSecondary }]} numberOfLines={1}>{dog.breed}</Text>
+                        <Text style={[styles.dogCardAge, { color: colors.textSecondary }]}>{formatDogAge(dog.ageYears, dog.ageMonths)}</Text>
                       </View>
-                      {/* Checkmark overlay when selected */}
                       {isSelected && (
                         <View style={styles.dogCardCheckmark}>
                           <Text style={styles.dogCardCheckmarkText}>✓</Text>
@@ -339,7 +407,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                 })}
               </View>
 
-              {/* Selected dogs summary + auto-title hint */}
               {selectedDogs.length > 0 && (
                 <View style={[styles.selectedSummary, { backgroundColor: colors.primary + '12', borderColor: colors.primary }]}>
                   <Text style={[styles.selectedSummaryText, { color: colors.primary }]}>
@@ -355,15 +422,12 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                 </View>
               )}
 
-              {/* Show chips for selected dog(s) */}
               {selectedDogs.length > 0 && (
                 <View style={styles.dogChipsSection}>
                   {selectedDogs.map((dog) => (
                     <View key={dog.id} style={styles.dogChipGroup}>
                       {selectedDogs.length > 1 && (
-                        <Text style={[styles.dogChipGroupLabel, { color: colors.textSecondary }]}>
-                          {dog.name}:
-                        </Text>
+                        <Text style={[styles.dogChipGroupLabel, { color: colors.textSecondary }]}>{dog.name}:</Text>
                       )}
                       <View style={styles.dogChipsRow}>
                         <Chip label={formatDogAge(dog.ageYears, dog.ageMonths)} />
@@ -385,217 +449,353 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
           )}
         </View>
 
-        {/* ── Section 2: Dates ── */}
+        {/* ── Section 2: Type of Care ── */}
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>📅 Dates Needed</Text>
-          <TouchableOpacity
-            style={[styles.dateButton, { borderColor: '#FFFFFF' }]}
-            onPress={() => { setShowStart(prev => !prev); setShowEnd(false); }}
-            accessibilityLabel={`Start date: ${formatDate(startDate)}`}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.dateButtonLabel, { color: colors.textSecondary }]}>From</Text>
-            <Text style={[styles.dateButtonValue, { color: colors.text }]}>{formatDate(startDate)}</Text>
-          </TouchableOpacity>
-          {showStart && (
-            <DateTimePicker
-              value={startDate}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              minimumDate={new Date()}
-              onChange={(_: DateTimePickerEvent, d?: Date) => {
-                setShowStart(Platform.OS === 'ios');
-                if (d) {
-                  setStartDate(d);
-                  if (d >= endDate) {
-                    const newEnd = new Date(d);
-                    newEnd.setDate(newEnd.getDate() + 1);
-                    setEndDate(newEnd);
-                  }
-                }
-                if (Platform.OS !== 'ios') setShowStart(false);
-              }}
-            />
-          )}
-          <TouchableOpacity
-            style={[styles.dateButton, { borderColor: '#FFFFFF' }]}
-            onPress={() => { setShowEnd(prev => !prev); setShowStart(false); }}
-            accessibilityLabel={`End date: ${formatDate(endDate)}`}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.dateButtonLabel, { color: colors.textSecondary }]}>To</Text>
-            <Text style={[styles.dateButtonValue, { color: colors.text }]}>{formatDate(endDate)}</Text>
-          </TouchableOpacity>
-          {showEnd && (
-            <DateTimePicker
-              value={endDate}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              minimumDate={startDate}
-              onChange={(_: DateTimePickerEvent, d?: Date) => {
-                if (d) setEndDate(d);
-                if (Platform.OS !== 'ios') setShowEnd(false);
-              }}
-            />
-          )}
-          <View style={[styles.dateSummary, { backgroundColor: colors.background }]}>
-            <Text style={[styles.dateSummaryText, { color: colors.textSecondary }]}>
-              {dayCount} day{dayCount !== 1 ? 's' : ''} of care needed
-            </Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>🐾 Type of Care</Text>
+          <Text style={[styles.careTypeHint, { color: colors.textSecondary }]}>
+            Select the type of care you need. The form will adapt to your choice.
+          </Text>
+          <View style={styles.careTypeGrid}>
+            {CARE_TYPE_OPTIONS.map(({ type, icon, label }) => {
+              const isSelected = careType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.careTypeCard,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: isSelected ? RED : colors.border,
+                      borderWidth: isSelected ? 2.5 : 1,
+                    },
+                  ]}
+                  onPress={() => {
+                    setCareType(type);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  accessibilityLabel={label}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: isSelected }}
+                >
+                  <Text style={styles.careTypeIcon}>{icon}</Text>
+                  <Text style={[styles.careTypeLabel, { color: colors.text }]}>{label}</Text>
+                  {isSelected && (
+                    <View style={styles.careTypeCheckmark}>
+                      <Text style={styles.careTypeCheckmarkText}>✓</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {/* ── Section 3: Care Details ── */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Care Details</Text>
-          <Text style={[styles.careHint, { color: colors.textSecondary }]}>
-            Tell potential sitters what they need to know — schedule, feeding, medications, special needs, behavioral notes.
-          </Text>
-          <TextInput
-            style={[
-              styles.careInput,
-              {
-                backgroundColor: colors.background,
-                borderColor:
-                  careDetails.trim().length > 0 && careDetails.trim().length < MIN_CARE_DETAILS
-                    ? colors.error
-                    : colors.border,
-                color: colors.text,
-              },
-            ]}
-            placeholder="e.g. Bella eats twice a day (7am and 6pm). She needs a 30-min walk every morning..."
-            placeholderTextColor={colors.textSecondary}
-            value={careDetails}
-            onChangeText={setCareDetails}
-            multiline
-            numberOfLines={6}
-            textAlignVertical="top"
-            accessibilityLabel="Care details for the sitter"
-          />
-          <Text
-            style={[styles.charCount, { color: careDetails.length >= MIN_CARE_DETAILS ? colors.success : colors.textSecondary }]}
-          >
-            {careDetails.length} chars{careDetails.length < MIN_CARE_DETAILS ? ` (min ${MIN_CARE_DETAILS})` : ' ✓'}
-          </Text>
-        </View>
+        {/* ── Dynamic Sections (only after care type is selected) ── */}
+        {careType !== null && (
+          <>
+            {/* ── Overnight / Day Sitting / Feeding: Date section ── */}
+            {careType !== 'dogWalking' && (
+              <View style={[styles.section, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  📅 {careType === 'overnight' ? 'Dates Needed' : 'Date'}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.dateButton, { borderColor: '#FFFFFF' }]}
+                  onPress={() => setShowStart(true)}
+                  accessibilityLabel={`Date: ${formatDate(startDate)}`}
+                  accessibilityRole="button"
+                >
+                  <Text style={[styles.dateButtonLabel, { color: colors.textSecondary }]}>
+                    {careType === 'overnight' ? 'From' : 'Date'}
+                  </Text>
+                  <Text style={[styles.dateButtonValue, { color: colors.text }]}>{formatDate(startDate)}</Text>
+                </TouchableOpacity>
+                {showStart && (
+                  <DateTimePicker
+                    value={startDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                    minimumDate={new Date()}
+                    onChange={(_: DateTimePickerEvent, d?: Date) => {
+                      setShowStart(Platform.OS === 'ios');
+                      if (d) {
+                        setStartDate(d);
+                        if (d >= endDate) {
+                          const newEnd = new Date(d);
+                          newEnd.setDate(newEnd.getDate() + 1);
+                          setEndDate(newEnd);
+                        }
+                      }
+                      if (Platform.OS !== 'ios') setShowStart(false);
+                    }}
+                  />
+                )}
 
-        {/* ── Section 4: Compensation ── */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>💰 Compensation</Text>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleLabelGroup}>
-              <Text style={[styles.toggleLabel, { color: colors.text }]}>Offering payment?</Text>
-              <Text style={[styles.toggleHint, { color: colors.textSecondary }]}>
-                Toggle on to offer $ instead of points
+                {/* End date only for overnight */}
+                {careType === 'overnight' && (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.dateButton, { borderColor: '#FFFFFF' }]}
+                      onPress={() => setShowEnd(true)}
+                      accessibilityLabel={`End date: ${formatDate(endDate)}`}
+                      accessibilityRole="button"
+                    >
+                      <Text style={[styles.dateButtonLabel, { color: colors.textSecondary }]}>To</Text>
+                      <Text style={[styles.dateButtonValue, { color: colors.text }]}>{formatDate(endDate)}</Text>
+                    </TouchableOpacity>
+                    {showEnd && (
+                      <DateTimePicker
+                        value={endDate}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                        minimumDate={startDate}
+                        onChange={(_: DateTimePickerEvent, d?: Date) => {
+                          if (d) setEndDate(d);
+                          if (Platform.OS !== 'ios') setShowEnd(false);
+                        }}
+                      />
+                    )}
+                    <View style={[styles.dateSummary, { backgroundColor: colors.background }]}>
+                      <Text style={[styles.dateSummaryText, { color: colors.textSecondary }]}>
+                        {dayCount} night{dayCount !== 1 ? 's' : ''} of care
+                      </Text>
+                    </View>
+                  </>
+                )}
+
+                {/* Time fields for day sitting */}
+                {careType === 'daySitting' && (
+                  <View style={styles.timeRow}>
+                    <View style={styles.timeField}>
+                      <Text style={[styles.timeFieldLabel, { color: colors.textSecondary }]}>Start Time</Text>
+                      <TextInput
+                        style={[styles.timeInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+                        value={startTime}
+                        onChangeText={setStartTime}
+                        placeholder="9:00 AM"
+                        placeholderTextColor={colors.textSecondary}
+                        accessibilityLabel="Start time"
+                      />
+                    </View>
+                    <Text style={[styles.timeSeparator, { color: colors.textSecondary }]}>→</Text>
+                    <View style={styles.timeField}>
+                      <Text style={[styles.timeFieldLabel, { color: colors.textSecondary }]}>End Time</Text>
+                      <TextInput
+                        style={[styles.timeInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+                        value={endTime}
+                        onChangeText={setEndTime}
+                        placeholder="5:00 PM"
+                        placeholderTextColor={colors.textSecondary}
+                        accessibilityLabel="End time"
+                      />
+                    </View>
+                  </View>
+                )}
+                {careType === 'daySitting' && daySittingHours && daySittingHours > 0 && (
+                  <View style={[styles.dateSummary, { backgroundColor: colors.background }]}>
+                    <Text style={[styles.dateSummaryText, { color: colors.textSecondary }]}>
+                      {daySittingHours} hr{daySittingHours !== 1 ? 's' : ''} of sitting
+                    </Text>
+                  </View>
+                )}
+
+                {/* Feeding time */}
+                {careType === 'feeding' && (
+                  <View style={styles.timeRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.timeFieldLabel, { color: colors.textSecondary }]}>Feeding Time</Text>
+                      <TextInput
+                        style={[styles.timeInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+                        value={feedingTime}
+                        onChangeText={setFeedingTime}
+                        placeholder="8:00 AM"
+                        placeholderTextColor={colors.textSecondary}
+                        accessibilityLabel="Feeding time"
+                      />
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* ── Dog Walking: Duration Selector ── */}
+            {careType === 'dogWalking' && (
+              <View style={[styles.section, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>⏱️ Walk Duration</Text>
+                <Text style={[styles.careTypeHint, { color: colors.textSecondary }]}>
+                  Choose the length of the walk
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.durationPillsRow}
+                >
+                  {WALK_DURATIONS.map(({ label, minutes }) => {
+                    const isSelected = walkDurationMinutes === minutes;
+                    return (
+                      <TouchableOpacity
+                        key={minutes}
+                        style={[
+                          styles.durationPill,
+                          {
+                            backgroundColor: isSelected ? RED : colors.background,
+                            borderColor: isSelected ? RED : colors.border,
+                          },
+                        ]}
+                        onPress={() => {
+                          setWalkDurationMinutes(minutes);
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }}
+                        accessibilityLabel={label}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: isSelected }}
+                      >
+                        <Text style={[
+                          styles.durationPillText,
+                          { color: isSelected ? '#fff' : colors.text },
+                        ]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* ── Care Details ── */}
+            <View style={[styles.section, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Care Details</Text>
+              <Text style={[styles.careHint, { color: colors.textSecondary }]}>
+                Tell potential sitters what they need to know — schedule, feeding, medications, special needs, behavioral notes.
+              </Text>
+              <TextInput
+                style={[
+                  styles.careInput,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor:
+                      careDetails.trim().length > 0 && careDetails.trim().length < MIN_CARE_DETAILS
+                        ? colors.error
+                        : colors.border,
+                    color: colors.text,
+                  },
+                ]}
+                placeholder="e.g. Bella eats twice a day (7am and 6pm). She needs a 30-min walk every morning..."
+                placeholderTextColor={colors.textSecondary}
+                value={careDetails}
+                onChangeText={setCareDetails}
+                multiline
+                numberOfLines={6}
+                textAlignVertical="top"
+                accessibilityLabel="Care details for the sitter"
+              />
+              <Text
+                style={[styles.charCount, { color: careDetails.length >= MIN_CARE_DETAILS ? colors.success : colors.textSecondary }]}
+              >
+                {careDetails.length} chars{careDetails.length < MIN_CARE_DETAILS ? ` (min ${MIN_CARE_DETAILS})` : ' ✓'}
               </Text>
             </View>
-            <Switch
-              value={offerPayment}
-              onValueChange={(v) => {
-                setOfferPayment(v);
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor="#fff"
-              accessibilityLabel="Toggle payment option"
-              accessibilityRole="switch"
-              accessibilityState={{ checked: offerPayment }}
-            />
-          </View>
 
-          {!offerPayment && (
-            <View style={[styles.pointsBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}>
-              <Text style={[styles.pointsBadgeText, { color: colors.primary }]}>
-                🪙 {pointsCost.toFixed(1)} point{pointsCost !== 1 ? 's' : ''} (auto-calculated)
-              </Text>
-            </View>
-          )}
-
-          {offerPayment && (
-            <>
-              <View style={styles.paymentInputRow}>
-                <Text style={[styles.dollarSign, { color: colors.text }]}>$</Text>
-                <TextInput
-                  style={[styles.paymentInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-                  placeholder="0.00"
-                  placeholderTextColor={colors.textSecondary}
-                  value={paymentAmount}
-                  onChangeText={setPaymentAmount}
-                  keyboardType="decimal-pad"
-                  accessibilityLabel="Payment amount in dollars"
+            {/* ── Compensation ── */}
+            <View style={[styles.section, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>💰 Compensation</Text>
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleLabelGroup}>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>Offering payment?</Text>
+                  <Text style={[styles.toggleHint, { color: colors.textSecondary }]}>
+                    Toggle on to offer $ instead of points
+                  </Text>
+                </View>
+                <Switch
+                  value={offerPayment}
+                  onValueChange={(v) => {
+                    setOfferPayment(v);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor="#fff"
+                  accessibilityLabel="Toggle payment option"
                 />
               </View>
 
-              <View style={styles.rateRow}>
-                {(['per_day', 'per_hour'] as const).map((rate) => (
-                  <TouchableOpacity
-                    key={rate}
-                    style={[
-                      styles.rateButton,
-                      {
-                        backgroundColor: paymentRate === rate ? colors.primary : colors.background,
-                        borderColor: paymentRate === rate ? colors.primary : colors.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      setPaymentRate(rate);
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }}
-                    accessibilityLabel={rate === 'per_day' ? 'Per day' : 'Per hour'}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: paymentRate === rate }}
-                  >
-                    <Text style={[styles.rateButtonText, { color: paymentRate === rate ? '#fff' : colors.text }]}>
-                      {rate === 'per_day' ? 'Per day' : 'Per hour'}
+              {/* Points: poster sets the amount */}
+              {!offerPayment && (
+                <>
+                  <Text style={[styles.pointsInputLabel, { color: colors.text }]}>
+                    How many points is this job worth?
+                  </Text>
+                  <View style={styles.pointsInputRow}>
+                    <TextInput
+                      style={[styles.pointsInput, { borderColor: colors.primary, backgroundColor: colors.background, color: colors.text }]}
+                      placeholder="e.g. 5"
+                      placeholderTextColor={colors.textSecondary}
+                      value={pointsOffered}
+                      onChangeText={(t) => setPointsOffered(t.replace(/[^0-9]/g, ''))}
+                      keyboardType="number-pad"
+                      accessibilityLabel="Points offered"
+                    />
+                    <Text style={[styles.pointsUnit, { color: colors.textSecondary }]}>pts</Text>
+                  </View>
+                  {pointsOffered.length > 0 && parseInt(pointsOffered, 10) > 0 && (
+                    <View style={[styles.pointsBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}>
+                      <Text style={[styles.pointsBadgeText, { color: colors.primary }]}>
+                        🪙 {parseInt(pointsOffered, 10)} point{parseInt(pointsOffered, 10) !== 1 ? 's' : ''} offered
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {offerPayment && (
+                <>
+                  <View style={styles.paymentInputRow}>
+                    <Text style={[styles.dollarSign, { color: colors.text }]}>$</Text>
+                    <TextInput
+                      style={[styles.paymentInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
+                      placeholder="0.00"
+                      placeholderTextColor={colors.textSecondary}
+                      value={paymentAmount}
+                      onChangeText={setPaymentAmount}
+                      keyboardType="decimal-pad"
+                      accessibilityLabel="Payment amount in dollars"
+                    />
+                    <Text style={[styles.rateUnitLabel, { color: colors.textSecondary }]}>
+                      {careType === 'overnight' ? '/day' : careType === 'feeding' ? ' flat' : '/hr'}
                     </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                  </View>
 
-              {paymentRate === 'per_hour' && (
-                <View style={styles.hoursRow}>
-                  <Text style={[styles.hoursLabel, { color: colors.text }]}>Estimated hours:</Text>
-                  <TextInput
-                    style={[styles.hoursInput, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-                    placeholder="e.g. 6"
-                    placeholderTextColor={colors.textSecondary}
-                    value={estimatedHours}
-                    onChangeText={setEstimatedHours}
-                    keyboardType="decimal-pad"
-                    accessibilityLabel="Estimated hours"
-                  />
-                </View>
+                  {paymentBreakdownLabel ? (
+                    <View style={[styles.breakdownBadge, { backgroundColor: '#00B89418', borderColor: '#00B894' }]}>
+                      <Text style={[styles.breakdownText, { color: '#00B894' }]}>{paymentBreakdownLabel}</Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.calcHint, { color: colors.textSecondary }]}>
+                      Enter amount to see total
+                    </Text>
+                  )}
+
+                  <View style={[styles.offAppNote, { backgroundColor: '#FFF9E6', borderColor: '#F0C040' }]}>
+                    <Text style={[styles.offAppNoteText, { color: '#7A6000' }]}>
+                      💰 All payments are arranged and made outside of SwapDog. We do not process payments.
+                    </Text>
+                  </View>
+                </>
               )}
+            </View>
 
-              {paymentBreakdownLabel ? (
-                <View style={[styles.breakdownBadge, { backgroundColor: '#00B89418', borderColor: '#00B894' }]}>
-                  <Text style={[styles.breakdownText, { color: '#00B894' }]}>{paymentBreakdownLabel}</Text>
-                </View>
-              ) : (
-                <Text style={[styles.calcHint, { color: colors.textSecondary }]}>
-                  Enter amount{paymentRate === 'per_hour' ? ' and hours' : ''} to see total
-                </Text>
-              )}
-
-              <View style={[styles.offAppNote, { backgroundColor: '#FFF9E6', borderColor: '#F0C040' }]}>
-                <Text style={[styles.offAppNoteText, { color: '#7A6000' }]}>
-                  💰 All payments are arranged and made outside of SwapDog. We do not process payments.
-                </Text>
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* ── Submit ── */}
-        <TouchableOpacity
-          style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.7 : 1 }]}
-          onPress={handleSubmit}
-          disabled={submitting}
-          accessibilityLabel={submitting ? 'Posting...' : 'Post Request'}
-          accessibilityRole="button"
-        >
-          <Text style={styles.submitBtnText}>{submitting ? 'Posting...' : 'Post Request 🐾'}</Text>
-        </TouchableOpacity>
+            {/* ── Submit ── */}
+            <TouchableOpacity
+              style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.7 : 1 }]}
+              onPress={validateAndSubmit}
+              disabled={submitting}
+              accessibilityLabel={submitting ? 'Posting...' : 'Post Request'}
+              accessibilityRole="button"
+            >
+              <Text style={styles.submitBtnText}>{submitting ? 'Posting...' : 'Post Request 🐾'}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -617,85 +817,95 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: spacing.sm },
-  // Dog multi-select grid
+
+  // Dog multi-select
   dogSelectHint: { fontSize: 13, marginBottom: spacing.sm, fontStyle: 'italic' },
   dogGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  dogCard: {
-    width: '47%',
-    borderRadius: borderRadius.md,
-    overflow: 'hidden',
-    position: 'relative',
-  },
+  dogCard: { width: '47%', borderRadius: borderRadius.md, overflow: 'hidden', position: 'relative' },
   dogCardPhoto: { width: '100%', height: 110, resizeMode: 'cover' },
-  dogCardPhotoPlaceholder: {
-    width: '100%',
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  dogCardPhotoPlaceholder: { width: '100%', height: 110, alignItems: 'center', justifyContent: 'center' },
   dogCardPhotoEmoji: { fontSize: 40 },
   dogCardInfo: { padding: spacing.xs + 2 },
   dogCardName: { fontSize: 15, fontWeight: '700', marginBottom: 1 },
   dogCardBreed: { fontSize: 12, marginBottom: 1 },
   dogCardAge: { fontSize: 11 },
-  dogCardCheckmark: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: RED,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  dogCardCheckmark: { position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: 13, backgroundColor: RED, alignItems: 'center', justifyContent: 'center' },
   dogCardCheckmarkText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  // Selected summary banner
-  selectedSummary: {
-    marginTop: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1.5,
-    padding: spacing.sm,
-  },
+  selectedSummary: { marginTop: spacing.sm, borderRadius: borderRadius.md, borderWidth: 1.5, padding: spacing.sm },
   selectedSummaryText: { fontSize: 14, fontWeight: '700' },
   selectedSummaryHint: { fontSize: 12, marginTop: 3, fontStyle: 'italic' },
-  // Dog chips (per selected dog)
   dogChipsSection: { marginTop: spacing.sm, gap: spacing.sm },
   dogChipGroup: {},
   dogChipGroupLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
   dogChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   noDogText: { fontSize: 14, fontStyle: 'italic' },
+
+  // Care type selector
+  careTypeHint: { fontSize: 13, marginBottom: spacing.sm, fontStyle: 'italic' },
+  careTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  careTypeCard: {
+    width: '47%',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 80,
+    position: 'relative',
+  },
+  careTypeIcon: { fontSize: 28, marginBottom: 4 },
+  careTypeLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  careTypeCheckmark: { position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: RED, alignItems: 'center', justifyContent: 'center' },
+  careTypeCheckmarkText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+
   // Dates
   dateButton: { borderWidth: 1.5, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.sm },
   dateButtonLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   dateButtonValue: { fontSize: 16, fontWeight: '600' },
   dateSummary: { padding: spacing.sm, borderRadius: borderRadius.sm, alignItems: 'center', marginTop: spacing.xs },
   dateSummaryText: { fontSize: 13 },
+
+  // Time fields
+  timeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.sm },
+  timeField: { flex: 1 },
+  timeFieldLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  timeInput: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: 15, fontWeight: '600' },
+  timeSeparator: { fontSize: 20, paddingBottom: spacing.sm },
+
+  // Walk duration pills
+  durationPillsRow: { paddingVertical: spacing.sm, gap: spacing.sm },
+  durationPill: { borderWidth: 1.5, borderRadius: borderRadius.full, paddingHorizontal: spacing.md, paddingVertical: 8 },
+  durationPillText: { fontSize: 13, fontWeight: '600' },
+
   // Care details
   careHint: { fontSize: 13, fontStyle: 'italic', lineHeight: 18, marginBottom: spacing.sm },
   careInput: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, fontSize: 14, minHeight: 120, lineHeight: 20 },
   charCount: { fontSize: 12, textAlign: 'right', marginTop: spacing.xs },
+
   // Compensation
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
   toggleLabelGroup: { flex: 1, marginRight: spacing.sm },
   toggleLabel: { fontSize: 15, fontWeight: '600' },
   toggleHint: { fontSize: 12, marginTop: 2 },
+
+  // Points input
+  pointsInputLabel: { fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
+  pointsInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
+  pointsInput: { flex: 1, borderWidth: 1.5, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: 20, fontWeight: '700', textAlign: 'center' },
+  pointsUnit: { fontSize: 16, fontWeight: '600' },
   pointsBadge: { borderWidth: 1.5, borderRadius: borderRadius.md, padding: spacing.sm, alignItems: 'center', marginTop: spacing.xs },
   pointsBadgeText: { fontSize: 15, fontWeight: '700' },
+
+  // Payment input
   paymentInputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
   dollarSign: { fontSize: 20, fontWeight: '700' },
   paymentInput: { flex: 1, borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: 18, fontWeight: '600' },
-  rateRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
-  rateButton: { flex: 1, borderWidth: 1.5, borderRadius: borderRadius.md, paddingVertical: spacing.sm, alignItems: 'center' },
-  rateButtonText: { fontSize: 14, fontWeight: '600' },
-  hoursRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
-  hoursLabel: { fontSize: 14, fontWeight: '600' },
-  hoursInput: { flex: 1, borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: 16, fontWeight: '600' },
+  rateUnitLabel: { fontSize: 14, fontWeight: '500', paddingLeft: 2 },
   breakdownBadge: { borderWidth: 1.5, borderRadius: borderRadius.md, padding: spacing.sm, alignItems: 'center', marginBottom: spacing.sm },
   breakdownText: { fontSize: 15, fontWeight: '700' },
   calcHint: { fontSize: 13, fontStyle: 'italic', marginBottom: spacing.sm },
   offAppNote: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm, marginTop: spacing.xs },
   offAppNoteText: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
+
   // Submit
   submitBtn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.sm },
   submitBtnText: { color: '#fff', ...typography.button },

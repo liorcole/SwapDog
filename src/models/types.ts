@@ -99,6 +99,8 @@ export interface Dog {
   updatedAt: Date;
 }
 
+export type CareType = 'overnight' | 'daySitting' | 'feeding' | 'dogWalking';
+
 export type PaymentType = 'points' | 'payment' | 'either';
 export type SitterPreference = 'points' | 'payment';
 
@@ -154,6 +156,20 @@ export interface SwapPost {
   /** Number of hours or days used for calculation */
   totalUnits?: number;
 
+
+  // Care type system (Wave 19B)
+  careType?: CareType;
+  /** Points amount set by the poster (new: replaces auto-calculated) */
+  pointsOffered?: number;
+  /** Walk duration in minutes (dogWalking care type) */
+  walkDurationMinutes?: number;
+  /** Feeding time string e.g. "8:00 AM" (feeding care type) */
+  feedingTime?: string;
+  /** Start time string e.g. "9:00 AM" (daySitting care type) */
+  startTime?: string;
+  /** End time string e.g. "5:00 PM" (daySitting care type) */
+  endTime?: string;
+
   // Status
   status: PostStatus;
   /** userId of the sitter who claimed the post */
@@ -171,6 +187,10 @@ export interface SwapPost {
     userName: string;
     userPhotoURL?: string;
     respondedAt: Date;
+    /** Counter-offer points proposed by the sitter (Wave 19B) */
+    counterPoints?: number;
+    /** Status of the counter offer (Wave 19B) */
+    counterStatus?: 'pending' | 'accepted' | 'declined';
   }>;
 
   createdAt: Date;

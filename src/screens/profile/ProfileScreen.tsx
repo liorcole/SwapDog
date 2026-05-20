@@ -269,12 +269,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.editBtn, { borderColor: colors.primary }]}
+          style={styles.editBtn}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('EditProfile'); }}
           accessibilityLabel="Edit profile"
           accessibilityRole="button"
         >
-          <Text style={[styles.editBtnText, { color: colors.primary }]}>Edit Profile</Text>
+          <Text style={styles.editBtnText}>Edit Profile</Text>
         </TouchableOpacity>
       </View>
 
@@ -460,8 +460,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pointsBadgeText: { fontSize: 16, fontWeight: '700' },
-  editBtn: { borderWidth: 1.5, borderRadius: borderRadius.full, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, marginTop: spacing.md },
-  editBtnText: { fontWeight: '600' },
+  editBtn: { paddingVertical: spacing.xs, marginTop: spacing.md },
+  editBtnText: { fontWeight: '600', fontSize: 15, color: '#FFFFFF' },
   section: { padding: spacing.lg },
   sectionTitle: { ...typography.h3, marginBottom: spacing.md },
   dogCard: { padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm },

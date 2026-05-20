@@ -98,11 +98,11 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const calPanResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) =>
-        Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 50,
+        Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < Math.abs(gestureState.dx),
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx < -50) {
+        if (gestureState.dx < -30) {
           setCalMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-        } else if (gestureState.dx > 50) {
+        } else if (gestureState.dx > 30) {
           setCalMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
         }
       },
@@ -396,6 +396,8 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
           />
         }
       >
+        {/* Calendar section — entire area swipeable left/right */}
+        <View {...calPanResponder.panHandlers}>
         {/* Month header */}
         <View style={styles.calMonthHeader}>
           <TouchableOpacity
@@ -429,7 +431,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* Calendar grid — swipeable left/right to change month */}
-        <View style={styles.calGrid} {...calPanResponder.panHandlers}>
+        <View style={styles.calGrid}>
           {calDays.map((date, idx) => {
             if (date === null) {
               return <View key={`empty-${idx}`} style={styles.calCell} />;
@@ -476,6 +478,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
               </TouchableOpacity>
             );
           })}
+        </View>
         </View>
 
         {/* Legend */}

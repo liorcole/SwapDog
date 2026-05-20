@@ -85,6 +85,33 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     return downloadURL;
   };
 
+  /**
+   * Delete a photo from Firebase Storage via REST API DELETE request.
+   * Non-fatal — if storage delete fails we still remove from Firestore.
+   */
+  const deletePhotoFromStorage = async (photoURL: string): Promise<void> => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      // Extract encoded object path from Firebase Storage URL
+      // URL format: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token=...
+      const match = photoURL.match(/\/o\/([^?]+)/);
+      if (!match) return;
+      const encodedPath = match[1];
+      const bucket = 'swapdog-d0cfe.firebasestorage.app';
+      const deleteUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedPath}`;
+      const token = await currentUser.getIdToken();
+      await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      console.log('[PhotoDelete] Deleted from storage:', encodedPath);
+    } catch (err) {
+      // Non-fatal — continue with Firestore update even if storage delete fails
+      console.warn('[PhotoDelete] Storage delete failed (continuing):', err);
+    }
+  };
+
   const handleAddDogPhoto = async (dogId: string, currentPhotos: string[]) => {
     if (currentPhotos.length >= 10) {
       Alert.alert('Limit reached', 'You can add up to 10 photos per dog');
@@ -104,7 +131,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       const downloadURL = await uploadPhotoToStorage(uri, storagePath);
       const newPhotos = [...currentPhotos, downloadURL].slice(0, 10);
 
-      // Update Firestore
       try {
         await updateDog(dogId, { photoURLs: newPhotos });
       } catch (firestoreErr) {
@@ -122,8 +148,34 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  // Tap photo → open crop editor directly (like Hinge/Bumble)
-  const handlePhotoTap = async (dogId: string, currentPhotos: string[], index: number) => {
+  // ─── Photo Action Sheet ───────────────────────────────────────────────────
+
+  /** Opens iOS-style action sheet on photo tap. */
+  const handlePhotoActionSheet = (dog: Dog, index: number) => {
+    Alert.alert('Manage Photo', '', [
+      {
+        text: '\u2702\ufe0f Crop Photo',
+        onPress: () => { void handleCropPhoto(dog, index); },
+      },
+      {
+        text: '\ud83d\udcf7 Replace Photo',
+        onPress: () => { void handleReplacePhoto(dog, index); },
+      },
+      {
+        text: '\ud83d\uddd1\ufe0f Delete Photo',
+        style: 'destructive',
+        onPress: () => handleDeletePhotoBadge(dog, index),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  /**
+   * Crop Photo: pick a new image with cropping, upload and replace at index.
+   * React Native cannot re-crop an existing remote URL, so we let the user
+   * pick a new version and crop it (Hinge/Bumble pattern).
+   */
+  const handleCropPhoto = async (dog: Dog, index: number) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
@@ -131,55 +183,94 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       quality: 0.8,
     });
     if (result.canceled || !result.assets[0]) return;
-    setUploadingDogId(dogId);
+    setUploadingDogId(dog.id);
     try {
       const uri = result.assets[0].uri;
-      const storagePath = `dogs/${dogId}/${Date.now()}.jpg`;
+      const storagePath = `dogs/${dog.id}/${Date.now()}.jpg`;
       const downloadURL = await uploadPhotoToStorage(uri, storagePath);
-      const newPhotos = [...currentPhotos];
+      // Best-effort: delete old photo from storage
+      await deletePhotoFromStorage(dog.photoURLs[index]);
+      const newPhotos = [...dog.photoURLs];
       newPhotos[index] = downloadURL;
-
-      try {
-        await updateDog(dogId, { photoURLs: newPhotos });
-      } catch (firestoreErr) {
-        console.error('[PhotoUpload] handlePhotoTap Firestore update failed:', firestoreErr);
-        throw new Error('Photo uploaded but profile could not be updated. Try again.');
-      }
-
+      await updateDog(dog.id, { photoURLs: newPhotos });
       refreshDogs();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
-      console.error('[PhotoUpload] handlePhotoTap error:', err);
+      console.error('[PhotoUpload] handleCropPhoto error:', err);
       Alert.alert('Upload Failed', msg);
     } finally {
       setUploadingDogId(null);
     }
   };
 
-  // SUB-TASK 1: Long-press → Remove photo alert
-  const handleLongPressPhoto = (dogId: string, currentPhotos: string[], index: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  /**
+   * Replace Photo: same flow as crop — picker with editing, upload, replace at index.
+   */
+  const handleReplacePhoto = async (dog: Dog, index: number) => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [1, 1] as [number, number],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setUploadingDogId(dog.id);
+    try {
+      const uri = result.assets[0].uri;
+      const storagePath = `dogs/${dog.id}/${Date.now()}.jpg`;
+      const downloadURL = await uploadPhotoToStorage(uri, storagePath);
+      // Best-effort: delete old photo from storage
+      await deletePhotoFromStorage(dog.photoURLs[index]);
+      const newPhotos = [...dog.photoURLs];
+      newPhotos[index] = downloadURL;
+      await updateDog(dog.id, { photoURLs: newPhotos });
+      refreshDogs();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
+      console.error('[PhotoUpload] handleReplacePhoto error:', err);
+      Alert.alert('Upload Failed', msg);
+    } finally {
+      setUploadingDogId(null);
+    }
+  };
+
+  // ─── Delete Photo (X badge + action sheet Delete option) ─────────────────
+
+  /** Shows confirmation alert before deleting a photo (called from X badge and action sheet). */
+  const handleDeletePhotoBadge = (dog: Dog, index: number) => {
     Alert.alert(
       'Remove Photo',
-      'Remove this photo from your dog\'s profile?',
+      'Are you sure you want to remove this photo?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Remove',
+          text: 'Delete',
           style: 'destructive',
-          onPress: () => { void handleRemoveDogPhoto(dogId, currentPhotos, index); },
+          onPress: () => { void handleRemoveDogPhotoConfirmed(dog.id, dog.photoURLs, index); },
         },
       ],
     );
   };
 
-  const handleRemoveDogPhoto = async (dogId: string, currentPhotos: string[], index: number) => {
+  /** Performs the actual Storage + Firestore delete after confirmation. */
+  const handleRemoveDogPhotoConfirmed = async (
+    dogId: string,
+    currentPhotos: string[],
+    index: number,
+  ) => {
+    const photoURL = currentPhotos[index];
     const newPhotos = currentPhotos.filter((_, i) => i !== index);
+    setUploadingDogId(dogId);
     try {
+      // Delete from Firebase Storage (best-effort)
+      await deletePhotoFromStorage(photoURL);
+      // Remove URL from Firestore photoURLs array
       await updateDog(dogId, { photoURLs: newPhotos });
       refreshDogs();
     } catch {
       Alert.alert('Error', 'Failed to remove photo.');
+    } finally {
+      setUploadingDogId(null);
     }
   };
 
@@ -226,7 +317,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           {userProfile?.displayName ?? 'User'}
         </Text>
         {userProfile?.locationName && (
-          <Text style={[styles.location, { color: colors.textSecondary }]}>📍 {userProfile.locationName}</Text>
+          <Text style={[styles.location, { color: colors.textSecondary }]}>{'\ud83d\udccd'} {userProfile.locationName}</Text>
         )}
         {userProfile?.rating !== undefined && (
           <View style={styles.ratingRow}>
@@ -244,7 +335,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityRole="button"
         >
           <Text style={[styles.pointsBadgeText, { color: colors.primary }]}>
-            🪙 {(userProfile?.points ?? 0).toFixed(1)} points ›
+            {'\ud83e\ude99'} {(userProfile?.points ?? 0).toFixed(1)} points {'>'}
           </Text>
         </TouchableOpacity>
 
@@ -269,42 +360,62 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               accessibilityRole="button"
             >
               <Text style={[styles.dogName, { color: colors.text }]}>{dog.name}</Text>
-              <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} • {formatDogAge(dog.ageYears, dog.ageMonths)}</Text>
+              <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} {'\u2022'} {formatDogAge(dog.ageYears, dog.ageMonths)}</Text>
             </TouchableOpacity>
 
             {/* Photo gallery row */}
             <View style={styles.dogPhotoRow}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dogPhotoScroll}>
                 {dog.photoURLs.map((uri, idx) => (
-                  <TouchableOpacity
-                    key={uri + idx}
-                    style={styles.dogPhotoThumbWrap}
-                    onPress={() => { void handlePhotoTap(dog.id, dog.photoURLs, idx); }}
-                    onLongPress={() => handleLongPressPhoto(dog.id, dog.photoURLs, idx)}
-                    delayLongPress={400}
-                    accessibilityLabel={`Tap to crop ${dog.name} photo ${idx + 1}. Hold to remove.`}
-                    accessibilityRole="button"
-                  >
-                    {uploadingDogId === dog.id ? (
-                      <View style={[styles.dogPhotoThumb, { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }]}>
-                        <ActivityIndicator color={colors.primary} size="small" />
+                  // Outer container must NOT have overflow:hidden — needed so X badge
+                  // can render outside the 80x80 thumb bounds (top:-6, right:-6).
+                  <View key={uri + String(idx)} style={styles.dogPhotoThumbContainer}>
+                    {/* Photo + ✎ edit badge */}
+                    <TouchableOpacity
+                      style={styles.dogPhotoThumbWrap}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handlePhotoActionSheet(dog, idx);
+                      }}
+                      accessibilityLabel={`Tap to manage ${dog.name} photo ${idx + 1}`}
+                      accessibilityRole="button"
+                    >
+                      {uploadingDogId === dog.id ? (
+                        <View style={[styles.dogPhotoThumb, { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }]}>
+                          <ActivityIndicator color={colors.primary} size="small" />
+                        </View>
+                      ) : (
+                        <Image
+                          source={{ uri }}
+                          style={styles.dogPhotoThumb}
+                          accessibilityLabel={`${dog.name} photo ${idx + 1}`}
+                        />
+                      )}
+                      {/* ✎ edit badge — bottom-right hint */}
+                      <View style={styles.dogPhotoCropHint}>
+                        <Text style={styles.dogPhotoCropHintText}>{'\u270e'}</Text>
                       </View>
-                    ) : (
-                      <Image
-                        source={{ uri }}
-                        style={styles.dogPhotoThumb}
-                        accessibilityLabel={`${dog.name} photo ${idx + 1}`}
-                      />
-                    )}
-                    {/* Edit overlay indicator */}
-                    <View style={styles.dogPhotoCropHint}>
-                      <Text style={styles.dogPhotoCropHintText}>✎</Text>
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+
+                    {/* ✕ delete badge — top-right, outside thumb bounds */}
+                    <TouchableOpacity
+                      style={styles.dogPhotoDeleteBadge}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleDeletePhotoBadge(dog, idx);
+                      }}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      accessibilityLabel={`Remove ${dog.name} photo ${idx + 1}`}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.dogPhotoDeleteBadgeText}>{'\u2715'}</Text>
+                    </TouchableOpacity>
+                  </View>
                 ))}
-                {/* Plus-sign tile — always at end of photo scroll */}
+
+                {/* "+ Add Photo" dashed cell — always at end */}
                 <TouchableOpacity
-                  style={[styles.dogPhotoAddTile, { borderColor: colors.border, backgroundColor: colors.background }]}
+                  style={[styles.dogPhotoAddTile, { borderColor: '#666', backgroundColor: colors.background }]}
                   onPress={() => { void handleAddDogPhoto(dog.id, dog.photoURLs); }}
                   disabled={uploadingDogId === dog.id}
                   accessibilityLabel={`Add photos for ${dog.name}`}
@@ -313,7 +424,10 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   {uploadingDogId === dog.id ? (
                     <ActivityIndicator color={colors.primary} size="small" />
                   ) : (
-                    <Text style={[styles.dogPhotoAddIcon, { color: colors.textSecondary }]}>+</Text>
+                    <>
+                      <Text style={[styles.dogPhotoAddIcon, { color: '#888' }]}>+</Text>
+                      <Text style={[styles.dogPhotoAddLabel, { color: '#888' }]}>Add</Text>
+                    </>
                   )}
                 </TouchableOpacity>
               </ScrollView>
@@ -321,7 +435,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         ))}
 
-        {/* SUB-TASK 2a: Add Another Dog button */}
+        {/* Add Another Dog button */}
         <TouchableOpacity
           style={[styles.addAnotherDogBtn, { borderColor: '#888' }]}
           onPress={() => {
@@ -343,14 +457,14 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityLabel="Invite a Friend"
           accessibilityRole="button"
         >
-          <Text style={[styles.prefLabel, { color: colors.text }]}>🎁 Invite a Friend</Text>
+          <Text style={[styles.prefLabel, { color: colors.text }]}>{'\ud83c\udf81'} Invite a Friend</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {referralCount > 0 && (
               <View style={[styles.referralBadge, { backgroundColor: colors.primary }]}>
                 <Text style={styles.referralBadgeText}>{referralCount} {referralCount === 1 ? 'referral' : 'referrals'}</Text>
               </View>
             )}
-            <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>›</Text>
+            <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>{'>'}</Text>
           </View>
         </TouchableOpacity>
       </View>
@@ -363,8 +477,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityLabel="View SwapDog Community Standards"
           accessibilityRole="button"
         >
-          <Text style={[styles.prefLabel, { color: colors.text }]}>🐾 Community Standards</Text>
-          <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>›</Text>
+          <Text style={[styles.prefLabel, { color: colors.text }]}>{'\ud83d\udc3e'} Community Standards</Text>
+          <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>{'>'}</Text>
         </TouchableOpacity>
         {hasContract && (
           <TouchableOpacity
@@ -373,8 +487,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             accessibilityLabel="View My Membership Agreement"
             accessibilityRole="button"
           >
-            <Text style={[styles.prefLabel, { color: colors.text }]}>📜 My Agreement</Text>
-            <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>›</Text>
+            <Text style={[styles.prefLabel, { color: colors.text }]}>{'\ud83d\udcdc'} My Agreement</Text>
+            <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>{'>'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -388,7 +502,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityRole="switch"
           accessibilityState={{ checked: isDark }}
         >
-          <Text style={[styles.prefLabel, { color: colors.text }]}>{isDark ? '🌙' : '☀️'} Dark Mode</Text>
+          <Text style={[styles.prefLabel, { color: colors.text }]}>{isDark ? '\ud83c\udf19' : '\u2600\ufe0f'} Dark Mode</Text>
           <Text style={[styles.prefValue, { color: colors.textSecondary }]}>{isDark ? 'On' : 'Off'}</Text>
         </TouchableOpacity>
       </View>
@@ -403,13 +517,13 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             accessibilityLabel="Open Admin Panel"
             accessibilityRole="button"
           >
-            <Text style={[styles.prefLabel, { color: '#FFD700' }]}>👑 Admin Panel</Text>
-            <Text style={[styles.prefChevron, { color: '#FFD700' }]}>›</Text>
+            <Text style={[styles.prefLabel, { color: '#FFD700' }]}>{'\ud83d\udc51'} Admin Panel</Text>
+            <Text style={[styles.prefChevron, { color: '#FFD700' }]}>{'>'}</Text>
           </TouchableOpacity>
         </View>
       )}
 
-            <TouchableOpacity
+      <TouchableOpacity
         style={[styles.signOutBtn, { backgroundColor: colors.error }]}
         onPress={handleSignOut}
         accessibilityLabel="Sign out"
@@ -460,37 +574,64 @@ const styles = StyleSheet.create({
   // Dog photo gallery
   dogPhotoRow: { marginTop: spacing.sm },
   dogPhotoScroll: { marginBottom: spacing.xs },
-  dogPhotoThumbWrap: {
+  // Outer container — no overflow:hidden so the X badge (top:-6,right:-6) is visible
+  dogPhotoThumbContainer: {
     width: 80,
     height: 80,
     marginRight: spacing.xs,
-    borderRadius: borderRadius.sm,
-    overflow: 'hidden',
+    // zIndex ensures the badge stacks correctly
+    zIndex: 0,
   },
-  dogPhotoThumb: { width: 80, height: 80, borderRadius: borderRadius.sm },
-  dogPhotoCropHint: {
-    position: 'absolute',
-    bottom: 3,
-    right: 3,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dogPhotoCropHintText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  dogPhotoAddTile: {
+  // Inner touch target — overflow:hidden clips the photo corners
+  dogPhotoThumbWrap: {
     width: 80,
     height: 80,
     borderRadius: borderRadius.sm,
+    overflow: 'hidden',
+  },
+  dogPhotoThumb: { width: 80, height: 80 },
+  // ✎ edit badge — bottom-right of photo
+  dogPhotoCropHint: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dogPhotoCropHintText: { color: '#fff', fontSize: 11 },
+  // ✕ delete badge — top-right corner, outside the 80x80 bounds
+  dogPhotoDeleteBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     borderWidth: 1.5,
+    borderColor: '#666',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  dogPhotoDeleteBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  // "+ Add Photo" dashed tile
+  dogPhotoAddTile: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 2,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.xs,
   },
-  dogPhotoAddIcon: { fontSize: 22, fontWeight: '300', lineHeight: 26 },
+  dogPhotoAddIcon: { fontSize: 28, fontWeight: '300', lineHeight: 32 },
+  dogPhotoAddLabel: { fontSize: 10, marginTop: 2 },
   // Add Another Dog button
   addAnotherDogBtn: {
     borderWidth: 2,

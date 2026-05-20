@@ -46,9 +46,11 @@ export type ProfileStackParamList = {
   Referral: undefined;
   Profile: undefined;
   EditProfile: undefined;
-  EditDog: { dogId: string };
+  /** dogId is optional: omit (or pass undefined) to create a new dog */
+  EditDog: { dogId?: string };
   CommunityStandards: undefined;
   MyAgreement: undefined;
+  PointsHistory: undefined;
 };
 
 export type MainTabParamList = {

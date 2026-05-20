@@ -34,6 +34,7 @@ import ChatScreen from '../screens/messages/ChatScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import EditDogScreen from '../screens/profile/EditDogScreen';
+import PointsHistoryScreen from '../screens/profile/PointsHistoryScreen';
 import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen';
 import MyAgreementScreen from '../screens/profile/MyAgreementScreen';
 import ReferralScreen from '../screens/profile/ReferralScreen';
@@ -126,7 +127,18 @@ const ProfileNavigator: React.FC = () => {
     >
       <ProfileStack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile', headerShown: true }} />
       <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: 'Edit Profile' }} />
-      <ProfileStack.Screen name="EditDog" component={EditDogScreen} options={{ title: 'Edit Dog' }} />
+      <ProfileStack.Screen
+        name="EditDog"
+        component={EditDogScreen}
+        options={({ route }) => ({
+          title: route.params?.dogId ? 'Edit Dog' : 'Add Dog',
+        })}
+      />
+      <ProfileStack.Screen
+        name="PointsHistory"
+        component={PointsHistoryScreen}
+        options={{ title: 'Points History', headerBackTitle: 'Back' }}
+      />
       <ProfileStack.Screen
         name="CommunityStandards"
         options={{ title: 'Community Standards', headerBackTitle: 'Back' }}

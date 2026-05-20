@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert,
   ActivityIndicator,
@@ -75,7 +75,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const handleReplacePhoto = async (dogId: string, currentPhotos: string[], index: number) => {
+  // SUB-TASK 1: Tap photo → open crop editor directly (like Hinge/Bumble)
+  const handlePhotoTap = async (dogId: string, currentPhotos: string[], index: number) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
@@ -102,21 +103,19 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const handlePhotoTap = (dogId: string, currentPhotos: string[], index: number) => {
+  // SUB-TASK 1: Long-press → Remove photo alert
+  const handleLongPressPhoto = (dogId: string, currentPhotos: string[], index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
-      'Edit Photo',
-      '',
+      'Remove Photo',
+      'Remove this photo from your dog\'s profile?',
       [
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Replace / Crop Photo',
-          onPress: () => { void handleReplacePhoto(dogId, currentPhotos, index); },
-        },
-        {
-          text: 'Remove Photo',
+          text: 'Remove',
           style: 'destructive',
           onPress: () => { void handleRemoveDogPhoto(dogId, currentPhotos, index); },
         },
-        { text: 'Cancel', style: 'cancel' },
       ],
     );
   };
@@ -178,12 +177,19 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         )}
         {userProfile?.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{userProfile.bio}</Text>}
-        {/* Points balance badge */}
-        <View style={[styles.pointsBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}>
+
+        {/* SUB-TASK 3: Points badge — tappable → PointsHistory */}
+        <TouchableOpacity
+          style={[styles.pointsBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('PointsHistory'); }}
+          accessibilityLabel={`${(userProfile?.points ?? 0).toFixed(1)} points. Tap to see history.`}
+          accessibilityRole="button"
+        >
           <Text style={[styles.pointsBadgeText, { color: colors.primary }]}>
-            🪙 {(userProfile?.points ?? 0).toFixed(1)} points
+            🪙 {(userProfile?.points ?? 0).toFixed(1)} points ›
           </Text>
-        </View>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.editBtn, { borderColor: colors.primary }]}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.navigate('EditProfile'); }}
@@ -215,17 +221,26 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   <TouchableOpacity
                     key={uri + idx}
                     style={styles.dogPhotoThumbWrap}
-                    onPress={() => handlePhotoTap(dog.id, dog.photoURLs, idx)}
-                    accessibilityLabel={`Edit ${dog.name} photo ${idx + 1}`}
+                    onPress={() => { void handlePhotoTap(dog.id, dog.photoURLs, idx); }}
+                    onLongPress={() => handleLongPressPhoto(dog.id, dog.photoURLs, idx)}
+                    delayLongPress={400}
+                    accessibilityLabel={`Tap to crop ${dog.name} photo ${idx + 1}. Hold to remove.`}
                     accessibilityRole="button"
                   >
-                    <Image
-                      source={{ uri }}
-                      style={styles.dogPhotoThumb}
-                      accessibilityLabel={`${dog.name} photo ${idx + 1}`}
-                    />
-                    <View style={[styles.dogPhotoRemoveBtn, { backgroundColor: colors.error }]}>
-                      <Text style={styles.dogPhotoRemoveText}>✕</Text>
+                    {uploadingDogId === dog.id ? (
+                      <View style={[styles.dogPhotoThumb, { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }]}>
+                        <ActivityIndicator color={colors.primary} size="small" />
+                      </View>
+                    ) : (
+                      <Image
+                        source={{ uri }}
+                        style={styles.dogPhotoThumb}
+                        accessibilityLabel={`${dog.name} photo ${idx + 1}`}
+                      />
+                    )}
+                    {/* Edit overlay indicator */}
+                    <View style={styles.dogPhotoCropHint}>
+                      <Text style={styles.dogPhotoCropHintText}>✎</Text>
                     </View>
                   </TouchableOpacity>
                 ))}
@@ -247,6 +262,19 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           </View>
         ))}
+
+        {/* SUB-TASK 2a: Add Another Dog button */}
+        <TouchableOpacity
+          style={[styles.addAnotherDogBtn, { borderColor: colors.primary }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('EditDog', {});
+          }}
+          accessibilityLabel="Add another dog"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.addAnotherDogBtnText, { color: colors.primary }]}>+ Add Another Dog</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
@@ -363,20 +391,21 @@ const styles = StyleSheet.create({
     height: 80,
     marginRight: spacing.xs,
     borderRadius: borderRadius.sm,
-    overflow: 'visible',
+    overflow: 'hidden',
   },
   dogPhotoThumb: { width: 80, height: 80, borderRadius: borderRadius.sm },
-  dogPhotoRemoveBtn: {
+  dogPhotoCropHint: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    bottom: 3,
+    right: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dogPhotoRemoveText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  dogPhotoCropHintText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   dogPhotoAddTile: {
     width: 80,
     height: 80,
@@ -388,6 +417,16 @@ const styles = StyleSheet.create({
     marginRight: spacing.xs,
   },
   dogPhotoAddIcon: { fontSize: 22, fontWeight: '300', lineHeight: 26 },
+  // Add Another Dog button
+  addAnotherDogBtn: {
+    borderWidth: 2,
+    borderRadius: borderRadius.full,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  addAnotherDogBtnText: { fontSize: 15, fontWeight: '700' },
   signOutBtn: { margin: spacing.lg, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
   signOutText: { color: '#fff', ...typography.button },
 });

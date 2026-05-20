@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Switch,
-  Image, FlatList, KeyboardAvoidingView, Platform,
+  Image, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../../config/firebase';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { OnboardingStackParamList } from '../../navigation/types';
@@ -20,75 +22,127 @@ type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'AddDog'>;
 };
 
+/** Blank form state — returned after each successful dog creation to reset the form */
+const blankForm = () => ({
+  name: '',
+  breed: '',
+  ageYears: 0,
+  ageMonths: 1,
+  size: DogSize.medium,
+  sex: DogSex.male,
+  energy: EnergyLevel.moderate,
+  goodWithDogs: false,
+  goodWithKids: false,
+  vaccinated: false,
+  photoURLs: [] as string[],
+});
+
 const AddDogScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
   const { createDog } = useDogs();
-  const [name, setName] = useState('');
-  const [breed, setBreed] = useState('');
-  const [ageYears, setAgeYears] = useState(0);
-  const [ageMonths, setAgeMonths] = useState(1);
-  const [size, setSize] = useState<DogSize>(DogSize.medium);
-  const [sex, setSex] = useState<DogSex>(DogSex.male);
-  const [energy, setEnergy] = useState<EnergyLevel>(EnergyLevel.moderate);
-  const [goodWithDogs, setGoodWithDogs] = useState(false);
-  const [goodWithKids, setGoodWithKids] = useState(false);
-  const [vaccinated, setVaccinated] = useState(false);
-  const [photoURLs, setPhotoURLs] = useState<string[]>([]);
+
+  const [form, setForm] = useState(blankForm());
   const [loading, setLoading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  // Track how many dogs have been saved this session
+  const [savedCount, setSavedCount] = useState(0);
+
+  const set = <K extends keyof ReturnType<typeof blankForm>>(
+    key: K,
+    value: ReturnType<typeof blankForm>[K],
+  ) => setForm((f) => ({ ...f, [key]: value }));
 
   const pickPhoto = async () => {
-    if (photoURLs.length >= MAX_PHOTOS) {
+    if (form.photoURLs.length >= MAX_PHOTOS) {
       Alert.alert('Limit reached', `You can add up to ${MAX_PHOTOS} photos`);
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsMultipleSelection: true,
+      allowsEditing: false,
       quality: 0.8,
     });
-    if (!result.canceled) {
-      const newUris = result.assets.map((a) => a.uri);
-      setPhotoURLs((prev) => [...prev, ...newUris].slice(0, MAX_PHOTOS));
+    if (result.canceled) return;
+    setUploadingPhoto(true);
+    try {
+      const uriList: string[] = [];
+      for (const asset of result.assets.slice(0, MAX_PHOTOS - form.photoURLs.length)) {
+        const tempId = `temp_${user?.uid ?? 'anon'}_${Date.now()}`;
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        const fileRef = storageRef(storage, `dogs/${tempId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
+        await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
+        const downloadURL = await getDownloadURL(fileRef);
+        uriList.push(downloadURL);
+      }
+      set('photoURLs', [...form.photoURLs, ...uriList].slice(0, MAX_PHOTOS));
+    } catch {
+      Alert.alert('Error', 'Failed to upload photo. Please try again.');
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
   const removePhoto = (index: number) => {
-    setPhotoURLs((prev) => prev.filter((_, i) => i !== index));
+    set('photoURLs', form.photoURLs.filter((_, i) => i !== index));
   };
 
-  const handleCreate = async () => {
-    if (!name.trim() || !breed.trim()) {
+  const saveDog = async (): Promise<boolean> => {
+    if (!form.name.trim() || !form.breed.trim()) {
       Alert.alert('Required', 'Please fill in name and breed');
-      return;
+      return false;
     }
-    if (ageYears === 0 && ageMonths === 0) {
+    if (form.ageYears === 0 && form.ageMonths === 0) {
       Alert.alert('Required', 'Please enter your dog\'s age');
-      return;
+      return false;
     }
-    if (!user) return;
+    if (!user) return false;
     setLoading(true);
     try {
       await createDog({
         ownerId: user.uid,
-        name: name.trim(),
-        breed: breed.trim(),
-        ageYears,
-        ageMonths: ageYears === 0 ? ageMonths : ageMonths,
-        size,
-        sex,
-        energyLevel: energy,
-        photoURLs,
-        isGoodWithDogs: goodWithDogs,
-        isGoodWithKids: goodWithKids,
-        vaccinated,
+        name: form.name.trim(),
+        breed: form.breed.trim(),
+        ageYears: form.ageYears,
+        ageMonths: form.ageYears === 0 ? form.ageMonths : form.ageMonths,
+        size: form.size,
+        sex: form.sex,
+        energyLevel: form.energy,
+        photoURLs: form.photoURLs,
+        isGoodWithDogs: form.goodWithDogs,
+        isGoodWithKids: form.goodWithKids,
+        vaccinated: form.vaccinated,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      navigation.navigate('LocationSetup');
+      setSavedCount((c) => c + 1);
+      return true;
     } catch (error: unknown) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to add dog');
+      return false;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleContinue = async () => {
+    const ok = await saveDog();
+    if (ok) {
+      navigation.navigate('LocationSetup');
+    }
+  };
+
+  const handleAddAnother = async () => {
+    const ok = await saveDog();
+    if (ok) {
+      // Reset the form to blank so the user can enter another dog
+      setForm(blankForm());
+      Alert.alert(
+        '🐾 Dog added!',
+        'Fill in your next dog\'s info below, then tap "Continue" when you\'re done adding dogs.',
+        [{ text: 'OK' }],
+      );
     }
   };
 
@@ -113,13 +167,19 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">Add your dog</Text>
-      <Text style={[styles.sub, { color: colors.textSecondary }]}>Tell us about your furry friend</Text>
+      <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
+        {savedCount === 0 ? 'Add your dog' : `Add dog #${savedCount + 1}`}
+      </Text>
+      <Text style={[styles.sub, { color: colors.textSecondary }]}>
+        {savedCount === 0
+          ? 'Tell us about your furry friend'
+          : `${savedCount} dog${savedCount > 1 ? 's' : ''} added — keep going!`}
+      </Text>
 
       {/* Photo grid */}
-      <Text style={[styles.label, { color: colors.text }]}>Photos ({photoURLs.length}/{MAX_PHOTOS})</Text>
+      <Text style={[styles.label, { color: colors.text }]}>Photos ({form.photoURLs.length}/{MAX_PHOTOS})</Text>
       <View style={styles.photoGrid}>
-        {photoURLs.map((uri, index) => (
+        {form.photoURLs.map((uri, index) => (
           <View key={uri + index} style={styles.photoThumb}>
             <Image
               source={{ uri }}
@@ -141,17 +201,24 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         ))}
-        {photoURLs.length < MAX_PHOTOS && (
+        {form.photoURLs.length < MAX_PHOTOS && (
           <TouchableOpacity
             style={[styles.addPhotoTile, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={pickPhoto}
-            accessibilityLabel={`Add photo. ${MAX_PHOTOS - photoURLs.length} remaining`}
+            disabled={uploadingPhoto}
+            accessibilityLabel={`Add photo. ${MAX_PHOTOS - form.photoURLs.length} remaining`}
             accessibilityRole="button"
           >
-            <Text style={[styles.addPhotoIcon, { color: colors.primary }]}>+</Text>
-            <Text style={[styles.addPhotoLabel, { color: colors.textSecondary }]}>
-              {photoURLs.length}/{MAX_PHOTOS}
-            </Text>
+            {uploadingPhoto ? (
+              <ActivityIndicator color={colors.primary} size="small" />
+            ) : (
+              <>
+                <Text style={[styles.addPhotoIcon, { color: colors.primary }]}>+</Text>
+                <Text style={[styles.addPhotoLabel, { color: colors.textSecondary }]}>
+                  {form.photoURLs.length}/{MAX_PHOTOS}
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -160,16 +227,16 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
         style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
         placeholder="Dog's name"
         placeholderTextColor={colors.textSecondary}
-        value={name}
-        onChangeText={setName}
+        value={form.name}
+        onChangeText={(v) => set('name', v)}
         accessibilityLabel="Dog's name"
       />
       <TextInput
         style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
         placeholder="Breed"
         placeholderTextColor={colors.textSecondary}
-        value={breed}
-        onChangeText={setBreed}
+        value={form.breed}
+        onChangeText={(v) => set('breed', v)}
         accessibilityLabel="Dog's breed"
       />
 
@@ -181,15 +248,15 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.ageControls}>
             <TouchableOpacity
               style={[styles.ageBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => setAgeYears((y) => Math.max(0, y - 1))}
+              onPress={() => set('ageYears', Math.max(0, form.ageYears - 1))}
               accessibilityLabel="Decrease years"
             >
               <Text style={[styles.ageBtnText, { color: colors.text }]}>−</Text>
             </TouchableOpacity>
-            <Text style={[styles.ageValue, { color: colors.text }]}>{ageYears}</Text>
+            <Text style={[styles.ageValue, { color: colors.text }]}>{form.ageYears}</Text>
             <TouchableOpacity
               style={[styles.ageBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => setAgeYears((y) => Math.min(20, y + 1))}
+              onPress={() => set('ageYears', Math.min(20, form.ageYears + 1))}
               accessibilityLabel="Increase years"
             >
               <Text style={[styles.ageBtnText, { color: colors.text }]}>+</Text>
@@ -199,20 +266,20 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
 
         <View style={styles.agePicker}>
           <Text style={[styles.agePickerLabel, { color: colors.textSecondary }]}>
-            {ageYears === 0 ? 'Months *' : 'Months'}
+            {form.ageYears === 0 ? 'Months *' : 'Months'}
           </Text>
           <View style={styles.ageControls}>
             <TouchableOpacity
               style={[styles.ageBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => setAgeMonths((m) => Math.max(ageYears === 0 ? 1 : 0, m - 1))}
+              onPress={() => set('ageMonths', Math.max(form.ageYears === 0 ? 1 : 0, form.ageMonths - 1))}
               accessibilityLabel="Decrease months"
             >
               <Text style={[styles.ageBtnText, { color: colors.text }]}>−</Text>
             </TouchableOpacity>
-            <Text style={[styles.ageValue, { color: colors.text }]}>{ageMonths}</Text>
+            <Text style={[styles.ageValue, { color: colors.text }]}>{form.ageMonths}</Text>
             <TouchableOpacity
               style={[styles.ageBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => setAgeMonths((m) => Math.min(11, m + 1))}
+              onPress={() => set('ageMonths', Math.min(11, form.ageMonths + 1))}
               accessibilityLabel="Increase months"
             >
               <Text style={[styles.ageBtnText, { color: colors.text }]}>+</Text>
@@ -220,43 +287,55 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
       </View>
-      {ageYears === 0 && (
+      {form.ageYears === 0 && (
         <Text style={[styles.ageHint, { color: colors.textSecondary }]}>Months required for puppies under 1 year</Text>
       )}
 
       <Text style={[styles.label, { color: colors.text }]}>Size</Text>
       <View style={styles.chips}>
         {([DogSize.small, DogSize.medium, DogSize.large, DogSize.extra_large] as DogSize[]).map((s) => (
-          <Chip key={s} label={s.replace('_', ' ')} selected={size === s} onPress={() => setSize(s)} />
+          <Chip key={s} label={s.replace('_', ' ')} selected={form.size === s} onPress={() => set('size', s)} />
         ))}
       </View>
 
       <Text style={[styles.label, { color: colors.text }]}>Sex</Text>
       <View style={styles.chips}>
         {([DogSex.male, DogSex.female] as DogSex[]).map((s) => (
-          <Chip key={s} label={s} selected={sex === s} onPress={() => setSex(s)} />
+          <Chip key={s} label={s} selected={form.sex === s} onPress={() => set('sex', s)} />
         ))}
       </View>
 
       <Text style={[styles.label, { color: colors.text }]}>Energy Level</Text>
       <View style={styles.chips}>
         {([EnergyLevel.low, EnergyLevel.moderate, EnergyLevel.high, EnergyLevel.very_high] as EnergyLevel[]).map((e) => (
-          <Chip key={e} label={e.replace('_', ' ')} selected={energy === e} onPress={() => setEnergy(e)} />
+          <Chip key={e} label={e.replace('_', ' ')} selected={form.energy === e} onPress={() => set('energy', e)} />
         ))}
       </View>
 
-      <SwitchRow label="Good with other dogs" value={goodWithDogs} onChange={setGoodWithDogs} />
-      <SwitchRow label="Good with kids" value={goodWithKids} onChange={setGoodWithKids} />
-      <SwitchRow label="Vaccinated" value={vaccinated} onChange={setVaccinated} />
+      <SwitchRow label="Good with other dogs" value={form.goodWithDogs} onChange={(v) => set('goodWithDogs', v)} />
+      <SwitchRow label="Good with kids" value={form.goodWithKids} onChange={(v) => set('goodWithKids', v)} />
+      <SwitchRow label="Vaccinated" value={form.vaccinated} onChange={(v) => set('vaccinated', v)} />
 
+      {/* Primary CTA — saves current dog and proceeds to location */}
       <TouchableOpacity
         style={[styles.btn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
-        onPress={handleCreate}
+        onPress={handleContinue}
         disabled={loading}
-        accessibilityLabel={loading ? 'Saving...' : 'Next step'}
+        accessibilityLabel={loading ? 'Saving...' : 'Continue to next step'}
         accessibilityRole="button"
       >
-        <Text style={styles.btnText}>{loading ? 'Saving...' : 'Next →'}</Text>
+        <Text style={styles.btnText}>{loading ? 'Saving...' : 'Continue →'}</Text>
+      </TouchableOpacity>
+
+      {/* Add Another Dog — saves current dog and loops back to blank form */}
+      <TouchableOpacity
+        style={[styles.addAnotherBtn, { borderColor: colors.primary, opacity: loading ? 0.5 : 1 }]}
+        onPress={handleAddAnother}
+        disabled={loading}
+        accessibilityLabel="Add another dog"
+        accessibilityRole="button"
+      >
+        <Text style={[styles.addAnotherBtnText, { color: colors.primary }]}>➕ Add Another Dog</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -283,9 +362,17 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.md },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1 },
   switchLabel: { fontSize: 15 },
-  btn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.lg, marginBottom: spacing.md },
+  btn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.lg, marginBottom: spacing.sm },
   btnText: { color: '#fff', ...typography.button },
-  skip: { textAlign: 'center', fontSize: 15 },
+  addAnotherBtn: {
+    borderWidth: 2,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  addAnotherBtnText: { fontSize: 15, fontWeight: '700' },
+  skip: { textAlign: 'center', fontSize: 15, marginBottom: spacing.lg },
   // Photo grid
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.md, gap: spacing.xs },
   photoThumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: borderRadius.sm, overflow: 'visible', marginBottom: spacing.xs },

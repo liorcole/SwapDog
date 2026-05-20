@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../../config/firebase';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuthContext } from '../../contexts/AuthContext';
 import { useDogs } from '../../hooks/useDogs';
 import { Dog, DogSize, DogSex, EnergyLevel } from '../../models/types';
 import { spacing, borderRadius, typography } from '../../config/theme';
@@ -21,21 +25,29 @@ type Props = {
 
 const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const { getDog, updateDog, deleteDog } = useDogs();
+  const { user } = useAuthContext();
+  const { getDog, updateDog, createDog, deleteDog } = useDogs();
+
+  // If no dogId → create mode
+  const dogId = route.params?.dogId;
+  const isCreateMode = !dogId;
+
   const [dog, setDog] = useState<Dog | null>(null);
   const [name, setName] = useState('');
   const [breed, setBreed] = useState('');
   const [ageYears, setAgeYears] = useState(0);
-  const [ageMonths, setAgeMonths] = useState(0);
+  const [ageMonths, setAgeMonths] = useState(1);
   const [size, setSize] = useState<DogSize>(DogSize.medium);
   const [sex, setSex] = useState<DogSex>(DogSex.male);
   const [energy, setEnergy] = useState<EnergyLevel>(EnergyLevel.moderate);
   const [photoURLs, setPhotoURLs] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isCreateMode);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
-    getDog(route.params?.dogId ?? '').then((d) => {
+    if (isCreateMode) return; // skip fetching in create mode
+    getDog(dogId).then((d) => {
       if (d) {
         setDog(d);
         setName(d.name);
@@ -49,38 +61,90 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
       }
       setLoading(false);
     });
-  }, [route.params?.dogId ?? '']);
+  }, [dogId]);
+
+  const handleAddPhoto = async () => {
+    if (photoURLs.length >= 10) {
+      Alert.alert('Limit reached', 'You can add up to 10 photos per dog');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [1, 1] as [number, number],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setUploadingPhoto(true);
+    try {
+      const asset = result.assets[0];
+      const tempId = dogId ?? `temp_${user?.uid ?? 'anon'}_${Date.now()}`;
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const fileRef = storageRef(storage, `dogs/${tempId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
+      await uploadBytes(fileRef, blob, { contentType: 'image/jpeg' });
+      const downloadURL = await getDownloadURL(fileRef);
+      setPhotoURLs((prev) => [...prev, downloadURL].slice(0, 10));
+    } catch {
+      Alert.alert('Error', 'Failed to upload photo. Please try again.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setPhotoURLs((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSave = async () => {
     if (!name.trim()) { Alert.alert('Required', 'Dog name is required'); return; }
+    if (!breed.trim()) { Alert.alert('Required', 'Breed is required'); return; }
+    if (!user) return;
     setSaving(true);
     try {
-      await updateDog(route.params?.dogId ?? '', {
-        name: name.trim(),
-        breed: breed.trim(),
-        ageYears,
-        ageMonths,
-        size,
-        sex,
-        energyLevel: energy,
-        photoURLs,
-      });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      navigation.goBack();
+      if (isCreateMode) {
+        await createDog({
+          ownerId: user.uid,
+          name: name.trim(),
+          breed: breed.trim(),
+          ageYears,
+          ageMonths,
+          size,
+          sex,
+          energyLevel: energy,
+          photoURLs,
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        navigation.goBack();
+      } else {
+        await updateDog(dogId, {
+          name: name.trim(),
+          breed: breed.trim(),
+          ageYears,
+          ageMonths,
+          size,
+          sex,
+          energyLevel: energy,
+          photoURLs,
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        navigation.goBack();
+      }
     } catch (error: unknown) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to update');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = () => {
+    if (!dogId) return;
     Alert.alert('Delete Dog', `Remove ${dog?.name}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          await deleteDog(route.params?.dogId ?? '');
+          await deleteDog(dogId);
           navigation.goBack();
         },
       },
@@ -97,28 +161,51 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
     >
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
 
-      {/* Photo gallery — display only. Add/remove photos from Profile screen. */}
-      {photoURLs.length > 0 && (
-        <>
-          <Text style={[styles.label, { color: colors.text }]}>Photos</Text>
-          <View style={styles.photoGrid}>
-            {photoURLs.map((uri, index) => (
-              <View key={uri + index} style={styles.photoThumb}>
-                <Image
-                  source={{ uri }}
-                  style={styles.thumbImg}
-                  accessibilityLabel={index === 0 ? 'Primary photo' : `Photo ${index + 1}`}
-                />
-                {index === 0 && (
-                  <View style={[styles.primaryBadge, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.primaryBadgeText}>Primary</Text>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        </>
+      {isCreateMode && (
+        <Text style={[styles.createTitle, { color: colors.text }]}>Add a New Dog 🐶</Text>
       )}
+
+      {/* Photo gallery */}
+      <Text style={[styles.label, { color: colors.text }]}>Photos ({photoURLs.length}/10)</Text>
+      <View style={styles.photoGrid}>
+        {photoURLs.map((uri, index) => (
+          <View key={uri + index} style={styles.photoThumb}>
+            <Image
+              source={{ uri }}
+              style={styles.thumbImg}
+              accessibilityLabel={index === 0 ? 'Primary photo' : `Photo ${index + 1}`}
+            />
+            {index === 0 && (
+              <View style={[styles.primaryBadge, { backgroundColor: colors.primary }]}>
+                <Text style={styles.primaryBadgeText}>Primary</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.removePhotoBtn, { backgroundColor: colors.error }]}
+              onPress={() => handleRemovePhoto(index)}
+              accessibilityLabel={`Remove photo ${index + 1}`}
+              accessibilityRole="button"
+            >
+              <Text style={styles.removePhotoBtnText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+        {photoURLs.length < 10 && (
+          <TouchableOpacity
+            style={[styles.addPhotoTile, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            onPress={handleAddPhoto}
+            disabled={uploadingPhoto}
+            accessibilityLabel="Add photo"
+            accessibilityRole="button"
+          >
+            {uploadingPhoto ? (
+              <ActivityIndicator color={colors.primary} size="small" />
+            ) : (
+              <Text style={[styles.addPhotoIcon, { color: colors.primary }]}>+</Text>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
 
       <TextInput
         style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -210,20 +297,23 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
         style={[styles.btn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]}
         onPress={handleSave}
         disabled={saving}
-        accessibilityLabel={saving ? 'Saving...' : 'Save changes'}
+        accessibilityLabel={saving ? 'Saving...' : isCreateMode ? 'Add Dog' : 'Save changes'}
         accessibilityRole="button"
       >
-        <Text style={styles.btnText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
+        <Text style={styles.btnText}>{saving ? 'Saving...' : isCreateMode ? 'Add Dog' : 'Save Changes'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.deleteBtn, { borderColor: colors.error }]}
-        onPress={handleDelete}
-        accessibilityLabel={`Delete ${dog?.name}`}
-        accessibilityRole="button"
-        accessibilityHint="Permanently removes this dog from your profile"
-      >
-        <Text style={[styles.deleteBtnText, { color: colors.error }]}>Delete Dog</Text>
-      </TouchableOpacity>
+
+      {!isCreateMode && (
+        <TouchableOpacity
+          style={[styles.deleteBtn, { borderColor: colors.error }]}
+          onPress={handleDelete}
+          accessibilityLabel={`Delete ${dog?.name}`}
+          accessibilityRole="button"
+          accessibilityHint="Permanently removes this dog from your profile"
+        >
+          <Text style={[styles.deleteBtnText, { color: colors.error }]}>Delete Dog</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -234,6 +324,7 @@ const THUMB_SIZE = 80;
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: spacing.lg },
+  createTitle: { ...typography.h2, marginBottom: spacing.lg, textAlign: 'center' },
   input: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md, fontSize: 15 },
   label: { fontSize: 15, fontWeight: '600', marginBottom: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.lg },
@@ -247,7 +338,10 @@ const styles = StyleSheet.create({
   thumbImg: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: borderRadius.sm },
   primaryBadge: { position: 'absolute', bottom: 2, left: 2, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
   primaryBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
-
+  removePhotoBtn: { position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  removePhotoBtnText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  addPhotoTile: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: borderRadius.sm, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  addPhotoIcon: { fontSize: 24, fontWeight: '300', lineHeight: 28 },
   // Age
   ageRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.sm },
   agePicker: { flex: 1 },

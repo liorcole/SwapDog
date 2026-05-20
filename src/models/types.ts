@@ -117,10 +117,21 @@ export interface SwapPost {
   posterLocation?: GeoPoint;
 
   // Dog info (denormalised for feed performance)
+  // ── Single-dog fields (legacy / backward compat) ──
   dogId: string;
   dogName: string;
   dogBreed?: string;
   dogPhotoURL?: string;
+
+  // ── Multi-dog fields (new) — populated alongside single-dog fields ──
+  /** All selected dog IDs. dogId == dogIds[0] for backward compat. */
+  dogIds?: string[];
+  /** All selected dog names. dogName == dogNames[0] for backward compat. */
+  dogNames?: string[];
+  /** All selected dog breeds. */
+  dogBreeds?: string[];
+  /** All selected dog photo URLs. */
+  dogPhotoURLs?: string[];
 
   // Coverage
   startDate: Date;

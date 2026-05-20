@@ -54,6 +54,11 @@ const parsePost = (id: string, data: Record<string, unknown>): SwapPost => ({
   dogName: data.dogName as string,
   dogBreed: data.dogBreed as string | undefined,
   dogPhotoURL: data.dogPhotoURL as string | undefined,
+  // Multi-dog fields (optional, new)
+  dogIds: data.dogIds as string[] | undefined,
+  dogNames: data.dogNames as string[] | undefined,
+  dogBreeds: data.dogBreeds as string[] | undefined,
+  dogPhotoURLs: data.dogPhotoURLs as string[] | undefined,
   startDate: toDate(data.startDate as Parameters<typeof toDate>[0]),
   endDate: toDate(data.endDate as Parameters<typeof toDate>[0]),
   careDetails: data.careDetails as string,
@@ -269,9 +274,6 @@ export const useSwaps = () => {
    * Fetch "Accepted" posts for a user:
    * - Posts the user created that are now 'claimed'
    * - Posts where the user is the approved helper (claimedBy === userId)
-   *
-   * Note: Firestore doesn't support OR across different fields in a single query,
-   * so we run two separate queries and merge client-side.
    */
   const getAcceptedPosts = async (userId: string): Promise<SwapPost[]> => {
     const [posterSnap, helperSnap] = await Promise.all([

@@ -1,11 +1,15 @@
 /**
  * CreatePostScreen — lets the user post a "dog care needed" bulletin visible to
- * everyone in their area. Replaces the targeted CreateSwapScreen flow.
+ * everyone in their area.
+ *
+ * SUB-TASK 2: Multi-dog selection — show all dogs with toggle cards,
+ * populate dogIds/dogNames/dogBreeds/dogPhotoURLs arrays on the post.
+ * Backward compat: dogId = dogIds[0], dogName = dogNames[0], etc.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  Alert, Platform, Switch, KeyboardAvoidingView,
+  Alert, Platform, Switch, KeyboardAvoidingView, Image,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,11 +24,11 @@ import { Dog, CompensationType } from '../../models/types';
 import { calculatePoints } from '../../utils/calculatePoints';
 import { spacing, borderRadius, typography } from '../../config/theme';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import PhotoCarousel from '../../components/common/PhotoCarousel';
 import Chip from '../../components/common/Chip';
 import { formatDogAge } from '../../utils/formatDogAge';
 
 const MIN_CARE_DETAILS = 50;
+const RED = '#FF2D55';
 
 type Props = {
   navigation: NativeStackNavigationProp<RequestsStackParamList, 'Requests'>;
@@ -37,7 +41,8 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
   const { createPost } = useSwaps();
 
   const [myDogs, setMyDogs] = useState<Dog[]>([]);
-  const [selectedDogId, setSelectedDogId] = useState<string | null>(null);
+  // SUB-TASK 2: multi-select — set of selected dog IDs
+  const [selectedDogIds, setSelectedDogIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -68,11 +73,31 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
     if (!user) return;
     getDogsByOwner(user.uid).then((dogs) => {
       setMyDogs(dogs);
-      if (dogs.length > 0) setSelectedDogId(dogs[0].id);
+      // Pre-select first dog if only one
+      if (dogs.length === 1) {
+        setSelectedDogIds(new Set([dogs[0].id]));
+      }
     }).finally(() => setLoading(false));
   }, [user]);
 
-  const selectedDog = myDogs.find((d) => d.id === selectedDogId) ?? null;
+  // Selected dog objects (in stable order)
+  const selectedDogs = useMemo(
+    () => myDogs.filter((d) => selectedDogIds.has(d.id)),
+    [myDogs, selectedDogIds]
+  );
+
+  const toggleDog = (dogId: string) => {
+    setSelectedDogIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(dogId)) {
+        next.delete(dogId);
+      } else {
+        next.add(dogId);
+      }
+      return next;
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const dayCount = useMemo(() => {
     const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -84,7 +109,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
 
   const pointsCost = useMemo(() => calculatePoints(startDate, endDate), [startDate, endDate]);
 
-  // Compensation calculations
   const totalUnits = useMemo(() => {
     if (!offerPayment) return undefined;
     if (paymentRate === 'per_day') return dayCount;
@@ -116,9 +140,18 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
   const formatDate = (d: Date) =>
     d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
+  // Auto-generate title hint for display (informational)
+  const dogTitleHint = useMemo(() => {
+    if (selectedDogs.length === 0) return '';
+    if (selectedDogs.length === 1) return `Dog-sitting needed for ${selectedDogs[0].name}`;
+    const names = selectedDogs.map((d) => d.name);
+    const last = names.pop();
+    return `Dog-sitting needed for ${names.join(', ')} & ${last}`;
+  }, [selectedDogs]);
+
   const handleSubmit = async () => {
-    if (!selectedDogId || !selectedDog) {
-      Alert.alert('Required', 'Please select your dog');
+    if (selectedDogs.length === 0) {
+      Alert.alert('Required', 'Please select at least one dog');
       return;
     }
     if (endDate <= startDate) {
@@ -147,7 +180,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
 
     setSubmitting(true);
     try {
-      // Get current location
       let posterLocation: { latitude: number; longitude: number } | undefined;
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -156,20 +188,35 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
           posterLocation = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         }
       } catch {
-        // Location is optional — post can still be created
+        // Location is optional
       }
 
       const paymentAmountNum = offerPayment ? parseFloat(paymentAmount) : null;
+
+      // ── Build multi-dog arrays ──
+      const primaryDog = selectedDogs[0];
+      const dogIds = selectedDogs.map((d) => d.id);
+      const dogNames = selectedDogs.map((d) => d.name);
+      const dogBreeds = selectedDogs.map((d) => d.breed);
+      const dogPhotoURLs = selectedDogs
+        .map((d) => d.photoURLs?.[0])
+        .filter((url): url is string => Boolean(url));
 
       await createPost({
         posterId: user.uid,
         posterName: userProfile?.displayName ?? user.displayName ?? 'SwapDog User',
         posterPhotoURL: userProfile?.photoURL ?? user.photoURL ?? undefined,
         posterLocation,
-        dogId: selectedDogId,
-        dogName: selectedDog.name,
-        dogBreed: selectedDog.breed,
-        dogPhotoURL: selectedDog.photoURLs?.[0],
+        // Backward compat single-dog fields (primary dog)
+        dogId: primaryDog.id,
+        dogName: primaryDog.name,
+        dogBreed: primaryDog.breed,
+        dogPhotoURL: primaryDog.photoURLs?.[0],
+        // New multi-dog arrays
+        dogIds,
+        dogNames,
+        dogBreeds,
+        dogPhotoURLs: dogPhotoURLs.length > 0 ? dogPhotoURLs : undefined,
         startDate,
         endDate,
         careDetails: careDetails.trim(),
@@ -213,59 +260,122 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
           Your post will be visible to SwapDog members in your area.
         </Text>
 
-        {/* ── Section 1: Your Dog ── */}
+        {/* ── Section 1: Select Your Dog(s) ── */}
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>🐶 Your Dog</Text>
-          {myDogs.length > 1 && (
-            <View style={styles.dogSelector}>
-              {myDogs.map((dog) => (
-                <TouchableOpacity
-                  key={dog.id}
-                  style={[
-                    styles.dogSelectorTab,
-                    {
-                      backgroundColor: selectedDogId === dog.id ? colors.primary : colors.background,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  onPress={() => setSelectedDogId(dog.id)}
-                  accessibilityLabel={dog.name}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: selectedDogId === dog.id }}
-                >
-                  <Text style={[styles.dogSelectorTabText, { color: selectedDogId === dog.id ? '#fff' : colors.text }]}>
-                    {dog.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          {selectedDog ? (
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            🐶 {myDogs.length > 1 ? 'Select Your Dog(s)' : 'Your Dog'}
+          </Text>
+          {myDogs.length === 0 ? (
+            <Text style={[styles.noDogText, { color: colors.textSecondary }]}>
+              No dog added yet. Add one in Profile first.
+            </Text>
+          ) : (
             <>
-              {selectedDog.photoURLs.length > 0 && (
-                <View style={styles.carouselWrapper}>
-                  <PhotoCarousel photos={selectedDog.photoURLs} height={180} />
+              <Text style={[styles.dogSelectHint, { color: colors.textSecondary }]}>
+                {myDogs.length > 1
+                  ? 'Tap to select one or more dogs for this post.'
+                  : 'Your dog for this post:'}
+              </Text>
+              <View style={styles.dogGrid}>
+                {myDogs.map((dog) => {
+                  const isSelected = selectedDogIds.has(dog.id);
+                  const photoURL = dog.photoURLs?.[0];
+                  return (
+                    <TouchableOpacity
+                      key={dog.id}
+                      style={[
+                        styles.dogCard,
+                        {
+                          backgroundColor: colors.background,
+                          borderColor: isSelected ? RED : colors.border,
+                          borderWidth: isSelected ? 2.5 : 1,
+                        },
+                      ]}
+                      onPress={() => toggleDog(dog.id)}
+                      accessibilityLabel={`${dog.name}${isSelected ? ', selected' : ''}`}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: isSelected }}
+                    >
+                      {/* Dog photo or placeholder */}
+                      {photoURL ? (
+                        <Image source={{ uri: photoURL }} style={styles.dogCardPhoto} />
+                      ) : (
+                        <View style={[styles.dogCardPhotoPlaceholder, { backgroundColor: colors.primary + '22' }]}>
+                          <Text style={styles.dogCardPhotoEmoji}>🐕</Text>
+                        </View>
+                      )}
+                      {/* Dog name + breed */}
+                      <View style={styles.dogCardInfo}>
+                        <Text
+                          style={[styles.dogCardName, { color: colors.text }]}
+                          numberOfLines={1}
+                        >
+                          {dog.name}
+                        </Text>
+                        <Text
+                          style={[styles.dogCardBreed, { color: colors.textSecondary }]}
+                          numberOfLines={1}
+                        >
+                          {dog.breed}
+                        </Text>
+                        <Text style={[styles.dogCardAge, { color: colors.textSecondary }]}>
+                          {formatDogAge(dog.ageYears, dog.ageMonths)}
+                        </Text>
+                      </View>
+                      {/* Checkmark overlay when selected */}
+                      {isSelected && (
+                        <View style={styles.dogCardCheckmark}>
+                          <Text style={styles.dogCardCheckmarkText}>✓</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Selected dogs summary + auto-title hint */}
+              {selectedDogs.length > 0 && (
+                <View style={[styles.selectedSummary, { backgroundColor: colors.primary + '12', borderColor: colors.primary }]}>
+                  <Text style={[styles.selectedSummaryText, { color: colors.primary }]}>
+                    {selectedDogs.length === 1
+                      ? `✓ ${selectedDogs[0].name} selected`
+                      : `✓ ${selectedDogs.map((d) => d.name).join(', ')} selected`}
+                  </Text>
+                  {selectedDogs.length > 1 && dogTitleHint ? (
+                    <Text style={[styles.selectedSummaryHint, { color: colors.textSecondary }]}>
+                      "{dogTitleHint}"
+                    </Text>
+                  ) : null}
                 </View>
               )}
-              <View style={styles.dogInfo}>
-                <Text style={[styles.dogInfoName, { color: colors.text }]}>{selectedDog.name}</Text>
-                <Text style={[styles.dogInfoBreed, { color: colors.textSecondary }]}>{selectedDog.breed}</Text>
-                <View style={styles.dogInfoChips}>
-                  <Chip label={formatDogAge(selectedDog.ageYears, selectedDog.ageMonths)} />
-                  <Chip label={selectedDog.size.replace('_', ' ')} />
-                  <Chip label={selectedDog.sex} />
-                  <Chip label={`${selectedDog.energyLevel.replace('_', ' ')} energy`} />
-                  {selectedDog.vaccinated !== undefined && (
-                    <Chip label={selectedDog.vaccinated ? '✅ Vaccinated' : '❌ Not vaccinated'} selected={selectedDog.vaccinated} />
-                  )}
-                  {selectedDog.isSpayedNeutered !== undefined && (
-                    <Chip label={selectedDog.isSpayedNeutered ? '✅ Neutered' : '❌ Not neutered'} selected={!!selectedDog.isSpayedNeutered} />
-                  )}
+
+              {/* Show chips for selected dog(s) */}
+              {selectedDogs.length > 0 && (
+                <View style={styles.dogChipsSection}>
+                  {selectedDogs.map((dog) => (
+                    <View key={dog.id} style={styles.dogChipGroup}>
+                      {selectedDogs.length > 1 && (
+                        <Text style={[styles.dogChipGroupLabel, { color: colors.textSecondary }]}>
+                          {dog.name}:
+                        </Text>
+                      )}
+                      <View style={styles.dogChipsRow}>
+                        <Chip label={formatDogAge(dog.ageYears, dog.ageMonths)} />
+                        <Chip label={dog.size.replace('_', ' ')} />
+                        <Chip label={dog.sex} />
+                        <Chip label={`${dog.energyLevel.replace('_', ' ')} energy`} />
+                        {dog.vaccinated !== undefined && (
+                          <Chip label={dog.vaccinated ? '✅ Vaccinated' : '❌ Not vaccinated'} selected={dog.vaccinated} />
+                        )}
+                        {dog.isSpayedNeutered !== undefined && (
+                          <Chip label={dog.isSpayedNeutered ? '✅ Neutered' : '❌ Not neutered'} selected={!!dog.isSpayedNeutered} />
+                        )}
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              </View>
+              )}
             </>
-          ) : (
-            <Text style={[styles.noDogText, { color: colors.textSecondary }]}>No dog added yet. Add one in Profile first.</Text>
           )}
         </View>
 
@@ -397,7 +507,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
 
           {offerPayment && (
             <>
-              {/* Dollar amount */}
               <View style={styles.paymentInputRow}>
                 <Text style={[styles.dollarSign, { color: colors.text }]}>$</Text>
                 <TextInput
@@ -411,7 +520,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                 />
               </View>
 
-              {/* Rate selector */}
               <View style={styles.rateRow}>
                 {(['per_day', 'per_hour'] as const).map((rate) => (
                   <TouchableOpacity
@@ -438,7 +546,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                 ))}
               </View>
 
-              {/* Estimated hours input (only for per_hour) */}
               {paymentRate === 'per_hour' && (
                 <View style={styles.hoursRow}>
                   <Text style={[styles.hoursLabel, { color: colors.text }]}>Estimated hours:</Text>
@@ -454,7 +561,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                 </View>
               )}
 
-              {/* Live calculation preview */}
               {paymentBreakdownLabel ? (
                 <View style={[styles.breakdownBadge, { backgroundColor: '#00B89418', borderColor: '#00B894' }]}>
                   <Text style={[styles.breakdownText, { color: '#00B894' }]}>{paymentBreakdownLabel}</Text>
@@ -465,7 +571,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                 </Text>
               )}
 
-              {/* Off-app payment note */}
               <View style={[styles.offAppNote, { backgroundColor: '#FFF9E6', borderColor: '#F0C040' }]}>
                 <Text style={[styles.offAppNoteText, { color: '#7A6000' }]}>
                   💰 All payments are arranged and made outside of SwapDog. We do not process payments.
@@ -506,15 +611,53 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: spacing.sm },
-  // Dog selector
-  dogSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },
-  dogSelectorTab: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: borderRadius.full, borderWidth: 1 },
-  dogSelectorTabText: { fontSize: 14, fontWeight: '600' },
-  carouselWrapper: { borderRadius: borderRadius.md, overflow: 'hidden', marginBottom: spacing.sm },
-  dogInfo: { paddingTop: spacing.xs },
-  dogInfoName: { fontSize: 18, fontWeight: '700', marginBottom: 2 },
-  dogInfoBreed: { fontSize: 14, marginBottom: spacing.sm },
-  dogInfoChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  // Dog multi-select grid
+  dogSelectHint: { fontSize: 13, marginBottom: spacing.sm, fontStyle: 'italic' },
+  dogGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  dogCard: {
+    width: '47%',
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  dogCardPhoto: { width: '100%', height: 110, resizeMode: 'cover' },
+  dogCardPhotoPlaceholder: {
+    width: '100%',
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dogCardPhotoEmoji: { fontSize: 40 },
+  dogCardInfo: { padding: spacing.xs + 2 },
+  dogCardName: { fontSize: 15, fontWeight: '700', marginBottom: 1 },
+  dogCardBreed: { fontSize: 12, marginBottom: 1 },
+  dogCardAge: { fontSize: 11 },
+  dogCardCheckmark: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: RED,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dogCardCheckmarkText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  // Selected summary banner
+  selectedSummary: {
+    marginTop: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1.5,
+    padding: spacing.sm,
+  },
+  selectedSummaryText: { fontSize: 14, fontWeight: '700' },
+  selectedSummaryHint: { fontSize: 12, marginTop: 3, fontStyle: 'italic' },
+  // Dog chips (per selected dog)
+  dogChipsSection: { marginTop: spacing.sm, gap: spacing.sm },
+  dogChipGroup: {},
+  dogChipGroupLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  dogChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   noDogText: { fontSize: 14, fontStyle: 'italic' },
   // Dates
   dateButton: { borderWidth: 1.5, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.sm },

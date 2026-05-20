@@ -65,7 +65,6 @@ export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
   ConductStandards: undefined;
-  VettingCall: undefined;
   WaitingApproval: undefined;
   ApprovalFlow: NavigatorScreenParams<ApprovalStackParamList>;
   Main: NavigatorScreenParams<MainTabParamList>;

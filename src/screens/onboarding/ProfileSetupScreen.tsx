@@ -100,12 +100,12 @@ const ProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
       />
       <TextInput
         style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-        placeholder="Bio (optional)"
+        placeholder="Share your experience with dogs, your lifestyle, and what makes you a great pet sitter..."
         placeholderTextColor={colors.textSecondary}
         value={bio}
         onChangeText={setBio}
         multiline
-        numberOfLines={3}
+        numberOfLines={4}
         accessibilityLabel="Bio, optional"
       />
 
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   photoPlaceholderText: { fontSize: 32 },
   photoHint: { fontSize: 14, fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md, fontSize: 15 },
-  textArea: { height: 80, textAlignVertical: 'top' },
+  textArea: { height: 100, textAlignVertical: 'top' },
   btn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.sm },
   btnText: { color: '#fff', ...typography.button },
 });

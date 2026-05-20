@@ -99,7 +99,7 @@ const ConductStandardsScreen: React.FC<ConductStandardsScreenProps> = ({
     try {
       await updateDoc(doc(db, 'users', user.uid), {
         conductAgreedAt: serverTimestamp(),
-        accountStatus: 'pending_vetting',
+        accountStatus: 'pending_approval',
         updatedAt: serverTimestamp(),
       });
       await refreshUserProfile();

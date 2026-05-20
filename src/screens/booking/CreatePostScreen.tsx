@@ -191,8 +191,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
         // Location is optional
       }
 
-      const paymentAmountNum = offerPayment ? parseFloat(paymentAmount) : null;
-
       // ── Build multi-dog arrays ──
       const primaryDog = selectedDogs[0];
       const dogIds = selectedDogs.map((d) => d.id);
@@ -201,6 +199,17 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
       const dogPhotoURLs = selectedDogs
         .map((d) => d.photoURLs?.[0])
         .filter((url): url is string => Boolean(url));
+
+      // Belt-and-suspenders: only include payment fields when payment is on
+      // so we never pass undefined to Firestore (Firestore rejects undefined values)
+      const paymentFields = offerPayment
+        ? {
+            paymentAmount: parseFloat(paymentAmount),
+            paymentRate,
+            totalPayment: totalPayment ?? undefined,
+            totalUnits: totalUnits ?? undefined,
+          }
+        : {};
 
       await createPost({
         posterId: user.uid,
@@ -222,10 +231,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
         careDetails: careDetails.trim(),
         compensationType,
         pointsCost,
-        paymentAmount: paymentAmountNum ?? undefined,
-        paymentRate: offerPayment ? paymentRate : undefined,
-        totalPayment: offerPayment ? totalPayment : undefined,
-        totalUnits: offerPayment ? totalUnits : undefined,
+        ...paymentFields,
         status: 'open',
       });
 

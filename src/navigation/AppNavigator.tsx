@@ -9,7 +9,6 @@ import ApprovalNavigator from './ApprovalNavigator';
 import MainTabNavigator from './MainTabNavigator';
 import ReferralCodeScreen, { REFERRAL_STORAGE_KEY } from '../screens/auth/ReferralCodeScreen';
 import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen';
-import VettingCallScreen from '../screens/onboarding/VettingCallScreen';
 import WaitingApprovalScreen from '../screens/onboarding/WaitingApprovalScreen';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { requestNotificationPermissions } from '../services/ReminderService';
@@ -83,11 +82,8 @@ const AppNavigator: React.FC = () => {
         <Stack.Screen name="ConductStandards">
           {() => <ConductStandardsScreen />}
         </Stack.Screen>
-      ) : accountStatus === 'pending_vetting' ? (
-        // ── Conduct agreed, vetting call not yet scheduled ─────────────────
-        <Stack.Screen name="VettingCall" component={VettingCallScreen} />
-      ) : accountStatus === 'pending_approval' ? (
-        // ── Vetting scheduled, awaiting admin review ───────────────────────
+      ) : (accountStatus === 'pending_vetting' || accountStatus === 'pending_approval') ? (
+        // ── Conduct agreed, awaiting admin review ─────────────────────────
         <Stack.Screen name="WaitingApproval" component={WaitingApprovalScreen} />
       ) : accountStatus === 'active' && !contractSigned ? (
         // ── Approved! Show celebration → contract signing ──────────────────

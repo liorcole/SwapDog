@@ -77,12 +77,12 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
       />
       <TextInput
         style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-        placeholder="Bio"
+        placeholder="Share your experience with dogs, your lifestyle, and what makes you a great pet sitter..."
         placeholderTextColor={colors.textSecondary}
         value={bio}
         onChangeText={setBio}
         multiline
-        numberOfLines={3}
+        numberOfLines={4}
         accessibilityLabel="Bio"
       />
       <TouchableOpacity
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   photo: { width: 90, height: 90, borderRadius: 45, marginBottom: spacing.xs },
   changePhoto: { fontSize: 14, fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md, fontSize: 15 },
-  textArea: { height: 80, textAlignVertical: 'top' },
+  textArea: { height: 100, textAlignVertical: 'top' },
   btn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
   btnText: { color: '#fff', ...typography.button },
 });

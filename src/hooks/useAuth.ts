@@ -16,7 +16,7 @@ export const useAuth = () => {
    * - Looks up the code's createdBy userId to set referredBy
    * - Redeems the referral code (increments usedCount)
    * - Generates a unique referralCode for the new user
-   * - Sets accountStatus = 'pending_vetting' (they've passed the gate)
+   * - Sets accountStatus = 'pending_approval' (they've passed the gate)
    * - Sets points = 0
    */
   const signUp = async (email: string, password: string): Promise<void> => {
@@ -62,7 +62,7 @@ export const useAuth = () => {
       referralCodeUsed: usedCode ?? null,
       referralCode: newReferralCode,
       points: 0,
-      accountStatus: 'pending_vetting',
+      accountStatus: 'pending_approval',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });

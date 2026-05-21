@@ -27,8 +27,8 @@ const SplashScreen: React.FC<Props> = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.primary }]} accessibilityRole="none">
       <Animated.View style={{ opacity, transform: [{ scale }] }}>
         <Text style={styles.emoji} accessibilityElementsHidden>🐾</Text>
-        <Text style={styles.title} accessibilityLabel="SwapDog">SwapDog</Text>
-        <Text style={styles.subtitle}>Peer-to-peer dog sitting exchange</Text>
+        <Text style={styles.title} accessibilityLabel="WatchDog">WatchDog</Text>
+        <Text style={styles.subtitle}>Peer-to-peer pet sitting exchange</Text>
       </Animated.View>
     </View>
   );

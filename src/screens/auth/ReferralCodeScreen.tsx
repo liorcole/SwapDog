@@ -94,7 +94,7 @@ const ReferralCodeScreen: React.FC<Props> = ({ navigation }) => {
             Welcome to SwapDog
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            SwapDog is an invite-only community.{'\n'}Enter your referral code to get started.
+            WatchDog is an invite-only community.{'\n'}Enter your referral code to get started.
           </Text>
         </View>
 
@@ -131,7 +131,7 @@ const ReferralCodeScreen: React.FC<Props> = ({ navigation }) => {
             returnKeyType="done"
             onSubmitEditing={handleContinue}
             accessibilityLabel="Referral code input"
-            accessibilityHint="Enter the referral code you received from a SwapDog member"
+            accessibilityHint="Enter the referral code you received from a WatchDog member"
             editable={!loading}
           />
 

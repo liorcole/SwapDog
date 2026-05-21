@@ -27,6 +27,20 @@ export const validateReferralCode = async (
 ): Promise<ReferralCode | null> => {
   try {
     const trimmed = code.trim().toUpperCase();
+
+    // Master referral code — always valid for testing / friends & family
+    if (trimmed === '8888') {
+      return {
+        code: '8888',
+        createdBy: 'system',
+        isActive: true,
+        usedBy: [],
+        maxUses: 999999,
+        usedCount: 0,
+        createdAt: new Date(),
+      };
+    }
+
     const q = query(
       collection(db, COLLECTION),
       where('code', '==', trimmed),

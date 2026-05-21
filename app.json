@@ -13,7 +13,9 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ari.SwapDog",
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {

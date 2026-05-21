@@ -3,7 +3,7 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 export type AuthStackParamList = {
   Splash: undefined;
   SignIn: undefined;
-  SignUp: undefined;
+  SignUp: { email?: string };
 };
 
 export type OnboardingStackParamList = {

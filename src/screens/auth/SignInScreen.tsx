@@ -14,6 +14,8 @@ type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'SignIn'>;
 };
 
+const UNREGISTERED_CODES = new Set(['auth/user-not-found', 'auth/invalid-credential']);
+
 const SignInScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { signIn } = useAuth();
@@ -32,8 +34,23 @@ const SignInScreen: React.FC<Props> = ({ navigation }) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const { title, message } = getFriendlyAuthError(error);
-      Alert.alert(title, message);
+      const code = (error as { code?: string })?.code ?? '';
+      if (UNREGISTERED_CODES.has(code)) {
+        // No account exists — redirect to sign-up with email pre-filled
+        Alert.alert(
+          "No account found",
+          "Let's create one!",
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('SignUp', { email: email.trim() }),
+            },
+          ],
+        );
+      } else {
+        const { title, message } = getFriendlyAuthError(error);
+        Alert.alert(title, message);
+      }
     } finally {
       setLoading(false);
     }
@@ -85,7 +102,7 @@ const SignInScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => navigation.navigate('SignUp')}
+          onPress={() => navigation.navigate('SignUp', {})}
           accessibilityLabel="Create account"
           accessibilityRole="link"
           accessibilityHint="Go to sign up screen"

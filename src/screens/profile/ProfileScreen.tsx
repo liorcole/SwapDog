@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert,
   ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { uploadPhotoToStorage } from '../../utils/uploadHelper';
 import * as ImagePicker from 'expo-image-picker';
@@ -44,6 +45,13 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     if (!user) return;
     getDogsByOwner(user.uid).then(setDogs);
   };
+
+  // Re-fetch dogs every time the screen comes into focus (e.g. after adding a dog)
+  useFocusEffect(
+    useCallback(() => {
+      refreshDogs();
+    }, [user])
+  );
 
   /**
    * Delete a photo from Firebase Storage via REST API DELETE request.

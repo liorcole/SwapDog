@@ -353,6 +353,16 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={[styles.sectionTitle, { color: colors.text }]}>My Dogs</Text>
         {dogs.map((dog) => (
           <View key={dog.id} style={[styles.dogCard, { backgroundColor: colors.surface, ...shadow.sm }]}>
+            {/* X button to delete dog */}
+            <TouchableOpacity
+              onPress={() => handleDeleteDog(dog.id, dog.name)}
+              style={styles.dogCardDeleteX}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel={`Remove ${dog.name}`}
+              accessibilityRole="button"
+            >
+              <Text style={styles.dogCardDeleteXText}>✕</Text>
+            </TouchableOpacity>
             {/* Info row — tap to edit */}
             <TouchableOpacity
               onPress={() => navigation.navigate('EditDog', { dogId: dog.id })}
@@ -431,15 +441,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                 </TouchableOpacity>
             </View>
 
-            {/* Delete this dog */}
-            <TouchableOpacity
-              onPress={() => handleDeleteDog(dog.id, dog.name)}
-              style={styles.deleteDogBtn}
-              accessibilityLabel={`Delete ${dog.name}`}
-              accessibilityRole="button"
-            >
-              <Text style={styles.deleteDogBtnText}>Remove {dog.name}</Text>
-            </TouchableOpacity>
+
           </View>
         ))}
 
@@ -522,7 +524,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         onPress={handleSignOut}
         accessibilityLabel="Sign out"
         accessibilityRole="button"
-        accessibilityHint="Signs you out of your SwapDog account"
+        accessibilityHint="Signs you out of your WatchDog account"
       >
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
@@ -553,7 +555,9 @@ const styles = StyleSheet.create({
   editBtnText: { fontWeight: '600', fontSize: 15, color: '#FFFFFF' },
   section: { padding: spacing.lg },
   sectionTitle: { ...typography.h3, marginBottom: spacing.md },
-  dogCard: { padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm },
+  dogCard: { padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm, position: 'relative' as const },
+  dogCardDeleteX: { position: 'absolute' as const, top: 8, right: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,59,48,0.15)', alignItems: 'center' as const, justifyContent: 'center' as const, zIndex: 2 },
+  dogCardDeleteXText: { color: '#FF3B30', fontSize: 14, fontWeight: '600' as const },
   dogName: { fontSize: 16, fontWeight: '700' },
   dogBreed: { fontSize: 13, marginTop: 2 },
   prefRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm },

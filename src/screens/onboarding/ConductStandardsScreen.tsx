@@ -135,7 +135,7 @@ const ConductStandardsScreen: React.FC<ConductStandardsScreenProps> = ({
         {/* Intro */}
         <View style={[styles.introCard, { backgroundColor: colors.surface, ...shadow.sm }]}>
           <Text style={[styles.introText, { color: colors.textSecondary }]}>
-            SwapDog is built on trust, love for our pets, and mutual respect. Every member of our
+            WatchDog is built on trust, love for our pets, and mutual respect. Every member of our
             community commits to these standards to ensure the safety and happiness of every pet in
             our care.
           </Text>
@@ -177,7 +177,7 @@ const ConductStandardsScreen: React.FC<ConductStandardsScreenProps> = ({
               }}
               accessibilityRole="checkbox"
               accessibilityState={{ checked }}
-              accessibilityLabel="I have read and agree to the SwapDog Community Standards"
+              accessibilityLabel="I have read and agree to the WatchDog Community Standards"
             >
               <View
                 style={[
@@ -196,7 +196,7 @@ const ConductStandardsScreen: React.FC<ConductStandardsScreenProps> = ({
                   { color: reachedBottom ? colors.text : colors.textSecondary },
                 ]}
               >
-                I have read and agree to the SwapDog Community Standards
+                I have read and agree to the WatchDog Community Standards
               </Text>
             </TouchableOpacity>
 

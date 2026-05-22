@@ -130,6 +130,23 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const { getMyPosts, cancelPost, getAcceptedPosts, saveSitterReminderIds } = useSwaps();
 
   const [tab, setTab] = useState<TabType>('mine');
+
+  // Swipe between tabs
+  const tabPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dx) > 30 && Math.abs(gs.dy) < Math.abs(gs.dx),
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dx < -50) {
+          setTab('commitments');
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        } else if (gs.dx > 50) {
+          setTab('mine');
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+      },
+    }),
+  ).current;
   const [myPosts, setMyPosts] = useState<SwapPost[]>([]);
   const [acceptedPosts, setAcceptedPosts] = useState<SwapPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -659,6 +676,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         ))}
       </View>
 
+      <View style={{ flex: 1 }} {...tabPanResponder.panHandlers}>
       {tab === 'mine' ? (
         <FlatList
             data={myPosts}
@@ -695,6 +713,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
       ) : (
         renderCommitmentsTab()
       )}
+      </View>
     </View>
   );
 };

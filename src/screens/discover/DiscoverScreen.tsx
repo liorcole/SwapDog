@@ -428,11 +428,11 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(({ item }) => {
         { backgroundColor: 'transparent' },
       ]}
     >
-      <Text style={[styles.sectionHeaderText, { color: item.isPosts ? RED : colors.text }]}>
+      <Text style={[styles.sectionHeaderText, { color: '#FFFFFF', fontSize: item.isPosts ? 20 : 16, fontWeight: '800' as const }]}>
         {item.title}
       </Text>
       {item.count > 0 && (
-        <View style={[styles.sectionBadge, { backgroundColor: item.isPosts ? RED : colors.textSecondary }]}>
+        <View style={[styles.sectionBadge, { backgroundColor: colors.textSecondary }]}>
           <Text style={styles.sectionBadgeText}>{item.count}</Text>
         </View>
       )}
@@ -826,6 +826,21 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
             title={location.isOverride ? (location.label ?? 'Custom Location') : 'Your Location'}
             pinColor={RED}
           />
+          {/* Other user dots — no info, just location markers */}
+          {nearbyUsers.map((nu) => (
+            nu.user.location ? (
+              <Marker
+                key={nu.user.id}
+                coordinate={{
+                  latitude: nu.user.location.latitude,
+                  longitude: nu.user.location.longitude,
+                }}
+                anchor={{ x: 0.5, y: 0.5 }}
+              >
+                <View style={styles.userDot} />
+              </Marker>
+            ) : null
+          ))}
         </MapView>
 
         <View style={styles.circleOverlayContainer} pointerEvents="none">
@@ -938,6 +953,7 @@ const styles = StyleSheet.create({
   sectionEmptyText: { fontSize: 13, fontStyle: 'italic' },
 
   sectionDivider: { height: 1, marginVertical: spacing.sm },
+  userDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#FF2D55', opacity: 0.7 },
 
   // Post card — red left accent border
   postCard: { flexDirection: 'row', borderRadius: borderRadius.lg, marginBottom: spacing.sm, overflow: 'hidden' },

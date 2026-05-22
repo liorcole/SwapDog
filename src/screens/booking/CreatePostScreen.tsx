@@ -440,7 +440,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                         <Chip label={dog.sex} />
                         <Chip label={`${dog.energyLevel.replace('_', ' ')} energy`} />
                         {dog.vaccinated !== undefined && (
-                          <Chip label={dog.vaccinated ? '✅ Vaccinated' : '❌ Not vaccinated'} selected={dog.vaccinated} />
+                          <Chip label={dog.vaccinated ? 'Vaccinated' : 'Not vaccinated'} />
                         )}
                         {dog.isSpayedNeutered !== undefined && (
                           <Chip label={dog.isSpayedNeutered ? '✅ Neutered' : '❌ Not neutered'} selected={!!dog.isSpayedNeutered} />
@@ -748,9 +748,10 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                   <Text style={[styles.pointsInputLabel, { color: colors.text }]}>
                     How many points is this job worth?
                   </Text>
+                  <View style={{ height: 12 }} />
                   <View style={styles.pointsInputRow}>
                     <TextInput
-                      style={[styles.pointsInput, { borderColor: colors.primary, backgroundColor: colors.background, color: colors.text }]}
+                      style={[styles.pointsInput, { borderColor: '#FFFFFF', backgroundColor: colors.background, color: colors.text }]}
                       placeholder="e.g. 5"
                       placeholderTextColor={colors.textSecondary}
                       value={pointsOffered}
@@ -760,6 +761,22 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                     />
                     <Text style={[styles.pointsUnit, { color: colors.textSecondary }]}>pts</Text>
                   </View>
+
+                  {/* Insufficient points warning */}
+                  {(() => {
+                    const pts = parseInt(pointsOffered, 10);
+                    const balance = userProfile?.points ?? 0;
+                    if (pts > 0 && pts > balance) {
+                      return (
+                        <View style={styles.insufficientWarning}>
+                          <Text style={styles.insufficientWarningText}>
+                            ⚠️ You only have {balance.toFixed(1)} points — need {pts}
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })()}
 
                 </>
               )}
@@ -913,6 +930,8 @@ const styles = StyleSheet.create({
   pointsBadgeText: { fontSize: 15, fontWeight: '700' },
 
   // Payment input
+  insufficientWarning: { backgroundColor: '#FF2D5520', borderRadius: 8, padding: 10, marginTop: 8, marginBottom: 4 },
+  insufficientWarningText: { color: '#FF2D55', fontSize: 13, fontWeight: '600' },
   paymentInputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.xs },
   dollarSign: { fontSize: 20, fontWeight: '700' },
   paymentInput: { flex: 1, borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: 18, fontWeight: '600' },

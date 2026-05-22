@@ -91,7 +91,7 @@ const ReferralCodeScreen: React.FC<Props> = ({ navigation }) => {
             style={[styles.title, { color: colors.text }]}
             accessibilityRole="header"
           >
-            Welcome to SwapDog
+            Welcome to WatchDog
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             WatchDog is an invite-only community.{'\n'}Enter your referral code to get started.
@@ -161,7 +161,7 @@ const ReferralCodeScreen: React.FC<Props> = ({ navigation }) => {
         </Animated.View>
 
         <Text style={[styles.footer, { color: colors.textSecondary }]}>
-          Don't have a code? Ask an existing SwapDog member to invite you.
+          Don't have a code? Ask an existing WatchDog member to invite you.
         </Text>
       </View>
     </KeyboardAvoidingView>

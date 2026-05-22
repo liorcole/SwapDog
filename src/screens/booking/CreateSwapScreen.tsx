@@ -326,7 +326,7 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
                 <Chip label={selectedDog.sex} />
                 <Chip label={`${selectedDog.energyLevel.replace('_', ' ')} energy`} />
                 {selectedDog.vaccinated !== undefined && (
-                  <Chip label={selectedDog.vaccinated ? '✅ Vaccinated' : '❌ Not vaccinated'} selected={selectedDog.vaccinated} />
+                  <Chip label={selectedDog.vaccinated ? 'Vaccinated' : 'Not vaccinated'} />
                 )}
                 {selectedDog.isSpayedNeutered !== undefined && (
                   <Chip label={selectedDog.isSpayedNeutered ? '✅ Neutered' : '❌ Not neutered'} selected={!!selectedDog.isSpayedNeutered} />

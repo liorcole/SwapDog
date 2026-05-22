@@ -68,7 +68,7 @@ const CONTRACT_SECTIONS = [
   {
     number: '6.',
     title: 'REFERRAL ACCOUNTABILITY',
-    body: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Members who refer others are partially accountable for their referrals\' conduct within the community. Referrers agree to support and guide those they bring into the SwapDog family.',
+    body: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Members who refer others are partially accountable for their referrals\' conduct within the community. Referrers agree to support and guide those they bring into the WatchDog family.',
   },
 ];
 
@@ -143,7 +143,7 @@ const ContractScreen: React.FC<ContractScreenProps> = ({
         {/* ── Highlighted note ─────────────────────────────────────────── */}
         <View style={[styles.noteCard, { backgroundColor: colors.primary + '1A', borderColor: colors.primary }]}>
           <Text style={[styles.noteText, { color: colors.text }]}>
-            This agreement outlines the responsibilities and expectations for all SwapDog community
+            This agreement outlines the responsibilities and expectations for all WatchDog community
             members. By signing below, you acknowledge that you have read, understood, and agree to
             uphold these standards. This is a binding commitment to our community.
           </Text>

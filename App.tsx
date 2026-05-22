@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
+import { SuperwallProvider } from 'expo-superwall';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -13,21 +14,18 @@ import {
   addNotificationResponseListener,
 } from './src/services/NotificationService';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
-import { configureSuperwall } from './src/services/superwall';
+
+const SUPERWALL_IOS_KEY = 'sk_1bc10d28b1d03f80267cc985803abce2761e75d8d0f67209ea772922544c2685';
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
 
   useEffect(() => {
-    configureSuperwall();
-
     const receivedSub = addNotificationReceivedListener((notification) => {
-      // Guard the full chain — content may be undefined for silent/data-only pushes
       console.log('Notification received:', notification?.request?.content?.title);
     });
 
     const responseSub = addNotificationResponseListener((response) => {
-      // Guard every level — content can be undefined for certain push types on Android
       const data = response?.notification?.request?.content?.data as
         | Record<string, string>
         | undefined;
@@ -53,15 +51,17 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <NavigationContainer ref={navigationRef} linking={linking}>
-              <AppNavigator />
-            </NavigationContainer>
-          </AuthProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
+      <SuperwallProvider apiKeys={{ ios: SUPERWALL_IOS_KEY }}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <NavigationContainer ref={navigationRef} linking={linking}>
+                <AppNavigator />
+              </NavigationContainer>
+            </AuthProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </SuperwallProvider>
     </ErrorBoundary>
   );
 }

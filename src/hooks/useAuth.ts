@@ -5,7 +5,6 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { identifySuperwallUser, resetSuperwall } from '../services/superwall';
 import { auth, db } from '../config/firebase';
 import { generateReferralCode, redeemReferralCode } from './useReferrals';
 const REFERRAL_STORAGE_KEY = '@swapdog_referral_code';

@@ -24,7 +24,7 @@ const PaywallScreen: React.FC = () => {
     setLoading(true);
     try {
       // Present the Superwall paywall (configured in dashboard)
-      const subscribed = await presentPaywall('onboarding_paywall');
+      const subscribed = await presentPaywall('campaign_trigger');
 
       if (subscribed && user) {
         // Update Firestore with subscription status

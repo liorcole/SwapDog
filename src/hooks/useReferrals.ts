@@ -29,7 +29,7 @@ export const validateReferralCode = async (
     const trimmed = code.trim().toUpperCase();
 
     // Master referral code — always valid for testing / friends & family
-    if (trimmed === '8888') {
+    if (trimmed === '8888' || trimmed === '1717') {
       return {
         code: '8888',
         createdBy: 'system',

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator, Linking } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -69,6 +69,23 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     void load();
   }, [userId, me?.id]);
 
+  const handleMessageUser = async () => {
+    if (!me?.id || !user) return;
+    setSending(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const convId = await getOrCreateConversation(me.id, user.id);
+      navigation.getParent()?.navigate('MessagesTab', {
+        screen: 'Chat',
+        params: { conversationId: convId, otherUserId: user.id },
+      } as never);
+    } catch (err: unknown) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to open conversation');
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleSendPost = async () => {
     if (!me?.id || !user || !myOpenPost) return;
     setSending(true);
@@ -116,6 +133,17 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         )}
         {user.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{user.bio}</Text>}
+        {user.instagramHandle ? (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(`https://instagram.com/${user.instagramHandle}`)}
+            style={styles.igRow}
+          >
+            <Text style={[styles.igHandle, { color: colors.primary }]}>@{user.instagramHandle}</Text>
+          </TouchableOpacity>
+        ) : null}
+        <Text style={[styles.pointsBadge, { color: colors.textSecondary }]}>
+          🐾 {user.points ?? 0} points
+        </Text>
       </View>
 
       <View style={styles.section}>
@@ -128,36 +156,38 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             accessibilityLabel={`${dog.name}, ${dog.breed}. Tap to view dog profile.`}
             accessibilityRole="button"
           >
-            <Text style={[styles.dogName, { color: colors.text }]}>{dog.name}</Text>
-            <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} • {formatDogAge(dog.ageYears, dog.ageMonths)} • {dog.size}</Text>
+            <View style={styles.dogCardRow}>
+              {dog.photoURLs && dog.photoURLs.length > 0 ? (
+                <Image source={{ uri: dog.photoURLs[0] }} style={styles.dogPhoto} />
+              ) : (
+                <View style={[styles.dogPhotoPlaceholder, { backgroundColor: colors.primary + '22' }]}>
+                  <Text style={{ fontSize: 20 }}>🐕</Text>
+                </View>
+              )}
+              <View style={styles.dogCardInfo}>
+                <Text style={[styles.dogName, { color: colors.text }]}>{dog.name}</Text>
+                <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} • {formatDogAge(dog.ageYears, dog.ageMonths)} • {dog.size}</Text>
+              </View>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
 
       {showSendButton && (
         <View style={styles.section}>
-          {myOpenPost ? (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.primary, opacity: sending ? 0.7 : 1 }]}
-              onPress={() => { void handleSendPost(); }}
-              disabled={sending}
-              accessibilityLabel={`Send your post to ${user.displayName}`}
-              accessibilityRole="button"
-              accessibilityHint="Sends your active post and opens a chat"
-            >
-              {sending ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.actionBtnText}>📩 Send My Post</Text>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <View style={[styles.disabledBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.disabledBannerText, { color: colors.textSecondary }]}>
-                Post a request first to connect with {user.displayName}
-              </Text>
-            </View>
-          )}
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: colors.primary, opacity: sending ? 0.7 : 1 }]}
+            onPress={() => { void handleMessageUser(); }}
+            disabled={sending}
+            accessibilityLabel={`Message ${user.displayName}`}
+            accessibilityRole="button"
+          >
+            {sending ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.actionBtnText}>Message {user.displayName}</Text>
+            )}
+          </TouchableOpacity>
         </View>
       )}
     </ScrollView>
@@ -187,6 +217,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   disabledBannerText: { fontSize: 14, textAlign: 'center' },
+  igRow: { marginTop: 8 },
+  igHandle: { fontSize: 14, fontWeight: '600' },
+  pointsBadge: { fontSize: 14, marginTop: 6, fontWeight: '500' },
+  dogCardRow: { flexDirection: 'row', alignItems: 'center' },
+  dogPhoto: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
+  dogPhotoPlaceholder: { width: 50, height: 50, borderRadius: 25, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
+  dogCardInfo: { flex: 1 },
 });
 
 export default UserDetailScreen;

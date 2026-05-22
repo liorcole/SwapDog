@@ -36,6 +36,7 @@ import { RequestsStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useSwaps } from '../../hooks/useSwaps';
+import { useUsers } from '../../hooks/useUsers';
 import { useMessaging } from '../../hooks/useMessaging';
 import { SwapPost } from '../../models/types';
 import { spacing, borderRadius, shadow, typography } from '../../config/theme';
@@ -381,7 +382,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       await sendMessage(convId, user.uid, introText);
 
       if (post.compensationType === 'payment' || post.compensationType === 'either') {
-        await sendMessage(convId, user.uid, '💰 Reminder: All payments are arranged and made outside of SwapDog.');
+        await sendMessage(convId, user.uid, '💰 Reminder: All payments are arranged and made outside of WatchDog.');
       }
 
       await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto }, counterPoints);
@@ -642,12 +643,9 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {/* ── Care Type Banner ── */}
         {post.careType && (
-          <View style={[styles.careTypeBanner, { backgroundColor: RED + '12', borderColor: RED }]}>
-            <Text style={styles.careTypeBannerIcon}>{getCareTypeIcon(post.careType)}</Text>
-            <View>
-              <Text style={[styles.careTypeBannerLabel, { color: RED }]}>{getCareTypeLabel(post.careType)}</Text>
-              <Text style={[styles.careTypeSchedule, { color: colors.text }]}>{getScheduleInfo(post)}</Text>
-            </View>
+          <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{getCareTypeIcon(post.careType)} {getCareTypeLabel(post.careType)}</Text>
+            <Text style={[styles.careDetails, { color: colors.text }]}>{getScheduleInfo(post)}</Text>
           </View>
         )}
 
@@ -716,7 +714,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           {(post.compensationType === 'payment' || post.compensationType === 'either') && (
             <View style={[styles.offAppNote, { backgroundColor: '#FFF9E6', borderColor: '#F0C040' }]}>
               <Text style={[styles.offAppNoteText, { color: '#7A6000' }]}>
-                💰 All payments are arranged and made outside of SwapDog. We do not process payments.
+                💰 All payments are arranged and made outside of WatchDog. We do not process payments.
               </Text>
             </View>
           )}
@@ -751,9 +749,9 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               return (
                 <View key={r.userId} style={styles.helperRow}>
                   <TouchableOpacity
-                    onPress={() => handleMessageResponder(r.userId)}
+                    onPress={() => navigation.navigate('UserDetail', { userId: r.userId })}
                     accessibilityRole="button"
-                    accessibilityLabel={`Message ${r.userName}`}
+                    accessibilityLabel={`View ${r.userName}'s profile`}
                     style={styles.helperAvatarTouchable}
                   >
                     {r.userPhotoURL ? (
@@ -765,7 +763,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                     )}
                   </TouchableOpacity>
 
-                  <View style={styles.helperInfo}>
+                  <TouchableOpacity
+                    style={styles.helperInfo}
+                    onPress={() => navigation.navigate('UserDetail', { userId: r.userId })}
+                    accessibilityLabel={`View ${r.userName}'s profile`}
+                  >
                     <Text style={styles.helperName}>{r.userName}</Text>
 
                     {isApproved ? (
@@ -800,18 +802,9 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                         ✓ Accepted {offeredPoints} pts
                       </Text>
                     )}
-                  </View>
+                  </TouchableOpacity>
 
                   <View style={styles.helperActions}>
-                    <TouchableOpacity
-                      onPress={() => handleMessageResponder(r.userId)}
-                      style={styles.helperMsgBtn}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Message ${r.userName}`}
-                    >
-                      <Text style={[styles.helperTap, { color: RED }]}>Message →</Text>
-                    </TouchableOpacity>
-
                     {post.status === 'open' && !isApproved && !hasCounter && (
                       <TouchableOpacity
                         style={[styles.approveBtn, isApproving && styles.approveBtnDisabled]}

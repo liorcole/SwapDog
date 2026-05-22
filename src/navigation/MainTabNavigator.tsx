@@ -91,6 +91,7 @@ const RequestsNavigator: React.FC = () => {
       <RequestsStack.Screen name="Requests" component={RequestsScreen} options={{ title: 'My Schedule' }} />
       <RequestsStack.Screen name="WriteReview" component={WriteReviewScreen} options={{ title: 'Write Review', presentation: 'modal' }} />
       <RequestsStack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: 'Post Details' }} />
+      <RequestsStack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: 'Profile' }} />
       <RequestsStack.Screen name="CreatePost" component={CreatePostScreen} options={{ title: 'Post a Request', presentation: 'modal' }} />
     </RequestsStack.Navigator>
   );

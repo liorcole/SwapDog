@@ -79,7 +79,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* ── Custom in-component header — always visible, always has back ── */}
       <View

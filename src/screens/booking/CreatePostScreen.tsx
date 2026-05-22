@@ -99,7 +99,8 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
   const [careDetails, setCareDetails] = useState('');
 
   // Compensation
-  const [offerPayment, setOfferPayment] = useState(false);
+  const [offerPoints, setOfferPoints] = useState(true);
+  const [offerMoney, setOfferMoney] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   // Points offered (set by poster when NOT offering payment)
   const [pointsOffered, setPointsOffered] = useState('');
@@ -161,7 +162,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
 
   /** Total payment calculation per care type */
   const totalPayment = useMemo(() => {
-    if (!offerPayment) return undefined;
+    if (!offerMoney) return undefined;
     const amt = parseFloat(paymentAmount);
     if (!amt || amt <= 0) return undefined;
     if (careType === 'overnight') return parseFloat((amt * dayCount).toFixed(2));
@@ -172,11 +173,11 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
     if (careType === 'feeding') return parseFloat(amt.toFixed(2)); // flat per visit
     if (careType === 'dogWalking') return parseFloat((amt * walkHours).toFixed(2));
     return undefined;
-  }, [offerPayment, paymentAmount, careType, dayCount, daySittingHours, walkHours]);
+  }, [offerMoney, paymentAmount, careType, dayCount, daySittingHours, walkHours]);
 
   /** Breakdown label */
   const paymentBreakdownLabel = useMemo(() => {
-    if (!offerPayment) return null;
+    if (!offerMoney) return null;
     const amt = parseFloat(paymentAmount);
     if (!amt || amt <= 0) return null;
     if (careType === 'overnight') {
@@ -195,7 +196,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
       return `💰 $${total} total ($${amt}/hr × ${walkDurationMinutes} min)`;
     }
     return null;
-  }, [offerPayment, paymentAmount, careType, dayCount, daySittingHours, walkHours, walkDurationMinutes]);
+  }, [offerMoney, paymentAmount, careType, dayCount, daySittingHours, walkHours, walkDurationMinutes]);
 
   const formatDate = (d: Date) =>
     d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -222,7 +223,11 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
       Alert.alert('Care Details Required', `Please provide at least ${MIN_CARE_DETAILS} characters`);
       return;
     }
-    if (offerPayment) {
+    if (!offerPoints && !offerMoney) {
+      Alert.alert('Required', 'Select at least one compensation type (points or money).');
+      return;
+    }
+    if (offerMoney) {
       const amt = parseFloat(paymentAmount);
       if (!amt || amt <= 0) {
         Alert.alert('Invalid Payment', 'Please enter a valid dollar amount'); return;
@@ -258,7 +263,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
         .filter((url): url is string => Boolean(url));
 
       // Build payment fields conditionally
-      const paymentFields = offerPayment
+      const paymentFields = offerMoney
         ? {
             paymentAmount: parseFloat(paymentAmount),
             paymentRate: (careType === 'overnight' ? 'per_day' : 'per_hour') as 'per_day' | 'per_hour',
@@ -272,7 +277,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
 
       // Care-type-specific optional fields
       const careTypeFields: Record<string, unknown> = { careType };
-      if (!offerPayment) {
+      if (offerPoints) {
         careTypeFields.pointsOffered = parseInt(pointsOffered, 10);
       }
       if (careType === 'dogWalking') {
@@ -293,7 +298,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
       // Strip undefined values before Firestore write
       const postData = {
         posterId: user.uid,
-        posterName: userProfile?.displayName ?? user.displayName ?? 'SwapDog User',
+        posterName: userProfile?.displayName ?? user.displayName ?? 'WatchDog User',
         posterPhotoURL: userProfile?.photoURL ?? user.photoURL ?? undefined,
         posterLocation,
         dogId: primaryDog.id,
@@ -307,8 +312,8 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
         startDate: effectiveStart,
         endDate: effectiveEnd,
         careDetails: careDetails.trim(),
-        compensationType: (offerPayment ? 'payment' : 'points') as CompensationType,
-        pointsCost: offerPayment ? 0 : parseInt(pointsOffered, 10),
+        compensationType: (offerPoints && offerMoney ? 'either' : offerMoney ? 'payment' : 'points') as CompensationType,
+        pointsCost: offerPoints ? parseInt(pointsOffered, 10) : 0,
         ...paymentFields,
         ...careTypeFields,
         status: 'open' as const,
@@ -348,7 +353,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
           Post a Request 📋
         </Text>
         <Text style={[styles.pageSubtitle, { color: colors.textSecondary }]}>
-          Your post will be visible to SwapDog members in your area.
+          Your post will be visible to WatchDog members in your area.
         </Text>
 
         {/* ── Section 1: Select Your Dog(s) ── */}
@@ -699,28 +704,46 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
 
             {/* ── Compensation ── */}
             <View style={[styles.section, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>💰 Compensation</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Compensation</Text>
+
+              {/* Points toggle */}
               <View style={styles.toggleRow}>
                 <View style={styles.toggleLabelGroup}>
-                  <Text style={[styles.toggleLabel, { color: colors.text }]}>Offering payment?</Text>
-                  <Text style={[styles.toggleHint, { color: colors.textSecondary }]}>
-                    Toggle on to offer $ instead of points
-                  </Text>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>Offer points</Text>
                 </View>
                 <Switch
-                  value={offerPayment}
+                  value={offerPoints}
                   onValueChange={(v) => {
-                    setOfferPayment(v);
+                    if (!v && !offerMoney) return;
+                    setOfferPoints(v);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   trackColor={{ false: colors.border, true: colors.primary }}
                   thumbColor="#fff"
-                  accessibilityLabel="Toggle payment option"
+                  accessibilityLabel="Offer points"
                 />
               </View>
 
-              {/* Points: poster sets the amount */}
-              {!offerPayment && (
+              {/* Money toggle */}
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleLabelGroup}>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>Offer money</Text>
+                </View>
+                <Switch
+                  value={offerMoney}
+                  onValueChange={(v) => {
+                    setOfferMoney(v);
+                    if (v && !offerPoints) setOfferPoints(true);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor="#fff"
+                  accessibilityLabel="Offer money"
+                />
+              </View>
+
+              {/* Points input */}
+              {offerPoints && (
                 <>
                   <Text style={[styles.pointsInputLabel, { color: colors.text }]}>
                     How many points is this job worth?
@@ -737,17 +760,11 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                     />
                     <Text style={[styles.pointsUnit, { color: colors.textSecondary }]}>pts</Text>
                   </View>
-                  {pointsOffered.length > 0 && parseInt(pointsOffered, 10) > 0 && (
-                    <View style={[styles.pointsBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}>
-                      <Text style={[styles.pointsBadgeText, { color: colors.primary }]}>
-                        🪙 {parseInt(pointsOffered, 10)} point{parseInt(pointsOffered, 10) !== 1 ? 's' : ''} offered
-                      </Text>
-                    </View>
-                  )}
+
                 </>
               )}
 
-              {offerPayment && (
+              {offerMoney && (
                 <>
                   <View style={styles.paymentInputRow}>
                     <Text style={[styles.dollarSign, { color: colors.text }]}>$</Text>
@@ -777,7 +794,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
 
                   <View style={[styles.offAppNote, { backgroundColor: '#FFF9E6', borderColor: '#F0C040' }]}>
                     <Text style={[styles.offAppNoteText, { color: '#7A6000' }]}>
-                      💰 All payments are arranged and made outside of SwapDog. We do not process payments.
+                      💰 All payments are arranged and made outside of WatchDog. We do not process payments.
                     </Text>
                   </View>
                 </>

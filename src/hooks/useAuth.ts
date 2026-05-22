@@ -7,7 +7,7 @@ import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from '../config/firebase';
 import { generateReferralCode, redeemReferralCode } from './useReferrals';
-import { REFERRAL_STORAGE_KEY } from '../screens/auth/ReferralCodeScreen';
+const REFERRAL_STORAGE_KEY = '@swapdog_referral_code';
 
 export const useAuth = () => {
   /**

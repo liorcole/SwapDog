@@ -20,7 +20,7 @@ type Props = {
   navigation: NativeStackNavigationProp<ProfileStackParamList, 'Referral'>;
 };
 
-const APP_LINK = 'https://swapdog.app';
+const APP_LINK = 'https://joinwatchdog.com';
 
 const ReferralScreen: React.FC<Props> = ({ navigation: _navigation }) => {
   const { colors } = useTheme();
@@ -58,9 +58,9 @@ const ReferralScreen: React.FC<Props> = ({ navigation: _navigation }) => {
     try {
       await Share.share({
         message:
-          `🐾 Join me on SwapDog — the trusted community for peer-to-peer dog sitting! ` +
-          `Use my referral code: ${referralCode} to get started. Download: ${APP_LINK}`,
-        title: 'Join SwapDog',
+          `🐾 Join me on WatchDog — neighbors helping neighbors with pet sitting, walking & more! ` +
+          `Sign up here: ${APP_LINK}?ref=${referralCode}`,
+        title: 'Join WatchDog',
       });
     } catch {
       // user dismissed share sheet — ignore
@@ -76,7 +76,7 @@ const ReferralScreen: React.FC<Props> = ({ navigation: _navigation }) => {
       <View style={[styles.safetyCard, { backgroundColor: '#FFF3CD', borderColor: '#F0AD4E' }]}>
         <Text style={[styles.safetyTitle, { color: '#856404' }]}>🐾 Built on Trust & Safety</Text>
         <Text style={[styles.safetyBody, { color: '#664D03' }]}>
-          SwapDog is built on trust and safety. Our community thrives because every member is
+          WatchDog is built on trust and safety. Our community thrives because every member is
           vouched for by someone we already trust.
         </Text>
         <Text style={[styles.safetyBold, { color: '#664D03' }]}>

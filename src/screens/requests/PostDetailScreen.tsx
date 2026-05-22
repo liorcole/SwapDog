@@ -510,7 +510,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const compensationLabel = () => {
     if (post.compensationType === 'points') {
       const pts = post.pointsOffered ?? post.pointsCost;
-      return `🪙 ${pts} point${pts !== 1 ? 's' : ''} offered`;
+      return `🐾 ${pts} point${pts !== 1 ? 's' : ''} offered`;
     }
     if (post.totalPayment && post.paymentAmount && post.paymentRate) {
       const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';
@@ -521,7 +521,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       return `💰 $${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
     }
     return post.compensationType === 'either'
-      ? `🪙 ${post.pointsCost.toFixed(1)} pts or 💰 payment`
+      ? `🐾 ${post.pointsCost.toFixed(1)} pts or 💰 payment`
       : '💰 Payment offered';
   };
 

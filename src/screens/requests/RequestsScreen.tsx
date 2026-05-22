@@ -250,7 +250,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
 
   const compensationLabel = (post: SwapPost): string => {
     if (post.compensationType === 'points') {
-      return `🪙 ${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
+      return `🐾 ${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
     }
     if (post.totalPayment && post.paymentAmount && post.totalUnits && post.paymentRate) {
       const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';

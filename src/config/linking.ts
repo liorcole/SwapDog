@@ -2,7 +2,7 @@ import { LinkingOptions } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
 
 const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: ['swapdog://', 'https://swapdog.app'],
+  prefixes: ['swapdog://', 'https://swapdog.app', 'https://joinwatchdog.com'],
   config: {
     screens: {
       Auth: 'auth',

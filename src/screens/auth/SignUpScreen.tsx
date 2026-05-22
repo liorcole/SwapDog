@@ -58,7 +58,7 @@ const SignUpScreen: React.FC<Props> = ({ navigation, route }) => {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.logo} accessibilityElementsHidden>🐾</Text>
         <Text style={[styles.title, { color: colors.text }]}>Create account</Text>
-        <Text style={[styles.sub, { color: colors.textSecondary }]}>Join the SwapDog community</Text>
+        <Text style={[styles.sub, { color: colors.textSecondary }]}>Join the WatchDog community</Text>
 
         <TextInput
           style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -98,7 +98,7 @@ const SignUpScreen: React.FC<Props> = ({ navigation, route }) => {
           disabled={loading}
           accessibilityLabel={loading ? 'Creating account...' : 'Create account'}
           accessibilityRole="button"
-          accessibilityHint="Double tap to create your SwapDog account"
+          accessibilityHint="Double tap to create your WatchDog account"
         >
           <Text style={styles.btnText}>{loading ? 'Creating account...' : 'Sign Up'}</Text>
         </TouchableOpacity>

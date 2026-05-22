@@ -27,7 +27,7 @@ export const pointsEventIcon: Record<PointsEventType, string> = {
   referral: '👥',
   bonus: '⭐',
   deduction: '💸',
-  other: '🪙',
+  other: '🐾',
 };
 
 const parseEntry = (id: string, data: Record<string, unknown>): PointsHistoryEntry => ({

@@ -36,6 +36,7 @@ interface PendingUser {
   id: string;
   displayName: string;
   email: string;
+  referralCount: number;
   bio?: string;
   photoURL?: string;
   createdAt?: Date;
@@ -93,6 +94,7 @@ const AdminPanelScreen: React.FC = () => {
             id: userDoc.id,
             displayName: data.displayName ?? 'Unnamed User',
             email: data.email ?? '',
+            referralCount: 0,
             bio: data.bio ?? undefined,
             photoURL: data.photoURL ?? undefined,
             createdAt,
@@ -123,7 +125,7 @@ const AdminPanelScreen: React.FC = () => {
   const handleApprove = (userId: string, displayName: string) => {
     Alert.alert(
       'Approve Account',
-      `Approve ${displayName || 'this user'}'s account? They will gain full access to SwapDog.`,
+      `Approve ${displayName || 'this user'}'s account? They will gain full access to WatchDog.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -216,6 +218,7 @@ const AdminPanelScreen: React.FC = () => {
         <View style={styles.cardHeaderText}>
           <Text style={[styles.userName, { color: colors.text }]}>{item.displayName}</Text>
           <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{item.email}</Text>
+            <Text style={[styles.userEmail, { color: colors.primary }]}>{item.referralCount} referral{item.referralCount !== 1 ? 's' : ''}</Text>
           <Text style={[styles.joinDate, { color: colors.textSecondary }]}>
             Joined {formatJoinDate(item.createdAt)}
           </Text>

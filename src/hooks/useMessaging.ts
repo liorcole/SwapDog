@@ -184,14 +184,14 @@ export const useMessaging = () => {
 const SYSTEM_SENDER_ID = 'swapdog-team';
 
 const WELCOME_TEXT =
-  'Welcome to SwapDog! 🐾\n\n' +
+  'Welcome to WatchDog! 🐾\n\n' +
   "We're so happy to have you in the family! You're now part of a trusted " +
   "community of dog lovers who look out for each other's pups.\n\n" +
-  'If you ever need help or have questions, reach out to us at hello@swapdog.com.\n\n' +
+  'If you ever need help or have questions, reach out to us at david@joinwatchdog.com.\n\n' +
   'Happy swapping! 🐕';
 
 /**
- * Creates a welcome conversation from SwapDog Team the first time a user
+ * Creates a welcome conversation from WatchDog Team the first time a user
  * completes onboarding (contract signed). Safe to call multiple times —
  * it checks for an existing welcome conversation before creating one.
  */
@@ -213,7 +213,7 @@ export const sendWelcomeMessageIfNeeded = async (userId: string): Promise<void> 
     participantIds: [userId, SYSTEM_SENDER_ID],
     swapRequestId: null,
     unreadCounts: { [userId]: 1 },
-    lastMessage: 'Welcome to SwapDog! 🐾',
+    lastMessage: 'Welcome to WatchDog! 🐾',
     lastMessageAt: serverTimestamp(),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

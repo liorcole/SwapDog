@@ -26,7 +26,7 @@ type Props = {
 };
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
-  const { colors, isDark, toggleTheme } = useTheme();
+  const { colors } = useTheme();
   const { userProfile, user } = useAuthContext();
   const { signOut } = useAuth();
   const { getDogsByOwner, updateDog } = useDogs();
@@ -312,7 +312,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityRole="button"
         >
           <Text style={[styles.pointsBadgeText, { color: colors.primary }]}>
-            {'\ud83e\ude99'} {(userProfile?.points ?? 0).toFixed(1)} points {'>'}
+            🐾 {(userProfile?.points ?? 0).toFixed(1)} points {'>'}
           </Text>
         </TouchableOpacity>
 
@@ -340,9 +340,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dog.breed} {'\u2022'} {formatDogAge(dog.ageYears, dog.ageMonths)}</Text>
             </TouchableOpacity>
 
-            {/* Photo gallery row */}
-            <View style={styles.dogPhotoRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dogPhotoScroll}>
+            {/* Photo gallery grid */}
+            <View style={styles.dogPhotoGrid}>
                 {dog.photoURLs.map((uri, idx) => (
                   // Outer container must NOT have overflow:hidden — needed so X badge
                   // can render outside the 80x80 thumb bounds (top:-6, right:-6).
@@ -407,7 +406,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                     </>
                   )}
                 </TouchableOpacity>
-              </ScrollView>
             </View>
           </View>
         ))}
@@ -468,20 +466,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={[styles.prefChevron, { color: colors.textSecondary }]}>{'>'}</Text>
           </TouchableOpacity>
         )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferences</Text>
-        <TouchableOpacity
-          style={[styles.prefRow, { backgroundColor: colors.surface }]}
-          onPress={toggleTheme}
-          accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: isDark }}
-        >
-          <Text style={[styles.prefLabel, { color: colors.text }]}>{isDark ? '\ud83c\udf19' : '\u2600\ufe0f'} Dark Mode</Text>
-          <Text style={[styles.prefValue, { color: colors.textSecondary }]}>{isDark ? 'On' : 'Off'}</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Admin Panel — only visible to admin */}
@@ -550,7 +534,7 @@ const styles = StyleSheet.create({
   },
   referralBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   // Dog photo gallery
-  dogPhotoRow: { marginTop: spacing.sm },
+  dogPhotoGrid: { marginTop: spacing.sm, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   dogPhotoScroll: { marginBottom: spacing.xs },
   // Outer container — no overflow:hidden so the X badge (top:-6,right:-6) is visible
   dogPhotoThumbContainer: {

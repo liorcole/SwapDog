@@ -170,7 +170,7 @@ const CelebrationScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={[styles.headline, { color: colors.text }]}>Congratulations!</Text>
 
         <Text style={[styles.subHeadline, { color: colors.primary }]}>
-          Welcome to the SwapDog Family
+          Welcome to the WatchDog Family
         </Text>
 
         <Text style={styles.pawAccents}>🐾  🐶  🐾</Text>

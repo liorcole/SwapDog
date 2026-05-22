@@ -167,7 +167,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
 
   const compensationLabel = (): string => {
     if (post.compensationType === 'points') {
-      return `🪙 ${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
+      return `🐾 ${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
     }
     if (post.totalPayment && post.paymentAmount && post.totalUnits && post.paymentRate) {
       const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';
@@ -226,7 +226,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
 
         {isPayment && (
           <Text style={[styles.offAppInline, { color: colors.textSecondary }]}>
-            💰 Payments made outside SwapDog
+            💰 Payments made outside WatchDog
           </Text>
         )}
 

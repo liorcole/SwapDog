@@ -233,7 +233,7 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
         {/* Points cost display — auto-calculated */}
         <View style={[styles.pointsCostBadge, { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}>
           <Text style={[styles.pointsCostText, { color: colors.primary }]}>
-            🪙 Points Cost: {pointsCost.toFixed(1)} point{pointsCost !== 1 ? 's' : ''}
+            🐾 Points Cost: {pointsCost.toFixed(1)} point{pointsCost !== 1 ? 's' : ''}
           </Text>
         </View>
       </View>
@@ -276,8 +276,8 @@ const CreateSwapScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         )}
         <Text style={[styles.paymentTypeSummary, { color: colors.textSecondary }]}>
-          {paymentType === 'points' && '🪙 Offering: Points only'}
-          {paymentType === 'either' && `🪙💰 Offering: Points or $${paymentAmount} — sitter chooses`}
+          {paymentType === 'points' && '🐾 Offering: Points only'}
+          {paymentType === 'either' && `🐾💰 Offering: Points or $${paymentAmount} — sitter chooses`}
         </Text>
       </View>
 

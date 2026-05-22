@@ -91,7 +91,7 @@ const PointsHistoryScreen: React.FC<Props> = ({ navigation }) => {
     <View style={[styles.totalCard, { backgroundColor: colors.surface, ...shadow.sm }]}>
       <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total Points</Text>
       <Text style={[styles.totalPoints, { color: colors.primary }]}>
-        🪙 {(userProfile?.points ?? 0).toFixed(1)}
+        🐾 {(userProfile?.points ?? 0).toFixed(1)}
       </Text>
       <Text style={[styles.totalSub, { color: colors.textSecondary }]}>
         {entries.length > 0

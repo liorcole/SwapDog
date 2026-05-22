@@ -1,4 +1,6 @@
 import React, { useEffect } from 'react';
+import { Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
 import { useAuthContext } from '../contexts/AuthContext';
@@ -12,10 +14,39 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import { requestNotificationPermissions } from '../services/ReminderService';
 import { sendWelcomeMessageIfNeeded } from '../hooks/useMessaging';
 
+const REFERRAL_STORAGE_KEY = '@swapdog_referral_code';
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator: React.FC = () => {
   const { user, isOnboarded, userProfile, loading } = useAuthContext();
+
+  // Capture referral code from deep link URL (?ref=CODE) and store for signup
+  useEffect(() => {
+    const captureReferralFromUrl = async () => {
+      try {
+        const url = await Linking.getInitialURL();
+        if (url) {
+          const match = url.match(/[?&]ref=([^&]+)/);
+          if (match && match[1]) {
+            await AsyncStorage.setItem(REFERRAL_STORAGE_KEY, match[1]);
+          }
+        }
+      } catch {
+        // Non-fatal
+      }
+    };
+    captureReferralFromUrl();
+
+    // Also listen for URLs while app is open
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      const match = url.match(/[?&]ref=([^&]+)/);
+      if (match && match[1]) {
+        AsyncStorage.setItem(REFERRAL_STORAGE_KEY, match[1]).catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   // Request notification permissions when an active user lands in the app
   useEffect(() => {

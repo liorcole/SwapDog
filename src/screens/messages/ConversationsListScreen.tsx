@@ -18,7 +18,7 @@ const SYSTEM_SENDER_ID = 'swapdog-team';
 
 const getOtherParticipantLabel = (participantIds: string[], myUid: string): string => {
   const otherId = participantIds.find((id) => id !== myUid) ?? '';
-  if (otherId === SYSTEM_SENDER_ID) return '🐾 SwapDog Team';
+  if (otherId === SYSTEM_SENDER_ID) return '🐾 WatchDog Team';
   return otherId; // fallback; real app would resolve display name
 };
 

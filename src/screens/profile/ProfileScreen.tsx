@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert,
-  ActivityIndicator,
+  ActivityIndicator, Linking,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -294,6 +294,15 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         )}
         {userProfile?.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{userProfile.bio}</Text>}
+        {userProfile?.instagramHandle ? (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(`https://instagram.com/${userProfile.instagramHandle}`)}
+            accessibilityLabel={`Instagram: ${userProfile.instagramHandle}`}
+            accessibilityRole="link"
+          >
+            <Text style={[styles.instagramHandle, { color: colors.primary }]}>@{userProfile.instagramHandle}</Text>
+          </TouchableOpacity>
+        ) : null}
 
         {/* SUB-TASK 3: Points badge — tappable → PointsHistory */}
         <TouchableOpacity
@@ -513,6 +522,7 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
   ratingCount: { fontSize: 13, marginLeft: spacing.xs },
   bio: { fontSize: 14, textAlign: 'center', marginTop: spacing.sm },
+  instagramHandle: { fontSize: 14, textAlign: 'center', marginTop: spacing.xs, fontWeight: '600' },
   pointsBadge: {
     borderWidth: 1.5,
     borderRadius: borderRadius.full,

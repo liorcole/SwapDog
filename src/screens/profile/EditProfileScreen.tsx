@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
@@ -16,6 +16,7 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
   const { updateUser } = useUsers();
   const [displayName, setDisplayName] = useState(userProfile?.displayName ?? '');
   const [bio, setBio] = useState(userProfile?.bio ?? '');
+  const [instagramHandle, setInstagramHandle] = useState(userProfile?.instagramHandle ?? '');
   const [photoURL, setPhotoURL] = useState(userProfile?.photoURL ?? '');
   const [loading, setLoading] = useState(false);
 
@@ -36,7 +37,7 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
     if (!user) return;
     setLoading(true);
     try {
-      await updateUser(user.uid, { displayName: displayName.trim(), bio: bio.trim(), photoURL });
+      await updateUser(user.uid, { displayName: displayName.trim(), bio: bio.trim(), instagramHandle: instagramHandle.trim().replace(/^@/, '') || '', photoURL });
       await refreshUserProfile();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.goBack();
@@ -84,6 +85,16 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
         multiline
         numberOfLines={4}
         accessibilityLabel="Bio"
+      />
+      <TextInput
+        style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+        placeholder="@yourinstagram (optional)"
+        placeholderTextColor={colors.textSecondary}
+        value={instagramHandle}
+        onChangeText={setInstagramHandle}
+        autoCapitalize="none"
+        autoCorrect={false}
+        accessibilityLabel="Instagram handle, optional"
       />
       <TouchableOpacity
         style={[styles.btn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}

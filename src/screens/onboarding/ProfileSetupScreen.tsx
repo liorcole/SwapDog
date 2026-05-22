@@ -22,6 +22,7 @@ const ProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useAuthContext();
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
+  const [instagramHandle, setInstagramHandle] = useState('');
   const [photoURL, setPhotoURL] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -46,6 +47,7 @@ const ProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
         email: user.email,
         displayName: displayName.trim(),
         bio: bio.trim(),
+        instagramHandle: instagramHandle.trim().replace(/^@/, '') || '',
         photoURL,
         isOnboarded: false,
         createdAt: serverTimestamp(),
@@ -107,6 +109,16 @@ const ProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
         multiline
         numberOfLines={4}
         accessibilityLabel="Bio, optional"
+      />
+      <TextInput
+        style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+        placeholder="@yourinstagram (optional)"
+        placeholderTextColor={colors.textSecondary}
+        value={instagramHandle}
+        onChangeText={setInstagramHandle}
+        autoCapitalize="none"
+        autoCorrect={false}
+        accessibilityLabel="Instagram handle, optional"
       />
 
       <TouchableOpacity

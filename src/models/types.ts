@@ -46,6 +46,7 @@ export interface User {
   displayName: string;
   photoURL?: string;
   bio?: string;
+  instagramHandle?: string;
   location?: GeoPoint;
   locationName?: string;
   pushToken?: string;

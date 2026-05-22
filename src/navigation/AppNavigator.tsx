@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList } from './types';
 import { useAuthContext } from '../contexts/AuthContext';
 import AuthNavigator from './AuthNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
 import ApprovalNavigator from './ApprovalNavigator';
 import MainTabNavigator from './MainTabNavigator';
-import ReferralCodeScreen, { REFERRAL_STORAGE_KEY } from '../screens/auth/ReferralCodeScreen';
 import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen';
 import WaitingApprovalScreen from '../screens/onboarding/WaitingApprovalScreen';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -18,22 +16,6 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator: React.FC = () => {
   const { user, isOnboarded, userProfile, loading } = useAuthContext();
-  const [referralChecked, setReferralChecked] = useState(false);
-  const [hasReferral, setHasReferral] = useState(false);
-
-  useEffect(() => {
-    const checkReferral = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(REFERRAL_STORAGE_KEY);
-        setHasReferral(!!stored);
-      } catch {
-        setHasReferral(false);
-      } finally {
-        setReferralChecked(true);
-      }
-    };
-    checkReferral();
-  }, []);
 
   // Request notification permissions when an active user lands in the app
   useEffect(() => {
@@ -57,7 +39,7 @@ const AppNavigator: React.FC = () => {
     );
   }, [user?.uid, userProfile?.accountStatus, userProfile?.contractSignedAt]);
 
-  if (loading || !referralChecked) {
+  if (loading) {
     return <LoadingSpinner />;
   }
 
@@ -68,12 +50,8 @@ const AppNavigator: React.FC = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
       {!user ? (
-        // ── Unauthenticated: referral gate → auth ──────────────────────────
-        !hasReferral ? (
-          <Stack.Screen name="Referral" component={ReferralCodeScreen} />
-        ) : (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
-        )
+        // ── Unauthenticated: go straight to auth ──────────────────────────
+        <Stack.Screen name="Auth" component={AuthNavigator} />
       ) : !isOnboarded ? (
         // ── Authenticated, onboarding not complete ─────────────────────────
         <Stack.Screen name="Onboarding" component={OnboardingNavigator} />

@@ -40,13 +40,14 @@ const blankForm = () => ({
 const AddDogScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
-  const { createDog } = useDogs();
+  const { createDog, deleteDog } = useDogs();
 
   const [form, setForm] = useState(blankForm());
   const [loading, setLoading] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  // Track how many dogs have been saved this session
+  // Track dogs saved this session
   const [savedCount, setSavedCount] = useState(0);
+  const [savedDogs, setSavedDogs] = useState<Array<{ name: string; breed: string; photoURL?: string }>>([]);
 
   const set = <K extends keyof ReturnType<typeof blankForm>>(
     key: K,
@@ -90,19 +91,19 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
     set('photoURLs', form.photoURLs.filter((_, i) => i !== index));
   };
 
-  const saveDog = async (): Promise<boolean> => {
+  const saveDog = async (): Promise<string | null> => {
     if (!form.name.trim() || !form.breed.trim()) {
       Alert.alert('Required', 'Please fill in name and breed');
-      return false;
+      return null;
     }
     if (form.ageYears === 0 && form.ageMonths === 0) {
       Alert.alert('Required', 'Please enter your dog\'s age');
-      return false;
+      return null;
     }
-    if (!user) return false;
+    if (!user) return null;
     setLoading(true);
     try {
-      await createDog({
+      const dogId = await createDog({
         ownerId: user.uid,
         name: form.name.trim(),
         breed: form.breed.trim(),
@@ -118,33 +119,54 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSavedCount((c) => c + 1);
-      return true;
+      return dogId;
     } catch (error: unknown) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to add dog');
-      return false;
+      return null;
     } finally {
       setLoading(false);
     }
   };
 
   const handleContinue = async () => {
-    const ok = await saveDog();
-    if (ok) {
-      navigation.navigate('LocationSetup');
+    const dogId = await saveDog();
+    if (dogId) {
+      navigation.navigate('Paywall');
     }
   };
 
   const handleAddAnother = async () => {
-    const ok = await saveDog();
-    if (ok) {
+    const dogId = await saveDog();
+    if (dogId) {
+      // Save the dog info for display
+      setSavedDogs((prev) => [...prev, { id: dogId, name: form.name, breed: form.breed, photoURL: form.photoURLs[0] }]);
       // Reset the form to blank so the user can enter another dog
       setForm(blankForm());
-      Alert.alert(
-        '🐾 Dog added!',
-        'Fill in your next dog\'s info below, then tap "Continue" when you\'re done adding dogs.',
-        [{ text: 'OK' }],
-      );
     }
+  };
+
+  const handleDeleteSavedDog = (dogId: string, dogName: string) => {
+    Alert.alert(
+      'Remove Dog',
+      `Remove ${dogName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDog(dogId);
+              setSavedDogs((prev) => prev.filter((d) => d.id !== dogId));
+              setSavedCount((c) => Math.max(0, c - 1));
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (e: unknown) {
+              Alert.alert('Error', e instanceof Error ? e.message : 'Failed to remove dog');
+            }
+          },
+        },
+      ],
+    );
   };
 
   const SwitchRow = ({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) => (
@@ -340,7 +362,7 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
       </TouchableOpacity>
 
       <TouchableOpacity
-        onPress={() => navigation.navigate('LocationSetup')}
+        onPress={() => navigation.navigate('Paywall')}
         accessibilityLabel="Skip adding a dog"
         accessibilityRole="button"
       >
@@ -394,6 +416,15 @@ const styles = StyleSheet.create({
   ageBtnText: { fontSize: 18, lineHeight: 22 },
   ageValue: { fontSize: 18, fontWeight: '700', minWidth: 28, textAlign: 'center' },
   ageHint: { fontSize: 12, fontStyle: 'italic', marginBottom: spacing.sm },
+  savedDogsSection: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 20 },
+  savedDogsTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  savedDogRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  savedDogThumb: { width: 36, height: 36, borderRadius: 18, marginRight: 10 },
+  savedDogThumbPlaceholder: { width: 36, height: 36, borderRadius: 18, marginRight: 10, alignItems: 'center', justifyContent: 'center' },
+  savedDogName: { fontSize: 15, fontWeight: '500' },
+  savedDogDelete: { marginLeft: 'auto', padding: 6 },
+  savedDogDeleteText: { fontSize: 16, color: '#FF3B30', fontWeight: '700' },
+  savedDogsHint: { fontSize: 13, marginTop: 6, fontStyle: 'italic' },
 });
 
 export default AddDogScreen;

@@ -120,6 +120,7 @@ const ProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
         autoCorrect={false}
         accessibilityLabel="Instagram handle, optional"
       />
+      <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>This will be visible on your profile so others can connect with you.</Text>
 
       <TouchableOpacity
         style={[styles.btn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
@@ -145,6 +146,7 @@ const styles = StyleSheet.create({
   photoPlaceholder: { width: 90, height: 90, borderRadius: 45, justifyContent: 'center', alignItems: 'center', marginBottom: spacing.xs },
   photoPlaceholderText: { fontSize: 32 },
   photoHint: { fontSize: 14, fontWeight: '600' },
+  fieldHint: { fontSize: 12, marginTop: 4, marginBottom: 8, paddingHorizontal: 4 },
   input: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md, fontSize: 15 },
   textArea: { height: 100, textAlignVertical: 'top' },
   btn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.sm },

@@ -47,6 +47,9 @@ export interface User {
   photoURL?: string;
   bio?: string;
   instagramHandle?: string;
+  subscriptionStatus?: 'active' | 'expired' | 'cancelled';
+  subscriptionPlan?: 'monthly';
+  subscribedAt?: unknown;
   location?: GeoPoint;
   locationName?: string;
   pushToken?: string;

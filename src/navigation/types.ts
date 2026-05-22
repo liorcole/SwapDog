@@ -9,6 +9,7 @@ export type AuthStackParamList = {
 export type OnboardingStackParamList = {
   ProfileSetup: undefined;
   AddDog: undefined;
+  Paywall: undefined;
   LocationSetup: undefined;
 };
 

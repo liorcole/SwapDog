@@ -96,6 +96,7 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
         autoCorrect={false}
         accessibilityLabel="Instagram handle, optional"
       />
+      <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>Visible on your profile</Text>
       <TouchableOpacity
         style={[styles.btn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
         onPress={handleSave}
@@ -116,6 +117,7 @@ const styles = StyleSheet.create({
   photoPicker: { alignItems: 'center', marginBottom: spacing.lg },
   photo: { width: 90, height: 90, borderRadius: 45, marginBottom: spacing.xs },
   changePhoto: { fontSize: 14, fontWeight: '600' },
+  fieldHint: { fontSize: 12, marginTop: 4, marginBottom: 4, paddingHorizontal: 4 },
   input: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.md, fontSize: 15 },
   textArea: { height: 100, textAlignVertical: 'top' },
   btn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },

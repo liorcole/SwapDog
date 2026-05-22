@@ -29,7 +29,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { userProfile, user } = useAuthContext();
   const { signOut } = useAuth();
-  const { getDogsByOwner, updateDog } = useDogs();
+  const { getDogsByOwner, updateDog, deleteDog } = useDogs();
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [loading, setLoading] = useState(true);
   const [referralCount, setReferralCount] = useState(0);
@@ -205,6 +205,29 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   // ─── Delete Photo (X badge + action sheet Delete option) ─────────────────
 
   /** Shows confirmation alert before deleting a photo (called from X badge and action sheet). */
+  const handleDeleteDog = (dogId: string, dogName: string) => {
+    Alert.alert(
+      'Delete Dog',
+      `Are you sure you want to remove ${dogName}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDog(dogId);
+              await refreshDogs();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (e: unknown) {
+              Alert.alert('Error', e instanceof Error ? e.message : 'Failed to delete dog');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleDeletePhotoBadge = (dog: Dog, index: number) => {
     Alert.alert(
       'Remove Photo',
@@ -407,6 +430,16 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
                   )}
                 </TouchableOpacity>
             </View>
+
+            {/* Delete this dog */}
+            <TouchableOpacity
+              onPress={() => handleDeleteDog(dog.id, dog.name)}
+              style={styles.deleteDogBtn}
+              accessibilityLabel={`Delete ${dog.name}`}
+              accessibilityRole="button"
+            >
+              <Text style={styles.deleteDogBtnText}>Remove {dog.name}</Text>
+            </TouchableOpacity>
           </View>
         ))}
 
@@ -595,6 +628,8 @@ const styles = StyleSheet.create({
   dogPhotoAddIcon: { fontSize: 28, fontWeight: '300', lineHeight: 32 },
   dogPhotoAddLabel: { fontSize: 10, marginTop: 2 },
   // Add Another Dog button
+  deleteDogBtn: { marginTop: 8, alignSelf: 'flex-end', paddingVertical: 6, paddingHorizontal: 12 },
+  deleteDogBtnText: { fontSize: 13, color: '#FF3B30', fontWeight: '600' },
   addAnotherDogBtn: {
     borderWidth: 2,
     borderRadius: borderRadius.full,

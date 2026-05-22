@@ -215,14 +215,9 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
           {post.dogName}{post.dogBreed ? ` · ${post.dogBreed}` : ''}
         </Text>
 
-        <View style={[styles.compBadge, {
-          backgroundColor: isPayment ? '#00B89418' : RED + '18',
-          borderColor: isPayment ? '#00B894' : RED,
-        }]}>
-          <Text style={[styles.compBadgeText, { color: isPayment ? '#00B894' : RED }]}>
-            {compensationLabel()}
-          </Text>
-        </View>
+        <Text style={[styles.compInline, { color: isPayment ? '#00B894' : colors.textSecondary }]}>
+          {compensationLabel()}
+        </Text>
 
         {isPayment && (
           <Text style={[styles.offAppInline, { color: colors.textSecondary }]}>
@@ -242,7 +237,9 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
           </View>
         )}
 
-        <Text style={[styles.tapHint, { color: RED }]}>Tap to see full details →</Text>
+        <View style={styles.detailsBtn}>
+          <Text style={styles.detailsBtnText}>See Full Details</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -428,10 +425,7 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(({ item }) => {
     <View
       style={[
         styles.sectionHeader,
-        {
-          backgroundColor: item.isPosts ? RED + '12' : colors.surface,
-          borderColor: item.isPosts ? RED + '40' : colors.border,
-        },
+        { backgroundColor: 'transparent' },
       ]}
     >
       <Text style={[styles.sectionHeaderText, { color: item.isPosts ? RED : colors.text }]}>
@@ -717,16 +711,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
       displayPosts.forEach((p) => items.push({ kind: 'post', id: p.id, post: p }));
     }
 
-    // Divider
-    items.push({ kind: 'divider', id: 'divider_1' });
 
-    // Section 2: Dog owners
-    items.push({ kind: 'section_header', id: 'header_users', title: `🏠 Dog Owners Within ${milesLabel} Miles`, count: displayUsers.length, isPosts: false });
-    if (displayUsers.length === 0) {
-      items.push({ kind: 'empty', id: 'empty_users', text: 'No dog owners found nearby — try a larger radius' });
-    } else {
-      displayUsers.forEach((nu) => items.push({ kind: 'user', id: nu.user.id, nu }));
-    }
 
     return items;
   }, [areaPosts, nearbyUsers, radiusMiles]);
@@ -944,8 +929,8 @@ const styles = StyleSheet.create({
   broadcastBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   // Section headers
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, paddingHorizontal: spacing.md, marginHorizontal: -spacing.md, marginBottom: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, gap: spacing.sm },
-  sectionHeaderText: { fontSize: 14, fontWeight: '800', flex: 1, letterSpacing: 0.2 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md, paddingHorizontal: 0, marginBottom: spacing.sm, gap: spacing.sm },
+  sectionHeaderText: { fontSize: 20, fontWeight: '800', flex: 1, letterSpacing: 0.3 },
   sectionBadge: { minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   sectionBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 
@@ -970,13 +955,13 @@ const styles = StyleSheet.create({
   dogThumbPlaceholder: { width: 44, height: 44, borderRadius: borderRadius.sm, alignItems: 'center', justifyContent: 'center' },
   dogThumbEmoji: { fontSize: 20 },
   dogLine: { fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
-  compBadge: { borderWidth: 1.5, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: spacing.xs },
-  compBadgeText: { fontSize: 13, fontWeight: '700' },
+  compInline: { fontSize: 13, fontWeight: '600', marginBottom: spacing.xs },
   offAppInline: { fontSize: 11, marginBottom: spacing.xs },
   carePreview: { fontSize: 13, lineHeight: 18, marginBottom: spacing.xs },
   interestBadge: { backgroundColor: RED, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: spacing.xs, shadowColor: RED, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.30, shadowRadius: 4, elevation: 2 },
   interestBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  tapHint: { fontSize: 12, fontWeight: '600', textAlign: 'right', marginTop: spacing.xs },
+  detailsBtn: { marginTop: spacing.sm, borderWidth: 1.5, borderColor: '#FF2D55', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16, alignSelf: 'flex-start' },
+  detailsBtnText: { fontSize: 13, fontWeight: '700', color: '#FF2D55' },
 
   // User row
   userRow: { flexDirection: 'row', alignItems: 'center', padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.sm },

@@ -13,11 +13,14 @@ import {
   addNotificationResponseListener,
 } from './src/services/NotificationService';
 import { ErrorBoundary } from './src/components/common/ErrorBoundary';
+import { configureSuperwall } from './src/services/superwall';
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
 
   useEffect(() => {
+    configureSuperwall();
+
     const receivedSub = addNotificationReceivedListener((notification) => {
       // Guard the full chain — content may be undefined for silent/data-only pushes
       console.log('Notification received:', notification?.request?.content?.title);

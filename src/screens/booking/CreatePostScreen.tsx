@@ -49,10 +49,10 @@ const WALK_DURATIONS: { label: string; minutes: number }[] = [
 ];
 
 const CARE_TYPE_OPTIONS: { type: CareType; icon: string; label: string }[] = [
-  { type: 'overnight', icon: '🏠', label: 'Overnight Care' },
-  { type: 'daySitting', icon: '☀️', label: 'Day Pet Sitting' },
+  { type: 'overnight', icon: '🏠', label: 'Overnight sitting' },
+  { type: 'daySitting', icon: '☀️', label: 'Daytime sitting' },
   { type: 'feeding', icon: '🍽️', label: 'Feeding' },
-  { type: 'dogWalking', icon: '🐕', label: 'Dog Walking' },
+  { type: 'dogWalking', icon: '🐕', label: 'Walk' },
 ];
 
 type Props = {

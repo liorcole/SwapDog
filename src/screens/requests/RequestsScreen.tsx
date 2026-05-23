@@ -27,6 +27,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RequestsStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { smartDate } from '../../utils/dateHelpers';
 import { useSwaps } from '../../hooks/useSwaps';
 import { SwapPost } from '../../models/types';
 import { spacing, borderRadius, shadow } from '../../config/theme';
@@ -45,10 +46,10 @@ const TEAL = '#2DD4BF';
 // ── Care type helpers (Wave 19B) ──────────────────────────────────────────────
 function getCareTypeIcon(careType?: string): string {
   switch (careType) {
-    case 'overnight': return 'Overnight';
-    case 'daySitting': return '☀️';
+    case 'overnight': return 'Overnight sitting';
+    case 'daySitting': return 'Daytime sitting';
     case 'feeding': return 'Feeding';
-    case 'dogWalking': return 'Walking';
+    case 'dogWalking': return 'Walk';
     default: return t;
   }
 }
@@ -60,17 +61,17 @@ function getCareTypeSummary(post: SwapPost): string {
       const nights = Math.max(1, Math.round(
         (post.endDate.getTime() - post.startDate.getTime()) / MS_PER_DAY
       ));
-      const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const startStr = smartDate(post.startDate);
+      const endStr = smartDate(post.endDate);
       return `${startStr} → ${endStr} (${nights} night${nights !== 1 ? 's' : ''})`;
     }
     case 'daySitting': {
-      const dateStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const dateStr = smartDate(post.startDate);
       if (post.startTime && post.endTime) return `${dateStr}, ${post.startTime} → ${post.endTime}`;
       return dateStr;
     }
     case 'feeding': {
-      const dateStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const dateStr = smartDate(post.startDate);
       return post.feedingTime ? `${dateStr} at ${post.feedingTime}` : dateStr;
     }
     case 'dogWalking': {
@@ -81,11 +82,11 @@ function getCareTypeSummary(post: SwapPost): string {
           ? `${hrs} hr${hrs !== 1 ? 's' : ''}${mins > 0 ? ` ${mins} min` : ''} walk`
           : `${mins} min walk`;
       }
-      return 'Dog Walking';
+      return 'Walk';
     }
     default: {
-      const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const startStr = smartDate(post.startDate);
+      const endStr = smartDate(post.endDate);
       return `${startStr} – ${endStr}`;
     }
   }
@@ -287,8 +288,8 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
 
   // ── My Posts card ─────────────────────────────────────────────────────────
   const renderMyPost = ({ item }: { item: SwapPost }) => {
-    const startStr = item.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const endStr = item.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const startStr = smartDate(item.startDate);
+    const endStr = smartDate(item.endDate, { includeYear: true });
     const isOpen = item.status === 'open';
     const interestedCount = item.respondedBy?.length ?? 0;
     const statusColor: Record<SwapPost['status'], string> = {
@@ -471,12 +472,8 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
     const otherName = isMyDog
       ? (post.respondedBy?.find((r) => r.userId === post.claimedBy)?.userName ?? 'Your sitter')
       : post.posterName;
-    const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const endStr = post.endDate.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    const startStr = smartDate(post.startDate);
+    const endStr = smartDate(post.endDate, { includeYear: true });
 
     return (
       <TouchableOpacity
@@ -676,11 +673,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
             {/* Header */}
             <View style={styles.popupHeader}>
               <Text style={[styles.popupDate, { color: colors.text }]}>
-                {popupDate?.toLocaleDateString(undefined, {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                })}
+                {popupDate ? smartDate(popupDate) : ''}
               </Text>
               <TouchableOpacity
                 onPress={() => setShowPopup(false)}

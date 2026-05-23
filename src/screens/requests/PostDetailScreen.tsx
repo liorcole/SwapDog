@@ -34,6 +34,7 @@ import { db } from '../../config/firebase';
 import { RequestsStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { smartDate } from '../../utils/dateHelpers';
 import { useSwaps } from '../../hooks/useSwaps';
 import { useUsers } from '../../hooks/useUsers';
 import { useMessaging } from '../../hooks/useMessaging';
@@ -56,27 +57,27 @@ type Props = {
 
 function getCareTypeIcon(careType?: string): string {
   switch (careType) {
-    case 'overnight': return 'Overnight';
-    case 'daySitting': return '☀️';
+    case 'overnight': return 'Overnight sitting';
+    case 'daySitting': return 'Daytime sitting';
     case 'feeding': return 'Feeding';
-    case 'dogWalking': return '';
-    default: return t;
+    case 'dogWalking': return 'Walk';
+    default: return '';
   }
 }
 
 function getCareTypeLabel(careType?: string): string {
   switch (careType) {
-    case 'overnight': return 'Overnight Care';
-    case 'daySitting': return 'Day Pet Sitting';
+    case 'overnight': return 'Overnight sitting';
+    case 'daySitting': return 'Daytime sitting';
     case 'feeding': return 'Feeding';
-    case 'dogWalking': return 'Dog Walking';
+    case 'dogWalking': return 'Walk';
     default: return 'Pet Care';
   }
 }
 
 function getScheduleInfo(post: SwapPost): string {
-  const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const startStr = smartDate(post.startDate);
+  const endStr = smartDate(post.endDate, { includeYear: true });
 
   switch (post.careType) {
     case 'overnight': {
@@ -335,8 +336,8 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       const sitterName = userProfile?.displayName ?? user.displayName ?? 'Someone';
       const sitterPhoto = userProfile?.photoURL ?? user.photoURL ?? undefined;
-      const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      const startStr = smartDate(post.startDate);
+      const endStr = smartDate(post.endDate, { includeYear: true });
       const dogDisplayName = post.dogNames && post.dogNames.length > 1
         ? post.dogNames.join(' & ') : post.dogName;
 
@@ -363,8 +364,8 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       const sitterName = userProfile?.displayName ?? user.displayName ?? 'Someone';
       const sitterPhoto = userProfile?.photoURL ?? user.photoURL ?? undefined;
-      const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      const startStr = smartDate(post.startDate);
+      const endStr = smartDate(post.endDate, { includeYear: true });
       const dogDisplayName = post.dogNames && post.dogNames.length > 1
         ? post.dogNames.join(' & ') : post.dogName;
 
@@ -459,8 +460,8 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       });
       // Notify the sitter via chat
       const convId = await getOrCreateConversation(user.uid, sitterId, post.id);
-      const startStr = rescheduleStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      const endStr = rescheduleEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const startStr = smartDate(rescheduleStart);
+      const endStr = smartDate(rescheduleEnd);
       const note = rescheduleNote.trim() ? `\n\nNote: ${rescheduleNote.trim()}` : '';
       await sendMessage(convId, user.uid, `I need to reschedule. Would ${startStr} – ${endStr} work instead?${note}`);
       setShowRescheduleModal(false);
@@ -705,7 +706,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                 <Text style={styles.ownerLabel}> (owner)</Text>
               </View>
               <Text style={[styles.postedAt, { color: colors.textSecondary }]}>
-                Posted {post.createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                Posted {smartDate(post.createdAt)}
               </Text>
             </View>
             <View style={[styles.statusBadge, { backgroundColor: post.status === 'open' ? '#00B89420' : '#63727220' }]}>
@@ -757,7 +758,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             </Text>
           )}
           <Text style={[styles.careDetailLine, { color: colors.text }]}>
-            Date: {post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+            Date: {smartDate(post.startDate)} – {smartDate(post.endDate, { includeYear: true })}
           </Text>
           {post.careDetails ? (
             <Text style={[styles.careDetails, { color: colors.text, marginTop: 8 }]}>{post.careDetails}</Text>

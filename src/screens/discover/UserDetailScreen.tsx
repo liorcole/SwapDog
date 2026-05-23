@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { DiscoverStackParamList } from '../../navigation/types';
 import { useTheme } from '../../contexts/ThemeContext';
 import AvatarImage from '../../components/common/AvatarImage';
+import { smartDate } from '../../utils/dateHelpers';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useUsers } from '../../hooks/useUsers';
 import { useDogs } from '../../hooks/useDogs';
@@ -25,8 +26,8 @@ type Props = {
 
 /** Build the message text for a SwapPost share */
 function buildPostMessage(post: SwapPost): string {
-  const start = post.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  const end = post.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const start = smartDate(post.startDate);
+  const end = smartDate(post.endDate);
   return (
     `Hey! I posted a request for dog sitting — check it out!\n\n` +
     `Dog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\n` +

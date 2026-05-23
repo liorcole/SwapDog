@@ -32,6 +32,7 @@ import { DiscoverStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import AvatarImage from '../../components/common/AvatarImage';
+import { smartDate } from '../../utils/dateHelpers';
 import { useUsers } from '../../hooks/useUsers';
 import { useDiscoverLocation } from '../../hooks/useDiscoverLocation';
 import { useSwaps } from '../../hooks/useSwaps';
@@ -65,10 +66,10 @@ const RED = '#FF2D55';
 
 const getCareTypeLabel = (t: string): string => {
   switch (t) {
-    case 'overnight': return 'Overnight Stay';
-    case 'daySitting': return 'Day Sitting';
-    case 'feeding': return 'Feeding Visit';
-    case 'dogWalking': return 'Dog Walking';
+    case 'overnight': return 'Overnight sitting';
+    case 'daySitting': return 'Daytime sitting';
+    case 'feeding': return 'Feeding';
+    case 'dogWalking': return 'Walk';
     default: return t;
   }
 };
@@ -173,8 +174,8 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
     onPress(post.id);
   }, [onPress, post.id]);
   const { colors } = useTheme();
-  const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const startStr = smartDate(post.startDate);
+  const endStr = smartDate(post.endDate, { includeYear: true });
 
   const careLabel = post.careType
     ? post.careType.charAt(0).toUpperCase() + post.careType.slice(1)
@@ -634,8 +635,8 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
 
   // ── Broadcast helpers ──────────────────────────────────────────────────────
   const buildPostMessage = useCallback((post: SwapPost): string => {
-    const start = post.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    const end = post.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const start = smartDate(post.startDate);
+    const end = smartDate(post.endDate);
     return `Hey! I posted a request for dog sitting — check it out!\n\nDog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\nDates: ${start} – ${end}\nDetails: ${post.careDetails}`;
   }, []);
 

@@ -177,9 +177,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
   const startStr = smartDate(post.startDate);
   const endStr = smartDate(post.endDate, { includeYear: true });
 
-  const careLabel = post.careType
-    ? post.careType.charAt(0).toUpperCase() + post.careType.slice(1)
-    : 'Pet Care';
+  const careLabel = post.careType ? getCareTypeLabel(post.careType) : 'Pet Care';
 
   return (
     <TouchableOpacity

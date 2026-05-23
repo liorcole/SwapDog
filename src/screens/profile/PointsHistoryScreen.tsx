@@ -90,20 +90,26 @@ const PointsHistoryScreen: React.FC<Props> = ({ navigation }) => {
   const ListHeader = () => (
     <View style={[styles.totalCard, { backgroundColor: colors.surface, ...shadow.sm }]}>
       <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total Points</Text>
-      <Text style={[styles.totalPoints, { color: colors.primary }]}>
-        🐾 {(userProfile?.points ?? 0).toFixed(1)}
+      <Text style={[styles.totalPoints, { color: '#FFFFFF' }]}>
+        {(userProfile?.points ?? 0).toFixed(1)}
       </Text>
       <Text style={[styles.totalSub, { color: colors.textSecondary }]}>
         {entries.length > 0
           ? `${entries.length} transaction${entries.length !== 1 ? 's' : ''}`
           : 'No transactions yet'}
       </Text>
+      <TouchableOpacity
+        style={{ backgroundColor: '#FF2D55', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 24, marginTop: 16 }}
+        onPress={() => navigation.getParent()?.navigate('DiscoverTab')}
+      >
+        <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>Earn More</Text>
+      </TouchableOpacity>
     </View>
   );
 
   const ListEmpty = () => (
     <View style={styles.emptyWrap}>
-      <Text style={styles.emptyIcon}>🐾</Text>
+      
       <Text style={[styles.emptyTitle, { color: colors.text }]}>No points history yet</Text>
       <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
         Earn points by watching dogs for your neighbours!
@@ -154,7 +160,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   totalLabel: { fontSize: 14, fontWeight: '500', marginBottom: spacing.xs, textTransform: 'uppercase', letterSpacing: 1 },
-  totalPoints: { fontSize: 48, fontWeight: '800', lineHeight: 56, marginBottom: spacing.xs },
+  totalPoints: { fontSize: 48, fontWeight: '400', lineHeight: 56, marginBottom: spacing.xs, color: '#FFFFFF' },
   totalSub: { fontSize: 13 },
 
   // Row

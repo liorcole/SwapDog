@@ -9,6 +9,7 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { useUsers } from '../../hooks/useUsers';
 import { useDogs } from '../../hooks/useDogs';
 import { useSwaps } from '../../hooks/useSwaps';
+import { useReviews } from '../../hooks/useReviews';
 import { useMessaging } from '../../hooks/useMessaging';
 import { User, Dog, SwapPost } from '../../models/types';
 import { spacing, borderRadius, shadow, typography } from '../../config/theme';
@@ -26,10 +27,10 @@ function buildPostMessage(post: SwapPost): string {
   const start = post.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const end = post.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return (
-    `🐾 Hey! I posted a request for dog sitting — check it out!\n\n` +
-    `🐶 Dog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\n` +
-    `📅 Dates: ${start} – ${end}\n` +
-    `📝 Details: ${post.careDetails}`
+    `Hey! I posted a request for dog sitting — check it out!\n\n` +
+    `Dog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\n` +
+    `Dates: ${start} – ${end}\n` +
+    `Details: ${post.careDetails}`
   );
 }
 
@@ -48,6 +49,8 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [myOpenPost, setMyOpenPost] = useState<SwapPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const { getReviewsForUser } = useReviews();
+  const [reviews, setReviews] = useState<{ rating: number; text: string; reviewerName: string }[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -64,6 +67,11 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         const open = myPosts.find((p) => p.status === 'open') ?? null;
         setMyOpenPost(open);
       }
+      // Load reviews
+      try {
+        const revs = await getReviewsForUser(userId);
+        setReviews(revs.map((r: any) => ({ rating: r.rating ?? 0, text: r.text ?? '', reviewerName: r.reviewerName ?? 'Anonymous' })));
+      } catch { /* non-fatal */ }
       setLoading(false);
     };
     void load();
@@ -98,7 +106,7 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       // Use the Messages tab instead — navigate directly
       // We rely on the parent navigator's navigate approach
       Alert.alert(
-        'Post Sent! 🐾',
+        'Post Sent!',
         `Your post was sent to ${user.displayName}. Check Messages to continue the conversation.`,
         [{ text: 'OK' }],
       );
@@ -124,7 +132,7 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         />
         <Text style={[styles.name, { color: colors.text }]} accessibilityRole="header">{user.displayName}</Text>
         {user.locationName && (
-          <Text style={[styles.location, { color: colors.textSecondary }]}>📍 {user.locationName}</Text>
+          <Text style={[styles.location, { color: colors.textSecondary }]}>{user.locationName}</Text>
         )}
         {user.rating !== undefined && (
           <View style={styles.ratingRow}>
@@ -135,14 +143,14 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         {user.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{user.bio}</Text>}
         {user.instagramHandle ? (
           <TouchableOpacity
-            onPress={() => Linking.openURL(`https://instagram.com/${user.instagramHandle}`)}
+            onPress={() => { const h = user.instagramHandle ?? ''; const url = h.startsWith('http') ? h : `https://www.instagram.com/${h.replace('@', '')}/`; Linking.openURL(url); }}
             style={styles.igRow}
           >
             <Text style={[styles.igHandle, { color: colors.primary }]}>@{user.instagramHandle}</Text>
           </TouchableOpacity>
         ) : null}
         <Text style={[styles.pointsBadge, { color: colors.textSecondary }]}>
-          🐾 {user.points ?? 0} points
+          {user.points ?? 0} points
         </Text>
       </View>
 
@@ -161,7 +169,7 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                 <Image source={{ uri: dog.photoURLs[0] }} style={styles.dogPhoto} />
               ) : (
                 <View style={[styles.dogPhotoPlaceholder, { backgroundColor: colors.primary + '22' }]}>
-                  <Text style={{ fontSize: 20 }}>🐕</Text>
+                  <Text style={{ fontSize: 20 }}></Text>
                 </View>
               )}
               <View style={styles.dogCardInfo}>
@@ -171,6 +179,24 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             </View>
           </TouchableOpacity>
         ))}
+      </View>
+
+      {/* ── Reviews ── */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Reviews</Text>
+        {reviews.length === 0 ? (
+          <Text style={{ color: colors.textSecondary, fontSize: 14 }}>No reviews yet</Text>
+        ) : (
+          reviews.map((rev, idx) => (
+            <View key={idx} style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                <StarRating rating={Math.round(rev.rating)} />
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginLeft: 8 }}>{rev.reviewerName}</Text>
+              </View>
+              {rev.text ? <Text style={{ color: colors.text, fontSize: 14 }}>{rev.text}</Text> : null}
+            </View>
+          ))
+        )}
       </View>
 
       {showSendButton && (

@@ -18,6 +18,7 @@ import {
   Dimensions,
   Modal,
   PanResponder,
+  Animated,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -44,11 +45,11 @@ const TEAL = '#2DD4BF';
 // ── Care type helpers (Wave 19B) ──────────────────────────────────────────────
 function getCareTypeIcon(careType?: string): string {
   switch (careType) {
-    case 'overnight': return '🏠';
+    case 'overnight': return 'Overnight';
     case 'daySitting': return '☀️';
-    case 'feeding': return '🍽️';
-    case 'dogWalking': return '🐕';
-    default: return '🐾';
+    case 'feeding': return 'Feeding';
+    case 'dogWalking': return 'Walking';
+    default: return t;
   }
 }
 
@@ -130,6 +131,9 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const { getMyPosts, cancelPost, getAcceptedPosts, saveSitterReminderIds } = useSwaps();
 
   const [tab, setTab] = useState<TabType>('mine');
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [flashDate, setFlashDate] = useState<Date | null>(null);
+  const flashAnim = useRef(new Animated.Value(1)).current;
 
   // Swipe between tabs
   const tabPanResponder = useRef(
@@ -188,7 +192,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         getMyPosts(user.uid),
         getAcceptedPosts(user.uid),
       ]);
-      setMyPosts(mine);
+      setMyPosts(mine.filter((p: any) => p.status !== 'cancelled'));
       setAcceptedPosts(accepted);
     } finally {
       setLoading(false);
@@ -267,7 +271,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
 
   const compensationLabel = (post: SwapPost): string => {
     if (post.compensationType === 'points') {
-      return `🐾 ${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
+      return `${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
     }
     if (post.totalPayment && post.paymentAmount && post.totalUnits && post.paymentRate) {
       const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';
@@ -275,7 +279,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         post.paymentRate === 'per_hour'
           ? `${post.totalUnits} hr${post.totalUnits !== 1 ? 's' : ''}`
           : `${post.totalUnits} day${post.totalUnits !== 1 ? 's' : ''}`;
-      return `💰 $${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
+      return `$${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
     }
     return 'Payment offered';
   };
@@ -314,7 +318,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         {interestedCount > 0 && (
           <View style={styles.interestTopLeft}>
             <Text style={styles.interestBadgeText}>
-              🙋 {interestedCount} helper{interestedCount !== 1 ? 's' : ''} interested — tap to see
+              {interestedCount} helper{interestedCount !== 1 ? 's' : ''} interested — tap to see
             </Text>
           </View>
         )}
@@ -323,7 +327,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
             <Image source={{ uri: item.dogPhotoURL }} style={[styles.dogThumbSmall, { borderColor: colors.border }]} />
           ) : (
             <View style={[styles.dogThumbPlaceholder, { backgroundColor: colors.primary + '15' }]}>
-              <Text style={styles.dogThumbEmoji}>🐕</Text>
+              <Text style={styles.dogThumbEmoji}>D</Text>
             </View>
           )}
           <View style={styles.headerInfo}>
@@ -405,6 +409,28 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
     (a, b) => a.startDate.getTime() - b.startDate.getTime(),
   );
 
+
+  const handleCommitmentTap = (post: SwapPost) => {
+    const targetDate = post.startDate;
+    setSelectedDate(targetDate);
+    
+    // Navigate to commitments month if different
+    const targetMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+    setCalMonth(targetMonth);
+    
+    // Scroll to top of calendar
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    
+    // Flash animation
+    setFlashDate(targetDate);
+    Animated.sequence([
+      Animated.timing(flashAnim, { toValue: 1.3, duration: 200, useNativeDriver: true }),
+      Animated.timing(flashAnim, { toValue: 0.8, duration: 150, useNativeDriver: true }),
+      Animated.timing(flashAnim, { toValue: 1.2, duration: 150, useNativeDriver: true }),
+      Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start(() => setFlashDate(null));
+  };
+
   // Handle calendar date tap — show popup if that date has commitments
   const handleDatePress = (date: Date) => {
     const dayCommitments = acceptedPosts.filter((p) => overlapsDate(p, date));
@@ -420,7 +446,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const renderCommitmentCard = (post: SwapPost) => {
     const isMyDog = post.posterId === user?.uid;
     const accentColor = isMyDog ? RED : TEAL;
-    const roleIcon = isMyDog ? '🏠' : '🐾';
+    const roleIcon = isMyDog ? 'Owner' : 'Sitter';
     const roleLabel = isMyDog ? 'Your dog' : "You're watching";
     const otherName = isMyDog
       ? (post.respondedBy?.find((r) => r.userId === post.claimedBy)?.userName ?? 'Your sitter')
@@ -439,7 +465,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
           styles.commitCard,
           { backgroundColor: colors.surface, borderLeftColor: accentColor, ...shadow.sm },
         ]}
-        onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
+        onPress={() => handleCommitmentTap(post)}
         accessibilityRole="button"
         accessibilityLabel={`${roleLabel}: ${post.dogName} with ${otherName}`}
       >
@@ -450,7 +476,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={[styles.commitDogName, { color: colors.text }]}>{post.dogName}</Text>
             <Text style={[styles.commitOther, { color: colors.textSecondary }]}>{otherName}</Text>
             <Text style={[styles.commitDates, { color: colors.textSecondary }]}>
-              📅 {startStr} – {endStr}
+              {startStr} – {endStr}
             </Text>
             {post.compensationType !== 'points' && (
               <Text style={[styles.commitComp, { color: '#00B894' }]}>
@@ -471,6 +497,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <View style={{ flex: 1 }}>
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.calendarScroll}
         refreshControl={
           <RefreshControl
@@ -542,11 +569,11 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
               >
                 {hasAny && !isSelected ? (
                   /* Commitment: filled circle */
-                  <View style={[styles.calDayCircle, { backgroundColor: commitColor ?? RED }]}>
+                  <Animated.View style={[styles.calDayCircle, { backgroundColor: commitColor ?? RED }, flashDate && date.getDate() === flashDate.getDate() && date.getMonth() === flashDate.getMonth() ? { transform: [{ scale: flashAnim }] } : undefined]}>
                     <Text style={[styles.calDayNum, { color: '#fff', fontWeight: '700' }]}>
                       {date.getDate()}
                     </Text>
-                  </View>
+                  </Animated.View>
                 ) : (
                   /* Normal or selected */
                   <View style={[
@@ -660,10 +687,10 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   if (loading) return <LoadingSpinner />;
 
   const tabs: { key: TabType; label: string }[] = [
-    { key: 'mine', label: '📋 My Posts' },
+    { key: 'mine', label: 'My Posts' },
     {
       key: 'commitments',
-      label: `📅 Commitments${acceptedPosts.length > 0 ? ` (${acceptedPosts.length})` : ''}`,
+      label: `Commitments${acceptedPosts.length > 0 ? ` (${acceptedPosts.length})` : ''}`,
     },
   ];
 
@@ -707,7 +734,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
                 accessibilityLabel="Post a request"
                 accessibilityRole="button"
               >
-                <Text style={styles.postRequestCardText}>Post a Request 🐾</Text>
+                <Text style={styles.postRequestCardText}>Post a Request</Text>
               </TouchableOpacity>
             }
             refreshControl={
@@ -721,7 +748,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
             }
             ListEmptyComponent={
               <EmptyStateView
-                emoji="📋"
+                emoji=""
                 title="No posts yet"
                 subtitle="Post a request and local sitters will reach out"
               />
@@ -807,19 +834,17 @@ const styles = StyleSheet.create({
 
   // Post Request Card (replaces FAB)
   postRequestCard: {
-    backgroundColor: RED,
+    backgroundColor: 'transparent',
     borderRadius: borderRadius.lg,
-    height: 60,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
-    shadowColor: RED,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
+    marginHorizontal: spacing.md,
+    marginVertical: spacing.lg,
   },
-  postRequestCardText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
+  postRequestCardText: { color: '#FFFFFF', fontSize: 16, fontWeight: '400' },
 
   // Calendar container
   calendarScroll: { padding: spacing.md, paddingBottom: spacing.xl * 3 },

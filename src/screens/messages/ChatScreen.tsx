@@ -70,20 +70,10 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  // Also handle swipe-back gesture by ensuring header is properly set
+  // Hide the native navigation header — we use our own custom header
   useEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      headerTitle: 'Chat',
-      headerStyle: { backgroundColor: colors.background },
-      headerTintColor: colors.text,
-      headerLeft: () => (
-        <TouchableOpacity onPress={handleBack} style={{ paddingRight: 8 }}>
-          <Text style={{ color: colors.primary, fontSize: 17 }}>{'‹ Messages'}</Text>
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation, colors]);
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
   return (
     <KeyboardAvoidingView

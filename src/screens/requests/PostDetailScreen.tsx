@@ -57,11 +57,11 @@ type Props = {
 
 function getCareTypeIcon(careType?: string): string {
   switch (careType) {
-    case 'overnight': return '🏠';
+    case 'overnight': return 'Overnight';
     case 'daySitting': return '☀️';
-    case 'feeding': return '🍽️';
-    case 'dogWalking': return '🐕';
-    default: return '🐾';
+    case 'feeding': return 'Feeding';
+    case 'dogWalking': return '';
+    default: return t;
   }
 }
 
@@ -83,17 +83,17 @@ function getScheduleInfo(post: SwapPost): string {
     case 'overnight': {
       const MS_PER_DAY = 1000 * 60 * 60 * 24;
       const nights = Math.max(1, Math.round((post.endDate.getTime() - post.startDate.getTime()) / MS_PER_DAY));
-      return `📅 ${startStr} → ${endStr} (${nights} night${nights !== 1 ? 's' : ''})`;
+      return `${startStr} → ${endStr} (${nights} night${nights !== 1 ? 's' : ''})`;
     }
     case 'daySitting': {
       const timeInfo = post.startTime && post.endTime
         ? `, ${post.startTime} → ${post.endTime}`
         : '';
-      return `📅 ${startStr}${timeInfo}`;
+      return `${startStr}${timeInfo}`;
     }
     case 'feeding': {
       const timeInfo = post.feedingTime ? ` at ${post.feedingTime}` : '';
-      return `📅 ${startStr}${timeInfo}`;
+      return `${startStr}${timeInfo}`;
     }
     case 'dogWalking': {
       if (post.walkDurationMinutes) {
@@ -102,12 +102,12 @@ function getScheduleInfo(post: SwapPost): string {
         const label = hrs > 0
           ? `${hrs} hr${hrs !== 1 ? 's' : ''}${mins > 0 ? ` ${mins} min` : ''}`
           : `${mins} min`;
-        return `🐕 ${label} walk`;
+        return ` ${label} walk`;
       }
-      return '🐕 Dog Walking';
+      return ' Dog Walking';
     }
     default:
-      return `📅 ${startStr} – ${endStr}`;
+      return `${startStr} – ${endStr}`;
   }
 }
 
@@ -129,7 +129,7 @@ const PhotoCarouselSection: React.FC<PhotoCarouselProps> = ({ photos, onPhotoPre
   if (photos.length === 0) {
     return (
       <View style={carouselStyles.placeholder}>
-        <Text style={carouselStyles.placeholderEmoji}>🐕</Text>
+        <Text style={carouselStyles.placeholderEmoji}></Text>
         <Text style={carouselStyles.placeholderText}>No Photos</Text>
       </View>
     );
@@ -248,6 +248,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Photo carousel state
   const [allPhotos, setAllPhotos] = useState<string[]>([]);
+  // Reschedule/cancel state
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleStart, setRescheduleStart] = useState<Date>(new Date());
+  const [rescheduleEnd, setRescheduleEnd] = useState<Date>(new Date());
+  const [rescheduleNote, setRescheduleNote] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [modalInitialIndex, setModalInitialIndex] = useState(0);
 
@@ -349,8 +354,8 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       const convId = await getOrCreateConversation(user.uid, post.posterId, post.id);
 
       const introText = counterPoints !== undefined
-        ? `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'd like to counter-offer at ${counterType === 'money' ? `$${counterMoneyInput}` : `${counterPoints} points`} — let me know if that works!\n\n📋 Review Counter`
-        : `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'll take the job for the offered ${post.pointsOffered ?? post.pointsCost} points!`;
+        ? `Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'd like to counter-offer at ${counterType === 'money' ? `$${counterMoneyInput}` : `${counterPoints} points`} — let me know if that works!\n\nReview Counter`
+        : `Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'll take the job for the offered ${post.pointsOffered ?? post.pointsCost} points!`;
       await sendMessage(convId, user.uid, introText);
 
       await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto }, counterPoints);
@@ -381,11 +386,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         ? post.dogNames.join(' & ') : post.dogName;
 
       const convId = await getOrCreateConversation(user.uid, post.posterId, post.id);
-      const introText = `🐾 Hey! I'd love to help watch ${dogDisplayName} from ${startStr} to ${endStr}. Let me know if you'd like to set something up!`;
+      const introText = `Hey! I'd love to help watch ${dogDisplayName} from ${startStr} to ${endStr}. Let me know if you'd like to set something up!`;
       await sendMessage(convId, user.uid, introText);
 
       if (post.compensationType === 'payment' || post.compensationType === 'either') {
-        await sendMessage(convId, user.uid, '💰 Reminder: All payments are arranged and made outside of WatchDog.');
+        await sendMessage(convId, user.uid, 'Reminder: All payments are arranged and made outside of WatchDog.');
       }
 
       await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto }, counterPoints);
@@ -551,7 +556,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           />
           <View style={[styles.helpModalCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.helpModalTitle, { color: colors.text }]}>
-              🐾 Respond to this post
+              Respond to this post
             </Text>
             <Text style={[styles.helpModalSubtitle, { color: colors.textSecondary }]}>
               This post is worth{' '}
@@ -668,6 +673,65 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         </KeyboardAvoidingView>
       </Modal>
 
+
+        {/* ── Reschedule Modal ── */}
+        <Modal visible={showRescheduleModal} transparent animationType="slide">
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+              <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+                <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 16 }}>Propose New Dates</Text>
+
+                <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 4 }}>Start Date</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    const d = new Date(rescheduleStart);
+                    d.setDate(d.getDate() + 1);
+                    setRescheduleStart(d);
+                  }}
+                  style={{ backgroundColor: colors.background, borderRadius: 8, padding: 12, marginBottom: 12 }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 16 }}>{rescheduleStart.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                </TouchableOpacity>
+
+                <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 4 }}>End Date</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    const d = new Date(rescheduleEnd);
+                    d.setDate(d.getDate() + 1);
+                    setRescheduleEnd(d);
+                  }}
+                  style={{ backgroundColor: colors.background, borderRadius: 8, padding: 12, marginBottom: 12 }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 16 }}>{rescheduleEnd.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                </TouchableOpacity>
+
+                <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 4 }}>Note to sitter (optional)</Text>
+                <TextInput
+                  style={{ backgroundColor: colors.background, borderRadius: 8, padding: 12, color: colors.text, fontSize: 15, minHeight: 60, textAlignVertical: 'top', marginBottom: 16 }}
+                  placeholder="e.g. Something came up, would these dates work?"
+                  placeholderTextColor={colors.textSecondary}
+                  value={rescheduleNote}
+                  onChangeText={setRescheduleNote}
+                  multiline
+                />
+
+                <TouchableOpacity
+                  style={{ backgroundColor: '#FFD700', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginBottom: 8 }}
+                  onPress={handleReschedule}
+                >
+                  <Text style={{ color: '#3D2E00', fontWeight: '700', fontSize: 16 }}>Send Proposal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ paddingVertical: 12, alignItems: 'center' }}
+                  onPress={() => setShowRescheduleModal(false)}
+                >
+                  <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
       <FullscreenPhotoModal
         photos={allPhotos}
         initialIndex={modalInitialIndex}
@@ -682,6 +746,33 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         {/* ── Photo Carousel (swipeable, all dog photos) ── */}
         <PhotoCarouselSection photos={allPhotos} onPhotoPress={handlePhotoPress} />
 
+
+        {/* ── Reschedule / Cancel banner (owner, claimed post) ── */}
+        {isOwner && post.status === 'claimed' && (
+          <View style={[styles.rescheduleBanner, { backgroundColor: '#3D2E00', borderColor: '#FFD700' }]}>
+            <Text style={{ color: '#FFD700', fontSize: 15, fontWeight: '600', marginBottom: 8 }}>
+              Plans changed?
+            </Text>
+            <Text style={{ color: '#FFD700', fontSize: 13, marginBottom: 12 }}>
+              Reschedule or cancel this booking
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#FFD700', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                onPress={() => setShowRescheduleModal(true)}
+              >
+                <Text style={{ color: '#3D2E00', fontWeight: '700', fontSize: 14 }}>Reschedule</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#FF4444', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                onPress={handleCancelClaimed}
+              >
+                <Text style={{ color: '#FF4444', fontWeight: '700', fontSize: 14 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* ── Owner (clickable → full profile) ── */}
         <TouchableOpacity
           style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}
@@ -694,7 +785,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               <Image source={{ uri: post.posterPhotoURL }} style={[styles.posterAvatar, { borderColor: colors.border }]} />
             ) : (
               <View style={[styles.posterAvatarPlaceholder, { backgroundColor: colors.primary + '22', borderColor: colors.border }]}>
-                <Text style={styles.posterAvatarEmoji}>🧑</Text>
+                <Text style={styles.posterAvatarEmoji}></Text>
               </View>
             )}
             <View style={styles.posterInfo}>
@@ -714,32 +805,37 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </TouchableOpacity>
 
-        {/* ── Dog (clickable → DogDetail) ── */}
-        <TouchableOpacity
-          style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}
-          onPress={() => {
-            const dogId = post.dogId ?? (post.dogIds && post.dogIds.length > 0 ? post.dogIds[0] : undefined);
-            if (dogId) navigation.navigate('DogDetail', { dogId });
-          }}
-          accessibilityLabel={`View ${dogDisplayName}'s profile`}
-          accessibilityRole="button"
-        >
+        {/* ── Dogs (each clickable → DogDetail) ── */}
+        <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Dog{post.dogIds && post.dogIds.length > 1 ? 's' : ''}</Text>
-          <View style={styles.dogRow}>
-            {allPhotos.length > 0 ? (
-              <Image source={{ uri: allPhotos[0] }} style={[styles.dogThumb, { borderColor: colors.border }]} />
-            ) : (
-              <View style={[styles.dogThumbPlaceholder, { backgroundColor: colors.primary + '22' }]}>
-                <Text style={styles.dogThumbEmoji}>🐕</Text>
-              </View>
-            )}
-            <View style={styles.dogInfo}>
-              <Text style={[styles.dogName, { color: colors.text }]}>{dogDisplayName}</Text>
-              {dogDisplayBreed && <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dogDisplayBreed}</Text>}
-            </View>
-            <Text style={{ color: '#999', fontSize: 20 }}>›</Text>
-          </View>
-        </TouchableOpacity>
+          {(post.dogIds && post.dogIds.length > 0 ? post.dogIds : [post.dogId]).filter(Boolean).map((dId, idx) => {
+            const dName = post.dogNames?.[idx] ?? post.dogName ?? 'Dog';
+            const dBreed = post.dogBreeds?.[idx] ?? post.dogBreed ?? '';
+            const dPhoto = allPhotos[idx] ?? null;
+            return (
+              <TouchableOpacity
+                key={dId ?? idx}
+                onPress={() => { if (dId) navigation.navigate('DogDetail', { dogId: dId }); }}
+                accessibilityLabel={`View ${dName}'s profile`}
+                accessibilityRole="button"
+                style={[styles.dogRow, idx > 0 && { marginTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: spacing.sm }]}
+              >
+                {dPhoto ? (
+                  <Image source={{ uri: dPhoto }} style={[styles.dogThumb, { borderColor: colors.border }]} />
+                ) : (
+                  <View style={[styles.dogThumbPlaceholder, { backgroundColor: colors.primary + '22' }]}>
+                    <Text style={styles.dogThumbEmoji}>D</Text>
+                  </View>
+                )}
+                <View style={styles.dogInfo}>
+                  <Text style={[styles.dogName, { color: colors.text }]}>{dName}</Text>
+                  {dBreed ? <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dBreed}</Text> : null}
+                </View>
+                <Text style={{ color: '#999', fontSize: 20 }}>›</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {/* ── Care Details (type → date → description) ── */}
         <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
@@ -775,11 +871,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           <View style={styles.helpersSection}>
             <View style={styles.helpersSectionHeader}>
               <Text style={styles.helpersSectionTitle}>
-                🙋 Interested Helpers ({respondents.length})
+                Interested Helpers ({respondents.length})
               </Text>
               {post.status === 'claimed' && (
                 <View style={styles.claimedBadge}>
-                  <Text style={styles.claimedBadgeText}>✅ APPROVED</Text>
+                  <Text style={styles.claimedBadgeText}>APPROVED</Text>
                 </View>
               )}
             </View>
@@ -802,7 +898,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                       <Image source={{ uri: r.userPhotoURL }} style={styles.helperAvatar} />
                     ) : (
                       <View style={styles.helperAvatarPlaceholder}>
-                        <Text style={styles.helperAvatarEmoji}>🧑</Text>
+                        <Text style={styles.helperAvatarEmoji}></Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -815,13 +911,13 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                     <Text style={styles.helperName}>{r.userName}</Text>
 
                     {isApproved ? (
-                      <Text style={styles.helperApprovedLabel}>✅ Approved sitter</Text>
+                      <Text style={styles.helperApprovedLabel}>Approved sitter</Text>
                     ) : hasCounter ? (
                       // Counter offer display
                       <View>
                         <Text style={styles.helperCounterLabel}>
                           🔄 Counter: {r.counterPoints} pts
-                          {counterStatus === 'accepted' ? ' ✅ Accepted' : counterStatus === 'declined' ? ' ❌ Declined' : ''}
+                          {counterStatus === 'accepted' ? ' Accepted' : counterStatus === 'declined' ? ' Declined' : ''}
                         </Text>
                         {/* Accept/Decline buttons for pending counters */}
                         {counterStatus === 'pending' && (
@@ -830,7 +926,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                               style={[styles.counterAcceptBtn, { backgroundColor: GREEN }]}
                               onPress={() => handleCounterResponse(r.userId, r.userName, true)}
                             >
-                              <Text style={styles.counterBtnText}>Accept ✅</Text>
+                              <Text style={styles.counterBtnText}>Accept</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={[styles.counterDeclineBtn, { borderColor: colors.error }]}
@@ -890,7 +986,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               accessibilityLabel="I can help!"
               accessibilityRole="button"
             >
-              <Text style={styles.helpBtnText}>{claiming ? 'Opening chat...' : 'I Can Help! 🐾'}</Text>
+              <Text style={styles.helpBtnText}>{claiming ? 'Opening chat...' : 'I Can Help!'}</Text>
             </TouchableOpacity>
           );
         })()}
@@ -979,7 +1075,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   notFound: { fontSize: 16 },
   section: { borderRadius: borderRadius.lg, padding: spacing.md, marginBottom: spacing.md, marginHorizontal: spacing.md, marginTop: spacing.md },
-  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: spacing.sm },
+  sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: spacing.sm },
 
   // Care type banner
   careTypeBanner: {
@@ -1035,6 +1131,7 @@ const styles = StyleSheet.create({
   helpersSection: { borderRadius: borderRadius.lg, marginBottom: spacing.md, marginHorizontal: spacing.md, overflow: 'hidden', borderWidth: 2, borderColor: RED, backgroundColor: 'rgba(255,45,85,0.06)', shadowColor: RED, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 6, elevation: 4 },
   helpersSectionHeader: { backgroundColor: RED, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   helpersSectionTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  rescheduleBanner: { marginHorizontal: spacing.md, marginTop: spacing.sm, borderWidth: 1.5, borderRadius: borderRadius.lg, padding: spacing.md },
   claimedBadge: { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   claimedBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
   helperRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,45,85,0.25)' },

@@ -294,11 +294,17 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <Image
-          source={userProfile?.photoURL ? { uri: userProfile.photoURL } : require('../../../assets/icon.png')}
-          style={styles.avatar}
-          accessibilityLabel="Your profile photo"
-        />
+        {userProfile?.photoURL ? (
+          <Image
+            source={{ uri: userProfile.photoURL }}
+            style={styles.avatar}
+            accessibilityLabel="Your profile photo"
+          />
+        ) : (
+          <View style={[styles.avatar, { backgroundColor: ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#98D8C8','#F7DC6F'][(userProfile?.displayName?.length ?? 0) % 8], alignItems: 'center', justifyContent: 'center' }]}>
+            <Text style={{ fontSize: 36 }}>🐶</Text>
+          </View>
+        )}
         <Text style={[styles.name, { color: colors.text }]} accessibilityRole="header">
           {userProfile?.displayName ?? 'User'}
         </Text>
@@ -307,19 +313,23 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         )}
         {userProfile?.instagramHandle ? (
           <TouchableOpacity
-            onPress={() => Linking.openURL(`https://instagram.com/${userProfile.instagramHandle}`)}
+            onPress={() => { const h = userProfile.instagramHandle ?? ''; const url = h.startsWith('http') ? h : `https://www.instagram.com/${h.replace('@', '')}/`; Linking.openURL(url); }}
             accessibilityLabel={`Instagram: ${userProfile.instagramHandle}`}
             accessibilityRole="link"
           >
             <Text style={[styles.instagramHandle, { color: colors.primary }]}>@{userProfile.instagramHandle}</Text>
           </TouchableOpacity>
         ) : null}
-        {userProfile?.rating !== undefined && (
-          <View style={styles.ratingRow}>
-            <StarRating rating={Math.round(userProfile.rating)} />
-            <Text style={[styles.ratingCount, { color: colors.textSecondary }]}>({userProfile.reviewCount ?? 0})</Text>
-          </View>
-        )}
+        <View style={styles.ratingRow}>
+          {userProfile?.rating !== undefined && userProfile?.reviewCount ? (
+            <>
+              <StarRating rating={Math.round(userProfile.rating)} />
+              <Text style={[styles.ratingCount, { color: colors.textSecondary }]}>({userProfile.reviewCount} review{userProfile.reviewCount !== 1 ? 's' : ''})</Text>
+            </>
+          ) : (
+            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>No reviews yet</Text>
+          )}
+        </View>
         {userProfile?.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{userProfile.bio}</Text>}
 
 
@@ -330,7 +340,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityLabel={`${(userProfile?.points ?? 0).toFixed(1)} points. Tap to see history.`}
           accessibilityRole="button"
         >
-          <Text style={[styles.pointsBadgeText, { color: colors.primary }]}>
+          <Text style={[styles.pointsBadgeText, { color: '#FFFFFF' }]}>
             {(userProfile?.points ?? 0).toFixed(1)} points {'>'}
           </Text>
         </TouchableOpacity>

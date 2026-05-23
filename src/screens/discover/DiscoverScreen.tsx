@@ -184,9 +184,9 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
       const unitLabel = post.paymentRate === 'per_hour'
         ? `${post.totalUnits} hr${post.totalUnits !== 1 ? 's' : ''}`
         : `${post.totalUnits} day${post.totalUnits !== 1 ? 's' : ''}`;
-      return `💰 $${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
+      return `$${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
     }
-    return '💰 Payment offered';
+    return 'Payment offered';
   };
 
   return (
@@ -205,7 +205,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
             <Image source={{ uri: post.posterPhotoURL }} style={[styles.avatarSmall, { borderColor: colors.border }]} />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: RED + '22' }]}>
-              <Text style={styles.avatarEmoji}>🧑</Text>
+              <Text style={styles.avatarEmoji}>U</Text>
             </View>
           )}
           <View style={styles.headerInfo}>
@@ -216,7 +216,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
             <Image source={{ uri: post.dogPhotoURL }} style={[styles.dogThumbSmall, { borderColor: colors.border }]} />
           ) : (
             <View style={[styles.dogThumbPlaceholder, { backgroundColor: RED + '15' }]}>
-              <Text style={styles.dogThumbEmoji}>🐕</Text>
+              <Text style={styles.dogThumbEmoji}>D</Text>
             </View>
           )}
         </View>
@@ -231,7 +231,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
 
         {isPayment && (
           <Text style={[styles.offAppInline, { color: colors.textSecondary }]}>
-            💰 Payments made outside WatchDog
+            Payments made outside WatchDog
           </Text>
         )}
 
@@ -242,7 +242,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
         {interestedCount > 0 && (
           <View style={styles.interestBadge}>
             <Text style={styles.interestBadgeText}>
-              🙋 {interestedCount} helper{interestedCount !== 1 ? 's' : ''} interested
+              {interestedCount} helper{interestedCount !== 1 ? 's' : ''} interested
             </Text>
           </View>
         )}
@@ -291,11 +291,11 @@ const UserRow: React.FC<UserRowProps> = memo(({ user, distanceMiles, dogCount, o
       <View style={styles.userInfo}>
         <Text style={[styles.userName, { color: colors.text }]}>{user.displayName}</Text>
         <Text style={[styles.userDistance, { color: colors.primary }]}>
-          📍 {formatDistance(distanceMiles)}
+          {formatDistance(distanceMiles)}
         </Text>
         {dogCount > 0 && (
           <Text style={[styles.userDogs, { color: colors.textSecondary }]}>
-            🐶 {dogCount} dog{dogCount !== 1 ? 's' : ''}
+            {dogCount} dog{dogCount !== 1 ? 's' : ''}
           </Text>
         )}
       </View>
@@ -667,7 +667,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const buildPostMessage = useCallback((post: SwapPost): string => {
     const start = post.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const end = post.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `🐾 Hey! I posted a request for dog sitting — check it out!\n\n🐶 Dog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\n📅 Dates: ${start} – ${end}\n📝 Details: ${post.careDetails}`;
+    return `Hey! I posted a request for dog sitting — check it out!\n\nDog: ${post.dogName}${post.dogBreed ? ` (${post.dogBreed})` : ''}\nDates: ${start} – ${end}\nDetails: ${post.careDetails}`;
   }, []);
 
   const handleBroadcast = useCallback(() => {
@@ -691,7 +691,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
                   await sendMessage(convId, userProfile.id, msg);
                 }),
               );
-              Alert.alert('✅ Done!', `Post sent to ${count} dog owner${count !== 1 ? 's' : ''}!`);
+              Alert.alert('Done!', `Post sent to ${count} dog owner${count !== 1 ? 's' : ''}!`);
             } catch {
               Alert.alert('Error', 'Something went wrong. Some messages may not have sent.');
             } finally {
@@ -875,7 +875,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityLabel="Change search location"
         >
           <Text style={[styles.locationBtnText, { color: colors.text }]}>
-            {location.isOverride ? `📍 ${location.label ?? 'Custom'}` : '📍 Change Location'}
+            {location.isOverride ? `${location.label ?? 'Custom'}` : 'Change Location'}
           </Text>
         </TouchableOpacity>
       </Animated.View>

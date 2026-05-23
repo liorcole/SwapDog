@@ -587,6 +587,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         <KeyboardAvoidingView
           style={styles.helpModalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         >
           <TouchableOpacity
             style={StyleSheet.absoluteFillObject}
@@ -622,7 +623,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {/* ── Reschedule Modal ── */}
         <Modal visible={showRescheduleModal} transparent animationType="slide">
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0} style={{ flex: 1 }}>
             <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
               <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
                 <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 16 }}>Propose New Dates</Text>

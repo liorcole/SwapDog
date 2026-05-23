@@ -54,6 +54,7 @@ const SignUpScreen: React.FC<Props> = ({ navigation, route }) => {
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.logo} accessibilityElementsHidden>🐾</Text>

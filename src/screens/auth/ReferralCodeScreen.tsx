@@ -82,6 +82,7 @@ const ReferralCodeScreen: React.FC<Props> = ({ navigation }) => {
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
     >
       <View style={styles.content}>
         {/* Header */}

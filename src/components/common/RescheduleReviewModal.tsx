@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, Modal, TouchableOpacity, TextInput, StyleSheet, Alert,
   KeyboardAvoidingView, Platform, ScrollView,
@@ -33,6 +33,7 @@ const RescheduleReviewModal: React.FC<Props> = ({
 }) => {
   const { colors } = useTheme();
   const [note, setNote] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
   const [showPropose, setShowPropose] = useState(false);
   const [myStart, setMyStart] = useState(proposedStart);
   const [myEnd, setMyEnd] = useState(proposedEnd);
@@ -87,10 +88,11 @@ const RescheduleReviewModal: React.FC<Props> = ({
     <Modal visible={visible} transparent animationType="slide">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
         style={styles.overlay}
       >
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* Header with X close */}
             <View style={styles.header}>
               <Text style={[styles.title, { color: colors.text }]}>Reschedule Request</Text>
@@ -186,6 +188,7 @@ const RescheduleReviewModal: React.FC<Props> = ({
                 placeholderTextColor={colors.textSecondary}
                 value={note}
                 onChangeText={setNote}
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
                 multiline
               />
             </View>

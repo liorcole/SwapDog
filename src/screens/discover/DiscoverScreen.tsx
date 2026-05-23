@@ -337,7 +337,7 @@ const LocationModal: React.FC<LocationModalProps> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0} style={styles.modalOverlay}>
         <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>Change Location</Text>
           <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>

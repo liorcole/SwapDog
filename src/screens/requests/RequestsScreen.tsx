@@ -133,7 +133,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
 
   const [tab, setTab] = useState<TabType>('mine');
   const scrollViewRef = useRef<ScrollView>(null);
-  const [flashDate, setFlashDate] = useState<Date | null>(null);
+  const [flashDates, setFlashDates] = useState<{ start: Date; end: Date } | null>(null);
   const flashAnim = useRef(new Animated.Value(1)).current;
   const flashColorAnim = useRef(new Animated.Value(0)).current;
 
@@ -406,7 +406,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     
     // Flash animation — triple size pulse with red flash, 3 times
-    setFlashDate(targetDate);
+    setFlashDates({ start: post.startDate, end: post.endDate });
     flashAnim.setValue(1);
     flashColorAnim.setValue(0);
     Animated.parallel([
@@ -432,7 +432,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         Animated.timing(flashColorAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
         Animated.timing(flashColorAnim, { toValue: 0, duration: 200, useNativeDriver: false }),
       ]),
-    ]).start(() => setFlashDate(null));
+    ]).start(() => setFlashDates(null));
   };
 
   // Handle calendar date tap — show popup if that date has commitments
@@ -566,7 +566,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
                 accessibilityState={{ selected: isSelected }}
               >
                 {(() => {
-                  const isFlashing = flashDate && date.getDate() === flashDate.getDate() && date.getMonth() === flashDate.getMonth() && date.getFullYear() === flashDate.getFullYear();
+                  const isFlashing = flashDates && (() => { const d = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(); const s = new Date(flashDates.start.getFullYear(), flashDates.start.getMonth(), flashDates.start.getDate()).getTime(); const e = new Date(flashDates.end.getFullYear(), flashDates.end.getMonth(), flashDates.end.getDate()).getTime(); return d >= s && d <= e; })();
                   if (isFlashing) {
                     // Flashing: animated circle — always wins, even if selected
                     return (
@@ -577,17 +577,17 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
                       </Animated.View>
                     );
                   }
-                  if (hasAny && !isSelected) {
-                    // Commitment dot: filled circle (static)
+                  if (hasAny) {
+                    // Commitment dot: filled circle — shows whether selected or not
                     return (
                       <View style={[styles.calDayCircle, { backgroundColor: commitColor ?? RED }]}>
-                        <Text style={[styles.calDayNum, { color: '#fff', fontWeight: '700' }]}>
+                        <Text style={[styles.calDayNum, { color: '#fff', fontWeight: isSelected ? '800' : '700', fontSize: isSelected ? 18 : 14 }]}>
                           {date.getDate()}
                         </Text>
                       </View>
                     );
                   }
-                  // Normal or selected
+                  // Normal or selected (no commitment)
                   return (
                     <View style={[
                       styles.calDayCircle,

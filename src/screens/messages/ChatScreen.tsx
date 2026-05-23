@@ -31,10 +31,6 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
-  // Hide the React Navigation header — we render our own in the component body
-  useEffect(() => {
-  // Header configured in handleBack effect above
-
   // Mark conversation as read when the user opens the chat
   useEffect(() => {
     if (user?.uid) {

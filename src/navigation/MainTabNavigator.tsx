@@ -38,7 +38,6 @@ import PointsHistoryScreen from '../screens/profile/PointsHistoryScreen';
 import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen';
 import MyAgreementScreen from '../screens/profile/MyAgreementScreen';
 import ReferralScreen from '../screens/profile/ReferralScreen';
-import AdminPanelScreen from '../screens/admin/AdminPanelScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const DiscoverStack = createNativeStackNavigator<DiscoverStackParamList>();
@@ -158,11 +157,7 @@ const ProfileNavigator: React.FC = () => {
         component={ReferralScreen}
         options={{ title: 'Invite a Friend', headerBackTitle: 'Back' }}
       />
-      <ProfileStack.Screen
-        name="AdminPanel"
-        component={AdminPanelScreen}
-        options={{ title: '👑 Admin Panel', headerBackTitle: 'Back' }}
-      />
+
     </ProfileStack.Navigator>
   );
 };

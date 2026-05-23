@@ -287,11 +287,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
     navigation.navigate('Referral');
   };
 
-  const handleAdminPanel = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate('AdminPanel');
-  };
-
   if (loading) return <LoadingSpinner />;
 
   const hasContract = !!userProfile?.contractSignedAt;

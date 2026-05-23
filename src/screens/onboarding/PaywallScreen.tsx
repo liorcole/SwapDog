@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { usePlacement } from 'expo-superwall';
@@ -18,106 +18,103 @@ type Props = {
 const PaywallScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user, refreshUserProfile } = useAuthContext();
-  const { registerPlacement, state: placementState } = usePlacement({
+  const [dismissed, setDismissed] = useState(false);
+  const triggered = useRef(false);
+
+  const activateAccount = async () => {
+    if (!user) return;
+    await updateDoc(doc(db, 'users', user.uid), {
+      isOnboarded: true,
+      accountStatus: 'active',
+      conductAgreedAt: serverTimestamp(),
+      contractSignedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await refreshUserProfile();
+  };
+
+  const { registerPlacement } = usePlacement({
     onPresent: (info) => console.log('[Superwall] Paywall presented:', info),
     onDismiss: (info, result) => {
       console.log('[Superwall] Paywall dismissed:', result);
-      // After paywall is dismissed, continue onboarding regardless
-      // (Superwall handles gating — if gated, feature() runs only on purchase)
+      // User closed paywall without purchasing — show retry screen
+      setDismissed(true);
     },
-    onError: (err) => console.error('[Superwall] Error:', err),
+    onError: (err) => {
+      console.error('[Superwall] Error:', err);
+      setDismissed(true);
+    },
     onSkip: async (reason) => {
       console.log('[Superwall] Paywall skipped:', reason);
-      // Skipped = already subscribed. Activate account.
-      if (user) {
-        await updateDoc(doc(db, 'users', user.uid), {
-          isOnboarded: true,
-          accountStatus: 'active',
-          conductAgreedAt: serverTimestamp(),
-          contractSignedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        await refreshUserProfile();
-      }
+      // Skipped = already subscribed. Activate immediately.
+      await activateAccount();
     },
   });
 
-  const handleSubscribe = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const showPaywall = async () => {
+    setDismissed(false);
     await registerPlacement({
       placement: 'campaign_trigger',
       feature: async () => {
-        // Subscribed! Activate account — skip approval/waiting/contract
-        if (user) {
-          await updateDoc(doc(db, 'users', user.uid), {
-            isOnboarded: true,
-            accountStatus: 'active',
-            conductAgreedAt: serverTimestamp(),
-            contractSignedAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-          await refreshUserProfile();
-        }
+        // User subscribed! Activate account.
+        await activateAccount();
       },
     });
   };
 
+  // Auto-trigger Superwall paywall on mount
+  useEffect(() => {
+    if (triggered.current) return;
+    triggered.current = true;
+    showPaywall();
+  }, []);
 
+  // If user dismissed the paywall, show a minimal retry screen
+  if (dismissed) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={styles.emoji}>🐾</Text>
+        <Text style={[styles.title, { color: colors.text }]}>
+          Subscription Required
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Subscribe to join the SwapDog community
+        </Text>
+        <TouchableOpacity
+          style={[styles.retryBtn, { backgroundColor: RED }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            showPaywall();
+          }}
+          accessibilityLabel="Subscribe"
+          accessibilityRole="button"
+        >
+          <Text style={styles.retryBtnText}>Subscribe</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
+  // While Superwall paywall is loading/showing, show blank + spinner
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={styles.emoji}>🐾</Text>
-      <Text style={[styles.title, { color: colors.text }]}>Subscribe to WatchDog</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Subscribe to get started
-      </Text>
-
-      <View style={[styles.featureList, { backgroundColor: colors.surface }]}>
-        {[
-          'Find trusted pet sitters nearby',
-          'Post and respond to sitting requests',
-          'Direct messaging with sitters',
-          'Earn and use points for free sits',
-          'Priority support',
-        ].map((feature, i) => (
-          <View key={i} style={styles.featureRow}>
-            <Text style={styles.checkmark}>✓</Text>
-            <Text style={[styles.featureText, { color: colors.text }]}>{feature}</Text>
-          </View>
-        ))}
-      </View>
-
-      <TouchableOpacity
-        style={[styles.subscribeBtn, { backgroundColor: RED }]}
-        onPress={handleSubscribe}
-        accessibilityLabel="Subscribe to WatchDog"
-        accessibilityRole="button"
-      >
-        <Text style={styles.subscribeBtnText}>Continue</Text>
-      </TouchableOpacity>
-
-      {/* No skip — subscription is required */}
-
-      <Text style={[styles.legal, { color: colors.textSecondary }]}>
-        Payment will be charged to your Apple ID account at confirmation of purchase.
-        Subscription automatically renews unless canceled at least 24 hours before the end of the current period.
-      </Text>
+      <ActivityIndicator size="large" color={RED} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  emoji: { fontSize: 56, marginBottom: 12 },
-  title: { fontSize: 28, fontWeight: '800', marginBottom: 6 },
-  subtitle: { fontSize: 15, textAlign: 'center', marginBottom: 24, paddingHorizontal: 20 },
-  featureList: { width: '100%', borderRadius: 16, padding: 20, marginBottom: 24 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  checkmark: { fontSize: 18, color: '#00C853', marginRight: 12, fontWeight: '700' },
-  featureText: { fontSize: 15, flex: 1 },
-  subscribeBtn: { width: '100%', paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
-  subscribeBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  legal: { fontSize: 10, textAlign: 'center', marginTop: 16, paddingHorizontal: 20, lineHeight: 14 },
+  emoji: { fontSize: 56, marginBottom: 16 },
+  title: { fontSize: 24, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
+  subtitle: { fontSize: 15, textAlign: 'center', marginBottom: 32, paddingHorizontal: 20 },
+  retryBtn: {
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  retryBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
 });
 
 export default PaywallScreen;

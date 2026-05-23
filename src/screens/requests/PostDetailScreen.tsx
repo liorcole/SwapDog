@@ -29,7 +29,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { getDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { getDoc, doc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { RequestsStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -463,22 +463,42 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         Alert.alert('Error', 'No sitter assigned to this booking.');
         return;
       }
-      // Update the post with proposed new dates and set status to reschedulePending
+      // Save proposed dates separately (don't overwrite original startDate/endDate)
       await updateDoc(doc(db, 'swapPosts', post.id), {
-        startDate: rescheduleStart,
-        endDate: rescheduleEnd,
+        rescheduleProposedStart: rescheduleStart,
+        rescheduleProposedEnd: rescheduleEnd,
+        rescheduleNote: rescheduleNote.trim() || null,
+        rescheduleProposedBy: user.uid,
         status: 'reschedulePending',
         updatedAt: serverTimestamp(),
       });
-      // Notify the sitter via chat
+      // Send a typed reschedule message so the chat can render "Review Reschedule" link
       const convId = await getOrCreateConversation(user.uid, sitterId, post.id);
       const startStr = smartDate(rescheduleStart);
       const endStr = smartDate(rescheduleEnd);
       const note = rescheduleNote.trim() ? `\n\nNote: ${rescheduleNote.trim()}` : '';
-      await sendMessage(convId, user.uid, `I need to reschedule. Would ${startStr} – ${endStr} work instead?${note}`);
+      const msgText = `I need to reschedule. Would ${startStr} \u2013 ${endStr} work instead?${note}`;
+      await addDoc(collection(db, 'conversations', convId, 'messages'), {
+        conversationId: convId,
+        senderId: user.uid,
+        text: msgText,
+        read: false,
+        createdAt: serverTimestamp(),
+        type: 'reschedule',
+        metadata: {
+          postId: post.id,
+          proposedStart: rescheduleStart.toISOString(),
+          proposedEnd: rescheduleEnd.toISOString(),
+        },
+      });
+      await updateDoc(doc(db, 'conversations', convId), {
+        lastMessage: msgText,
+        lastMessageAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
       setShowRescheduleModal(false);
       setRescheduleNote('');
-      setPost((prev) => prev ? { ...prev, status: 'reschedulePending' as any } : prev);
+      setPost((prev) => prev ? { ...prev, status: 'reschedulePending' as any, rescheduleProposedStart: rescheduleStart, rescheduleProposedEnd: rescheduleEnd, rescheduleProposedBy: user.uid } : prev);
       Alert.alert('Sent', 'Your reschedule request has been sent to the sitter.');
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not send reschedule request');

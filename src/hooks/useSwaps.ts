@@ -71,6 +71,10 @@ const parsePost = (id: string, data: Record<string, unknown>): SwapPost => ({
   totalUnits: data.totalUnits as number | undefined,
   status: (data.status as PostStatus) ?? 'open',
   claimedBy: data.claimedBy as string | undefined,
+  rescheduleProposedStart: data.rescheduleProposedStart ? toDate(data.rescheduleProposedStart as Parameters<typeof toDate>[0]) : undefined,
+  rescheduleProposedEnd: data.rescheduleProposedEnd ? toDate(data.rescheduleProposedEnd as Parameters<typeof toDate>[0]) : undefined,
+  rescheduleNote: data.rescheduleNote as string | undefined,
+  rescheduleProposedBy: data.rescheduleProposedBy as string | undefined,
   respondedBy: (() => {
     const raw = data.respondedBy as Array<Record<string, unknown>> | undefined;
     if (!raw) return undefined;

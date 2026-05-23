@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { spacing, borderRadius } from '../../config/theme';
 
@@ -7,9 +7,13 @@ interface Props {
   text: string;
   isMe: boolean;
   createdAt: Date;
+  /** Optional message type for special rendering */
+  type?: 'text' | 'reschedule';
+  /** Callback when "Review Reschedule" is tapped */
+  onReviewReschedule?: () => void;
 }
 
-const MessageBubble: React.FC<Props> = ({ text, isMe, createdAt }) => {
+const MessageBubble: React.FC<Props> = ({ text, isMe, createdAt, type, onReviewReschedule }) => {
   const { colors } = useTheme();
   const timeStr = createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -28,6 +32,12 @@ const MessageBubble: React.FC<Props> = ({ text, isMe, createdAt }) => {
         >
           {text}
         </Text>
+        {/* Show "Review Reschedule" link for reschedule messages (only for receiver) */}
+        {type === 'reschedule' && !isMe && onReviewReschedule && (
+          <TouchableOpacity onPress={onReviewReschedule} style={styles.reviewLink}>
+            <Text style={styles.reviewLinkText}>Review Reschedule</Text>
+          </TouchableOpacity>
+        )}
         <Text style={[styles.time, { color: isMe ? 'rgba(255,255,255,0.7)' : colors.textSecondary }]}>
           {timeStr}
         </Text>
@@ -48,6 +58,8 @@ const styles = StyleSheet.create({
   },
   text: { fontSize: 15 },
   time: { fontSize: 10, marginTop: 2, alignSelf: 'flex-end' },
+  reviewLink: { marginTop: 6, paddingVertical: 4 },
+  reviewLinkText: { color: '#0984E3', fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
 });
 
 export default MessageBubble;

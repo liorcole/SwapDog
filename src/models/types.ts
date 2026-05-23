@@ -179,6 +179,16 @@ export interface SwapPost {
   /** userId of the sitter who claimed the post */
   claimedBy?: string;
 
+  // ── Reschedule proposal fields ──
+  /** Proposed new start date (original startDate stays unchanged until accepted) */
+  rescheduleProposedStart?: Date;
+  /** Proposed new end date */
+  rescheduleProposedEnd?: Date;
+  /** Optional note from the proposer */
+  rescheduleNote?: string;
+  /** userId of who proposed the reschedule */
+  rescheduleProposedBy?: string;
+
   /** Notification IDs for scheduled swap reminders (owner-side). Used for cancellation. */
   reminderNotificationIds?: string[];
 
@@ -247,6 +257,14 @@ export interface Message {
   text: string;
   createdAt: Date;
   read: boolean;
+  /** Optional message type for special messages (e.g. reschedule proposals) */
+  type?: 'text' | 'reschedule';
+  /** Optional metadata for typed messages */
+  metadata?: {
+    postId?: string;
+    proposedStart?: string;  // ISO string
+    proposedEnd?: string;    // ISO string
+  };
 }
 
 export interface Review {

@@ -4,8 +4,7 @@
  * - Shows care type icon + label prominently
  * - Shows schedule info per care type
  * - Shows compensation: money OR points offered
- * - "I Can Help" flow: accept at offered pts OR counter-offer
- * - Owner sees counter offers in Interested Helpers section (Accept/Decline)
+ * - "I Can Help" flow: accept at offered pts
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -238,7 +237,7 @@ const FullscreenPhotoModal: React.FC<FullscreenModalProps> = ({ photos, initialI
 const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { user, userProfile } = useAuthContext();
-  const { getAreaPosts, getMyPosts, addResponder, approveHelper, saveOwnerReminderIds, respondToCounter, cancelPost } = useSwaps();
+  const { getAreaPosts, getMyPosts, addResponder, approveHelper, saveOwnerReminderIds, cancelPost } = useSwaps();
   const { getOrCreateConversation, sendMessage } = useMessaging();
 
   const [post, setPost] = useState<SwapPost | null>(null);
@@ -258,11 +257,6 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // "I Can Help" modal state (for points posts)
   const [helpModalVisible, setHelpModalVisible] = useState(false);
-  const [counterMode, setCounterMode] = useState(false);
-  const [counterPointsInput, setCounterPointsInput] = useState('');
-  const [counterType, setCounterType] = useState<'points' | 'money'>('points');
-  const [counterMoneyInput, setCounterMoneyInput] = useState('');
-  const [counterSubmitting, setCounterSubmitting] = useState(false);
 
   const postId = route.params?.postId;
 
@@ -322,27 +316,22 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   // ── "I Can Help" flow ─────────────────────────────────────────────────────
 
   const handleHelpButtonPress = () => {
-    setCounterType(post?.compensationType === 'payment' ? 'money' : 'points');
     if (!user || !post) return;
     if (user.uid === post.posterId) {
       Alert.alert("That's your post!", "You can't respond to your own request.");
       return;
     }
-    // Points post: show accept/counter modal
     if (post.compensationType === 'points') {
-      setCounterMode(false);
-      setCounterPointsInput('');
       setHelpModalVisible(true);
     } else {
-      // Payment post: go straight to messaging
-      handleHelp(undefined);
+      handleHelp();
     }
   };
 
-  /** Accept at offered points or with a counter offer */
-  const handleAcceptOrCounter = async (counterPoints?: number) => {
+  /** Accept at offered points */
+  const handleAcceptPost = async () => {
     if (!user || !post) return;
-    setCounterSubmitting(true);
+    setClaiming(true);
     try {
       const sitterName = userProfile?.displayName ?? user.displayName ?? 'Someone';
       const sitterPhoto = userProfile?.photoURL ?? user.photoURL ?? undefined;
@@ -352,13 +341,10 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         ? post.dogNames.join(' & ') : post.dogName;
 
       const convId = await getOrCreateConversation(user.uid, post.posterId, post.id);
-
-      const introText = counterPoints !== undefined
-        ? `Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'd like to counter-offer at ${counterType === 'money' ? `$${counterMoneyInput}` : `${counterPoints} points`} — let me know if that works!\n\nReview Counter`
-        : `Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'll take the job for the offered ${post.pointsOffered ?? post.pointsCost} points!`;
+      const introText = `Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'll take the job for the offered ${post.pointsOffered ?? post.pointsCost ?? 0} points!`;
       await sendMessage(convId, user.uid, introText);
 
-      await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto }, counterPoints);
+      await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto });
 
       setHelpModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -370,11 +356,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to respond');
     } finally {
-      setCounterSubmitting(false);
+      setClaiming(false);
     }
   };
 
-  const handleHelp = async (counterPoints?: number) => {
+  const handleHelp = async () => {
     if (!user || !post) return;
     setClaiming(true);
     try {
@@ -393,7 +379,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         await sendMessage(convId, user.uid, 'Reminder: All payments are arranged and made outside of WatchDog.');
       }
 
-      await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto }, counterPoints);
+      await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       navigation.getParent()?.navigate('MessagesTab', {
@@ -461,42 +447,6 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     ]);
   };
 
-  const handleCounterResponse = async (responderId: string, responderName: string, accept: boolean) => {
-    if (!post) return;
-    Alert.alert(
-      accept ? 'Accept Counter Offer' : 'Decline Counter Offer',
-      accept
-        ? `Accept ${responderName}'s counter offer?`
-        : `Decline ${responderName}'s counter offer?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: accept ? 'Accept' : 'Decline',
-          style: accept ? 'default' : 'destructive',
-          onPress: async () => {
-            try {
-              await respondToCounter(post.id, responderId, accept);
-              // Refresh local state
-              setPost((prev) => {
-                if (!prev) return prev;
-                return {
-                  ...prev,
-                  respondedBy: prev.respondedBy?.map((r) =>
-                    r.userId === responderId
-                      ? { ...r, counterStatus: accept ? 'accepted' : 'declined' }
-                      : r
-                  ),
-                };
-              });
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch (err) {
-              Alert.alert('Error', err instanceof Error ? err.message : 'Could not update counter');
-            }
-          },
-        },
-      ]
-    );
-  };
 
 
   // ── Reschedule: propose new dates to sitter ──────────────────────────────
@@ -626,112 +576,19 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text style={{ color: RED, fontWeight: '700' }}>{offeredPoints} points</Text>
             </Text>
 
-            {!counterMode ? (
-              <>
-                {/* Accept at offered rate */}
-                <TouchableOpacity
+            <TouchableOpacity
                   style={[styles.helpModalAcceptBtn, { backgroundColor: GREEN }]}
-                  onPress={() => handleAcceptOrCounter(undefined)}
-                  disabled={counterSubmitting}
+                  onPress={handleAcceptPost}
+                  disabled={claiming}
                 >
                   <Text style={styles.helpModalBtnText}>
-                    Accept for {offeredPoints} points ✓
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Counter offer */}
-                <TouchableOpacity
-                  style={[styles.helpModalCounterBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
-                  onPress={() => setCounterMode(true)}
-                >
-                  <Text style={[styles.helpModalCounterBtnText, { color: colors.text }]}>
-                    🔄 Counter Offer
+                    {claiming ? 'Sending...' : `Accept for ${offeredPoints} points`}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={() => setHelpModalVisible(false)} style={styles.helpModalCancelLink}>
                   <Text style={[styles.helpModalCancelText, { color: colors.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {counterType === 'points' ? (
-                  <>
-                    <Text style={[styles.counterInputLabel, { color: colors.text }]}>
-                      Your counter offer (points):
-                    </Text>
-                    <View style={styles.counterInputRow}>
-                      <TextInput
-                        style={[styles.counterInput, { borderColor: '#FFFFFF', backgroundColor: colors.background, color: colors.text }]}
-                        placeholder={String(offeredPoints)}
-                        placeholderTextColor={colors.textSecondary}
-                        value={counterPointsInput}
-                        onChangeText={(t) => setCounterPointsInput(t.replace(/[^0-9]/g, ''))}
-                        keyboardType="number-pad"
-                        autoFocus
-                        accessibilityLabel="Counter offer points"
-                      />
-                      <Text style={[styles.counterInputUnit, { color: colors.textSecondary }]}>pts</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => setCounterType('money')} style={{ marginTop: 4, marginBottom: 8 }}>
-                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Want to counter with money instead?</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <Text style={[styles.counterInputLabel, { color: colors.text }]}>
-                      Your counter offer ($):
-                    </Text>
-                    <View style={styles.counterInputRow}>
-                      <Text style={[styles.counterInputUnit, { color: colors.text }]}>$</Text>
-                      <TextInput
-                        style={[styles.counterInput, { borderColor: '#FFFFFF', backgroundColor: colors.background, color: colors.text }]}
-                        placeholder="0"
-                        placeholderTextColor={colors.textSecondary}
-                        value={counterMoneyInput}
-                        onChangeText={setCounterMoneyInput}
-                        keyboardType="decimal-pad"
-                        autoFocus
-                        accessibilityLabel="Counter offer money"
-                      />
-                    </View>
-                    <TouchableOpacity onPress={() => setCounterType('points')} style={{ marginTop: 4, marginBottom: 8 }}>
-                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Want to counter with points instead?</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.helpModalAcceptBtn, { backgroundColor: RED, opacity: counterSubmitting ? 0.7 : 1 }]}
-                  onPress={() => {
-                    if (counterType === 'points') {
-                      const pts = parseInt(counterPointsInput, 10);
-                      if (isNaN(pts) || pts < 1) {
-                        Alert.alert('Invalid', 'Please enter a valid points amount');
-                        return;
-                      }
-                      handleAcceptOrCounter(pts);
-                    } else {
-                      const money = parseFloat(counterMoneyInput);
-                      if (isNaN(money) || money <= 0) {
-                        Alert.alert('Invalid', 'Please enter a valid dollar amount');
-                        return;
-                      }
-                      handleAcceptOrCounter(0);
-                    }
-                  }}
-                  disabled={counterSubmitting}
-                >
-                  <Text style={styles.helpModalBtnText}>
-                    {counterSubmitting ? 'Sending...' : 'Send Counter Offer'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => setCounterMode(false)} style={styles.helpModalCancelLink}>
-                  <Text style={[styles.helpModalCancelText, { color: colors.textSecondary }]}>← Back</Text>
-                </TouchableOpacity>
-              </>
-            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -946,8 +803,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             {respondents.map((r) => {
               const isApproved = post.claimedBy === r.userId;
               const isApproving = approvingId === r.userId;
-              const hasCounter = r.counterPoints !== undefined;
-              const counterStatus = r.counterStatus;
+
 
               return (
                 <View key={r.userId} style={styles.helperRow}>
@@ -975,40 +831,15 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
                     {isApproved ? (
                       <Text style={styles.helperApprovedLabel}>Approved sitter</Text>
-                    ) : hasCounter ? (
-                      // Counter offer display
-                      <View>
-                        <Text style={styles.helperCounterLabel}>
-                          🔄 Counter: {r.counterPoints} pts
-                          {counterStatus === 'accepted' ? ' Accepted' : counterStatus === 'declined' ? ' Declined' : ''}
-                        </Text>
-                        {/* Accept/Decline buttons for pending counters */}
-                        {counterStatus === 'pending' && (
-                          <View style={styles.counterBtnRow}>
-                            <TouchableOpacity
-                              style={[styles.counterAcceptBtn, { backgroundColor: GREEN }]}
-                              onPress={() => handleCounterResponse(r.userId, r.userName, true)}
-                            >
-                              <Text style={styles.counterBtnText}>Accept</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              style={[styles.counterDeclineBtn, { borderColor: colors.error }]}
-                              onPress={() => handleCounterResponse(r.userId, r.userName, false)}
-                            >
-                              <Text style={[styles.counterDeclineBtnText, { color: colors.error }]}>Decline</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      </View>
                     ) : (
                       <Text style={styles.helperAcceptedPts}>
-                        ✓ Accepted {offeredPoints} pts
+                        Interested · {offeredPoints} pts
                       </Text>
                     )}
                   </TouchableOpacity>
 
                   <View style={styles.helperActions}>
-                    {post.status === 'open' && !isApproved && !hasCounter && (
+                    {post.status === 'open' && !isApproved && (
                       <TouchableOpacity
                         style={[styles.approveBtn, isApproving && styles.approveBtnDisabled]}
                         onPress={() => handleApprove(r.userId, r.userName)}
@@ -1018,11 +849,6 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                       >
                         <Text style={styles.approveBtnText}>{isApproving ? '…' : 'Approve'}</Text>
                       </TouchableOpacity>
-                    )}
-                    {post.status === 'open' && !isApproved && hasCounter && counterStatus === 'pending' && (
-                      <View style={[styles.approveBtn, { backgroundColor: '#FDCB6E' }]}>  
-                        <Text style={[styles.approveBtnText, { color: '#000' }]}>Review Counter</Text>
-                      </View>
                     )}
                   </View>
                 </View>
@@ -1043,9 +869,9 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           }
           return (
             <TouchableOpacity
-              style={[styles.helpBtn, { backgroundColor: colors.primary, opacity: (claiming || counterSubmitting) ? 0.7 : 1 }]}
+              style={[styles.helpBtn, { backgroundColor: colors.primary, opacity: claiming ? 0.7 : 1 }]}
               onPress={handleHelpButtonPress}
-              disabled={claiming || counterSubmitting}
+              disabled={claiming}
               accessibilityLabel="I can help!"
               accessibilityRole="button"
             >
@@ -1208,15 +1034,8 @@ const styles = StyleSheet.create({
   helperTap: { fontSize: 12, marginTop: 2 },
   helperApprovedLabel: { fontSize: 12, marginTop: 2, color: '#00B894', fontWeight: '600' },
   helperAcceptedPts: { fontSize: 12, marginTop: 2, color: '#00B894', fontWeight: '600' },
-  helperCounterLabel: { fontSize: 13, fontWeight: '700', color: '#E17055', marginTop: 2 },
   helperMsgBtn: { paddingVertical: 2 },
 
-  // Counter offer buttons
-  counterBtnRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
-  counterAcceptBtn: { borderRadius: borderRadius.sm, paddingHorizontal: spacing.sm, paddingVertical: 5 },
-  counterDeclineBtn: { borderWidth: 1.5, borderRadius: borderRadius.sm, paddingHorizontal: spacing.sm, paddingVertical: 5 },
-  counterBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
-  counterDeclineBtnText: { fontSize: 12, fontWeight: '700' },
 
   // Approve button
   approveBtn: { backgroundColor: RED, borderRadius: borderRadius.sm, paddingHorizontal: spacing.md, paddingVertical: 7 },
@@ -1241,16 +1060,9 @@ const styles = StyleSheet.create({
   helpModalSubtitle: { fontSize: 15, textAlign: 'center', marginBottom: spacing.lg },
   helpModalAcceptBtn: { borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center', marginBottom: spacing.sm },
   helpModalBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  helpModalCounterBtn: { borderWidth: 1.5, borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center', marginBottom: spacing.sm },
-  helpModalCounterBtnText: { fontSize: 16, fontWeight: '600' },
   helpModalCancelLink: { alignItems: 'center', paddingVertical: spacing.sm },
   helpModalCancelText: { fontSize: 14 },
 
-  // Counter offer input
-  counterInputLabel: { fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
-  counterInputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.md },
-  counterInput: { flex: 1, borderWidth: 2, borderRadius: borderRadius.md, padding: spacing.sm, fontSize: 24, fontWeight: '700', textAlign: 'center' },
-  counterInputUnit: { fontSize: 16, fontWeight: '600' },
 });
 
 export default PostDetailScreen;

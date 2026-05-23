@@ -194,7 +194,11 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         getMyPosts(user.uid),
         getAcceptedPosts(user.uid),
       ]);
-      setMyPosts(mine.filter((p: any) => p.status !== 'cancelled'));
+      setMyPosts(mine.filter((p: any) => p.status !== 'cancelled').sort((a: any, b: any) => {
+        const aIsClaimed = a.status === 'claimed' || a.status === 'reschedulePending' ? 0 : 1;
+        const bIsClaimed = b.status === 'claimed' || b.status === 'reschedulePending' ? 0 : 1;
+        return aIsClaimed - bIsClaimed;
+      }));
       setAcceptedPosts(accepted);
     } finally {
       setLoading(false);
@@ -291,6 +295,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
     const startStr = smartDate(item.startDate);
     const endStr = smartDate(item.endDate, { includeYear: true });
     const isOpen = item.status === 'open';
+    const isClaimed = item.status === 'claimed' || item.status === 'reschedulePending';
     const interestedCount = item.respondedBy?.length ?? 0;
     const statusColor: Record<SwapPost['status'], string> = {
       open: '#00B894',
@@ -302,13 +307,21 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
       <TouchableOpacity
-        style={[styles.card, { backgroundColor: colors.surface, ...shadow.sm }]}
+        style={[styles.card, { backgroundColor: isClaimed ? '#FFF8E1' : colors.surface, ...shadow.sm, borderWidth: isClaimed ? 1.5 : 0, borderColor: isClaimed ? '#FDCB6E' : 'transparent' }]}
         onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
         accessibilityRole="button"
         accessibilityLabel={`Your post for ${item.dogName}`}
       >
 
-        {interestedCount > 0 && (
+        {isClaimed && (
+          <View style={{ backgroundColor: '#FDCB6E', paddingVertical: 6, paddingHorizontal: 12, borderTopLeftRadius: 12, borderTopRightRadius: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#5D4E00', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 }}>
+              {item.status === 'reschedulePending' ? 'RESCHEDULE PENDING' : 'CLAIMED'}
+            </Text>
+          </View>
+        )}
+
+        {isOpen && interestedCount > 0 && (
           <View style={styles.interestTopLeft}>
             <Text style={styles.interestBadgeText}>
               {interestedCount} helper{interestedCount !== 1 ? 's' : ''} interested — tap to see

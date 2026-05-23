@@ -320,8 +320,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.ratingRow}>
           {userProfile?.rating !== undefined && userProfile?.reviewCount ? (
             <>
-              <StarRating rating={Math.round(userProfile.rating)} />
-              <Text style={[styles.ratingCount, { color: colors.textSecondary }]}>({userProfile.reviewCount} review{userProfile.reviewCount !== 1 ? 's' : ''})</Text>
+              <StarRating rating={Math.round(userProfile?.rating ?? 0)} />
+              <Text style={[styles.ratingCount, { color: colors.textSecondary }]}>({userProfile?.reviewCount ?? 0} review{(userProfile?.reviewCount ?? 0) !== 1 ? 's' : ''})</Text>
             </>
           ) : (
             <Text style={{ color: colors.textSecondary, fontSize: 13 }}>No reviews yet</Text>

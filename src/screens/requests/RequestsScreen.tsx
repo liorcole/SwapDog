@@ -314,7 +314,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
       >
 
         {isClaimed && (
-          <View style={{ backgroundColor: '#FDCB6E', paddingVertical: 6, paddingHorizontal: 12, borderTopLeftRadius: 12, borderTopRightRadius: 12, alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#FDCB6E', paddingVertical: 6, paddingHorizontal: 12, borderTopLeftRadius: 12, borderTopRightRadius: 12, alignItems: 'center', marginTop: -spacing.md, marginHorizontal: -spacing.md }}>
             <Text style={{ color: '#5D4E00', fontSize: 13, fontWeight: '800', letterSpacing: 0.5 }}>
               {item.status === 'reschedulePending' ? 'RESCHEDULE PENDING' : 'CLAIMED'}
             </Text>
@@ -328,7 +328,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
             </Text>
           </View>
         )}
-        <View style={styles.cardHeader}>
+        <View style={[styles.cardHeader, isClaimed && { marginTop: spacing.sm }]}>
           {item.dogPhotoURL ? (
             <Image source={{ uri: item.dogPhotoURL }} style={[styles.dogThumbSmall, { borderColor: colors.border }]} />
           ) : (
@@ -337,8 +337,8 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           )}
           <View style={styles.headerInfo}>
-            <Text style={[styles.posterName, { color: colors.text }]}>{item.dogName}</Text>
-            <Text style={[styles.dateRange, { color: colors.textSecondary }]}>
+            <Text style={[styles.posterName, { color: isClaimed ? '#5D4E00' : colors.text }]}>{item.dogName}</Text>
+            <Text style={[styles.dateRange, { color: isClaimed ? '#8B7500' : colors.textSecondary }]}>
               {startStr} – {endStr}
             </Text>
           </View>
@@ -351,13 +351,13 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Wave 19B: Care type icon + summary */}
         <View style={styles.careTypeRow}>
-          <Text style={styles.careTypeIcon}>{getCareTypeIcon(item.careType)}</Text>
-          <Text style={[styles.careTypeSummaryText, { color: colors.textSecondary }]}>
+          <Text style={[styles.careTypeIcon, isClaimed ? { opacity: 0.7 } : undefined]}>{getCareTypeIcon(item.careType)}</Text>
+          <Text style={[styles.careTypeSummaryText, { color: isClaimed ? '#8B7500' : colors.textSecondary }]}>
             {getCareTypeSummary(item)}
           </Text>
         </View>
 
-        <Text style={styles.compPlainText}>
+        <Text style={[styles.compPlainText, { color: isClaimed ? '#5D4E00' : '#FFFFFF' }]}>
           {compensationLabel(item)}
         </Text>
 
@@ -460,7 +460,8 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   // ── Commitment card ───────────────────────────────────────────────────────
-  const renderCommitmentCard = (post: SwapPost) => {
+  const renderCommitmentCard = (post: SwapPost, onCardPress?: () => void) => {
+    if (!onCardPress) onCardPress = () => handleCommitmentTap(post);
     const isMyDog = post.posterId === user?.uid;
     const accentColor = isMyDog ? RED : TEAL;
     const roleLabel = isMyDog ? 'Your dog' : "You're watching";
@@ -477,7 +478,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
           styles.commitCard,
           { backgroundColor: colors.surface, borderLeftColor: accentColor, ...shadow.sm },
         ]}
-        onPress={() => { setShowPopup(false); navigation.navigate('PostDetail', { postId: post.id }); }}
+        onPress={onCardPress}
         accessibilityRole="button"
         accessibilityLabel={`${roleLabel}: ${post.dogName} with ${otherName}`}
       >
@@ -697,7 +698,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
             </View>
             {/* Scrollable commitment list */}
             <ScrollView style={styles.popupScroll} showsVerticalScrollIndicator={false}>
-              {popupCommitments.map((post) => renderCommitmentCard(post))}
+              {popupCommitments.map((post) => renderCommitmentCard(post, () => { setShowPopup(false); navigation.navigate('PostDetail', { postId: post.id }); }))}
             </ScrollView>
           </View>
         </TouchableOpacity>
@@ -849,7 +850,7 @@ const styles = StyleSheet.create({
   },
   interestBadgeText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   // Points — plain bold white text
-  compPlainText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF', marginBottom: spacing.xs },
+  compPlainText: { fontSize: 14, fontWeight: '700', marginBottom: spacing.xs },
   // Care type row (Wave 19B)
   careTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: spacing.xs },
   careTypeIcon: { fontSize: 14 },

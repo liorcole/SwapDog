@@ -23,6 +23,7 @@ import {
   PanResponder,
   TextInput,
   ListRenderItem,
+  RefreshControl,
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -451,6 +452,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   const [areaPosts, setAreaPosts] = useState<SwapPost[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
   const [myOpenPost, setMyOpenPost] = useState<SwapPost | null>(null);
   const [broadcastSending, setBroadcastSending] = useState(false);
@@ -674,6 +676,14 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
   }, [setLocationOverride]);
 
   // ── Build flat feed data (discriminated union) ─────────────────────────────
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchNearby(), fetchAreaPosts()]);
+    } catch { /* silent */ }
+    finally { setRefreshing(false); }
+  }, [fetchNearby, fetchAreaPosts]);
+
   const feedData: FeedItem[] = useMemo(() => {
     const milesLabel = radiusMiles < 10 ? radiusMiles.toFixed(1) : Math.round(radiusMiles).toString();
     // Use last-known-good refs as fallback so the feed never goes blank
@@ -874,6 +884,14 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
           renderItem={renderFeedItem}
           ListHeaderComponent={listHeader}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#FF2D55"
+              colors={['#FF2D55']}
+            />
+          }
           removeClippedSubviews
           initialNumToRender={12}
           maxToRenderPerBatch={12}

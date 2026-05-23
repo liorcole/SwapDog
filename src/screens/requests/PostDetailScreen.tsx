@@ -30,7 +30,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { getDoc, doc } from 'firebase/firestore';
+import { getDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { RequestsStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
@@ -491,6 +491,69 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (err) {
               Alert.alert('Error', err instanceof Error ? err.message : 'Could not update counter');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+
+  // ── Reschedule: propose new dates to sitter ──────────────────────────────
+  const handleReschedule = async () => {
+    if (!post || !user) return;
+    try {
+      const sitterId = post.claimedBy;
+      if (!sitterId) {
+        Alert.alert('Error', 'No sitter assigned to this booking.');
+        return;
+      }
+      // Update the post with proposed new dates and set status back to open
+      await updateDoc(doc(db, 'swapPosts', post.id), {
+        startDate: rescheduleStart,
+        endDate: rescheduleEnd,
+        status: 'open',
+        claimedBy: null,
+        updatedAt: serverTimestamp(),
+      });
+      // Notify the sitter via chat
+      const convId = await getOrCreateConversation(user.uid, sitterId, post.id);
+      const startStr = rescheduleStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const endStr = rescheduleEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const note = rescheduleNote.trim() ? `\n\nNote: ${rescheduleNote.trim()}` : '';
+      await sendMessage(convId, user.uid, `I need to reschedule. Would ${startStr} – ${endStr} work instead?${note}`);
+      setShowRescheduleModal(false);
+      setRescheduleNote('');
+      setPost((prev) => prev ? { ...prev, status: 'open', claimedBy: undefined } : prev);
+      Alert.alert('Sent', 'Your reschedule request has been sent to the sitter.');
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Could not send reschedule request');
+    }
+  };
+
+  // ── Cancel a claimed booking ─────────────────────────────────────────────
+  const handleCancelClaimed = () => {
+    if (!post || !user) return;
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel this booking? The sitter will be notified.',
+      [
+        { text: 'Keep Booking', style: 'cancel' },
+        {
+          text: 'Cancel Booking',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const sitterId = post.claimedBy;
+              await cancelPost(post.id);
+              if (sitterId) {
+                const convId = await getOrCreateConversation(user.uid, sitterId, post.id);
+                await sendMessage(convId, user.uid, 'I had to cancel this booking. Sorry for the inconvenience!');
+              }
+              setPost((prev) => prev ? { ...prev, status: 'cancelled' } : prev);
+              Alert.alert('Cancelled', 'The booking has been cancelled and the sitter has been notified.');
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Could not cancel booking');
             }
           },
         },

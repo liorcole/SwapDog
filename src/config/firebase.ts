@@ -1,7 +1,8 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { initializeAuth, getAuth, Auth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBOF66WalEIXlKnowKip26mxkIAR4EfTpA',
@@ -14,7 +15,10 @@ const firebaseConfig = {
 };
 
 const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth: Auth = getAuth(app);
+// Persist auth session to device storage (like Instagram — stays signed in)
+const auth: Auth = getApps().length === 1
+  ? initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) })
+  : getAuth(app);
 const db: Firestore = getFirestore(app);
 const storage: FirebaseStorage = getStorage(app);
 

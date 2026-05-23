@@ -708,20 +708,21 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
 
   // ── Auto-collapse map when scrolling posts ──────────────────────────────────
   const lastScrollY = useRef(0);
+  const mapCollapsed = useRef(false);
   const handleListScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
     const y = event.nativeEvent.contentOffset.y;
-    const wasScrolled = lastScrollY.current > 10;
-    const isScrolled = y > 10;
     lastScrollY.current = y;
 
-    if (isScrolled && !wasScrolled && committedMapHeight.current > MAP_HEIGHT_MIN) {
-      // User started scrolling down — collapse map
+    if (y > 10 && !mapCollapsed.current) {
+      // User scrolled down — collapse map once, smoothly
+      mapCollapsed.current = true;
       committedMapHeight.current = MAP_HEIGHT_MIN;
-      Animated.spring(mapHeightAnim, { toValue: MAP_HEIGHT_MIN, useNativeDriver: false, bounciness: 4 }).start();
-    } else if (!isScrolled && wasScrolled && committedMapHeight.current < MAP_HEIGHT_DEFAULT) {
-      // User scrolled back to top — restore map
+      Animated.timing(mapHeightAnim, { toValue: MAP_HEIGHT_MIN, duration: 250, useNativeDriver: false }).start();
+    } else if (y <= 2 && mapCollapsed.current) {
+      // User scrolled back to top — restore once, smoothly
+      mapCollapsed.current = false;
       committedMapHeight.current = MAP_HEIGHT_DEFAULT;
-      Animated.spring(mapHeightAnim, { toValue: MAP_HEIGHT_DEFAULT, useNativeDriver: false, bounciness: 4 }).start();
+      Animated.timing(mapHeightAnim, { toValue: MAP_HEIGHT_DEFAULT, duration: 250, useNativeDriver: false }).start();
     }
   };
 

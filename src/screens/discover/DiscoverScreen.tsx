@@ -250,7 +250,7 @@ const UserRow: React.FC<UserRowProps> = memo(({ user, distanceMiles, dogCount, o
       accessibilityHint="Opens this user's full profile"
     >
       <Image
-        source={user.photoURL ? { uri: user.photoURL } : require('../../../assets/icon.png')}
+        source={user.photoURL && user.photoURL.length > 0 ? { uri: user.photoURL } : require('../../../assets/icon.png')}
         style={styles.avatar}
         accessibilityLabel={`${user.displayName}'s profile photo`}
       />
@@ -706,7 +706,26 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     return items;
   }, [areaPosts, nearbyUsers, radiusMiles]);
 
-  // ── FlatList render ────────────────────────────────────────────────────────
+  // ── Auto-collapse map when scrolling posts ──────────────────────────────────
+  const lastScrollY = useRef(0);
+  const handleListScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+    const y = event.nativeEvent.contentOffset.y;
+    const wasScrolled = lastScrollY.current > 10;
+    const isScrolled = y > 10;
+    lastScrollY.current = y;
+
+    if (isScrolled && !wasScrolled && committedMapHeight.current > MAP_HEIGHT_MIN) {
+      // User started scrolling down — collapse map
+      committedMapHeight.current = MAP_HEIGHT_MIN;
+      Animated.spring(mapHeightAnim, { toValue: MAP_HEIGHT_MIN, useNativeDriver: false, bounciness: 4 }).start();
+    } else if (!isScrolled && wasScrolled && committedMapHeight.current < MAP_HEIGHT_DEFAULT) {
+      // User scrolled back to top — restore map
+      committedMapHeight.current = MAP_HEIGHT_DEFAULT;
+      Animated.spring(mapHeightAnim, { toValue: MAP_HEIGHT_DEFAULT, useNativeDriver: false, bounciness: 4 }).start();
+    }
+  };
+
+    // ── FlatList render ────────────────────────────────────────────────────────
   const handleNavigateToPost = useCallback(
     (postId: string) => navigation.navigate('PostDetail', { postId }),
     [navigation],
@@ -885,6 +904,8 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
           renderItem={renderFeedItem}
           ListHeaderComponent={listHeader}
           contentContainerStyle={styles.list}
+          onScroll={handleListScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

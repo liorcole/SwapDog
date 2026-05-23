@@ -83,10 +83,7 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const convId = await getOrCreateConversation(me.id, user.id);
-      navigation.getParent()?.navigate('MessagesTab', {
-        screen: 'Chat',
-        params: { conversationId: convId, otherUserId: user.id },
-      } as never);
+      navigation.navigate('Chat' as any, { conversationId: convId, otherUserId: user.id });
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to open conversation');
     } finally {
@@ -126,7 +123,7 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, ...shadow.sm }]}>
         <Image
-          source={user.photoURL ? { uri: user.photoURL } : require('../../../assets/icon.png')}
+          source={user.photoURL && user.photoURL.length > 0 ? { uri: user.photoURL } : require('../../../assets/icon.png')}
           style={styles.avatar}
           accessibilityLabel={`${user.displayName}'s profile photo`}
         />

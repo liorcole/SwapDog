@@ -349,10 +349,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       setHelpModalVisible(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      navigation.getParent()?.navigate('MessagesTab', {
-        screen: 'Chat',
-        params: { conversationId: convId, otherUserId: post.posterId },
-      });
+      navigation.navigate('Chat' as any, { conversationId: convId, otherUserId: post.posterId });
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to respond');
     } finally {
@@ -382,10 +379,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       await addResponder(post.id, { userId: user.uid, userName: sitterName, userPhotoURL: sitterPhoto });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      navigation.getParent()?.navigate('MessagesTab', {
-        screen: 'Chat',
-        params: { conversationId: convId, otherUserId: post.posterId },
-      });
+      navigation.navigate('Chat' as any, { conversationId: convId, otherUserId: post.posterId });
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to send message');
     } finally {
@@ -398,10 +392,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     setClaiming(true);
     try {
       const convId = await getOrCreateConversation(user.uid, responderId, post.id);
-      navigation.getParent()?.navigate('MessagesTab', {
-        screen: 'Chat',
-        params: { conversationId: convId, otherUserId: responderId },
-      });
+      navigation.navigate('Chat' as any, { conversationId: convId, otherUserId: responderId });
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not open chat');
     } finally {

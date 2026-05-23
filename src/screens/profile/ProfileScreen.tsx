@@ -294,7 +294,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        {userProfile?.photoURL ? (
+        {userProfile?.photoURL && userProfile.photoURL.length > 0 ? (
           <Image
             source={{ uri: userProfile.photoURL }}
             style={styles.avatar}

@@ -134,6 +134,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const [flashDate, setFlashDate] = useState<Date | null>(null);
   const flashAnim = useRef(new Animated.Value(1)).current;
+  const flashColorAnim = useRef(new Animated.Value(0)).current;
 
   // Swipe between tabs
   const tabPanResponder = useRef(
@@ -421,13 +422,33 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
     // Scroll to top of calendar
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     
-    // Flash animation
+    // Flash animation — triple size pulse with red flash, 3 times
     setFlashDate(targetDate);
-    Animated.sequence([
-      Animated.timing(flashAnim, { toValue: 1.3, duration: 200, useNativeDriver: true }),
-      Animated.timing(flashAnim, { toValue: 0.8, duration: 150, useNativeDriver: true }),
-      Animated.timing(flashAnim, { toValue: 1.2, duration: 150, useNativeDriver: true }),
-      Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    flashAnim.setValue(1);
+    flashColorAnim.setValue(0);
+    Animated.parallel([
+      Animated.sequence([
+        // Pulse 1
+        Animated.timing(flashAnim, { toValue: 3, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: false }),
+        // Pulse 2
+        Animated.timing(flashAnim, { toValue: 3, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: false }),
+        // Pulse 3
+        Animated.timing(flashAnim, { toValue: 3, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashAnim, { toValue: 1, duration: 200, useNativeDriver: false }),
+      ]),
+      Animated.sequence([
+        // Red flash 1
+        Animated.timing(flashColorAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashColorAnim, { toValue: 0, duration: 200, useNativeDriver: false }),
+        // Red flash 2
+        Animated.timing(flashColorAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashColorAnim, { toValue: 0, duration: 200, useNativeDriver: false }),
+        // Red flash 3
+        Animated.timing(flashColorAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+        Animated.timing(flashColorAnim, { toValue: 0, duration: 200, useNativeDriver: false }),
+      ]),
     ]).start(() => setFlashDate(null));
   };
 
@@ -446,7 +467,6 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
   const renderCommitmentCard = (post: SwapPost) => {
     const isMyDog = post.posterId === user?.uid;
     const accentColor = isMyDog ? RED : TEAL;
-    const roleIcon = isMyDog ? 'Owner' : 'Sitter';
     const roleLabel = isMyDog ? 'Your dog' : "You're watching";
     const otherName = isMyDog
       ? (post.respondedBy?.find((r) => r.userId === post.claimedBy)?.userName ?? 'Your sitter')
@@ -470,7 +490,6 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         accessibilityLabel={`${roleLabel}: ${post.dogName} with ${otherName}`}
       >
         <View style={styles.commitCardInner}>
-          <Text style={styles.commitRoleIcon}>{roleIcon}</Text>
           <View style={styles.commitInfo}>
             <Text style={[styles.commitRoleLabel, { color: accentColor }]}>{roleLabel}</Text>
             <Text style={[styles.commitDogName, { color: colors.text }]}>{post.dogName}</Text>
@@ -569,7 +588,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
               >
                 {hasAny && !isSelected ? (
                   /* Commitment: filled circle */
-                  <Animated.View style={[styles.calDayCircle, { backgroundColor: commitColor ?? RED }, flashDate && date.getDate() === flashDate.getDate() && date.getMonth() === flashDate.getMonth() ? { transform: [{ scale: flashAnim }] } : undefined]}>
+                  <Animated.View style={[styles.calDayCircle, { backgroundColor: flashDate && date.getDate() === flashDate.getDate() && date.getMonth() === flashDate.getMonth() ? flashColorAnim.interpolate({ inputRange: [0, 1], outputRange: [commitColor ?? RED, '#FF0000'] }) : (commitColor ?? RED) }, flashDate && date.getDate() === flashDate.getDate() && date.getMonth() === flashDate.getMonth() ? { transform: [{ scale: flashAnim }] } : undefined]}>
                     <Text style={[styles.calDayNum, { color: '#fff', fontWeight: '700' }]}>
                       {date.getDate()}
                     </Text>
@@ -933,7 +952,6 @@ const styles = StyleSheet.create({
   commitList: { gap: spacing.sm },
   commitCard: { borderRadius: borderRadius.lg, borderLeftWidth: 4, padding: spacing.md },
   commitCardInner: { flexDirection: 'row', alignItems: 'center' },
-  commitRoleIcon: { fontSize: 24, marginRight: spacing.sm },
   commitInfo: { flex: 1 },
   commitRoleLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', marginBottom: 1 },
   commitDogName: { fontSize: 16, fontWeight: '700' },

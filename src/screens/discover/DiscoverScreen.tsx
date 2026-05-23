@@ -166,9 +166,10 @@ const RadiusSelector: React.FC<RadiusSelectorProps> = memo(({ radiusMiles, onSel
 interface PostCardProps {
   post: SwapPost;
   onPress: (postId: string) => void;
+  currentUserId?: string;
 }
 
-const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
+const PostCard: React.FC<PostCardProps> = memo(({ post, onPress, currentUserId }) => {
   const handlePostPress = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress(post.id);
@@ -215,6 +216,12 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
         {post.status !== 'open' && (
           <View style={styles.takenBadge}>
             <Text style={styles.takenBadgeText}>Sitter Found</Text>
+          </View>
+        )}
+
+        {post.status === 'open' && currentUserId && (post.respondedBy ?? []).some(r => r.userId === currentUserId) && (
+          <View style={styles.respondedBadge}>
+            <Text style={styles.respondedBadgeText}>You Responded</Text>
           </View>
         )}
 
@@ -744,7 +751,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         case 'section_header':
           return <SectionHeaderRow item={item} />;
         case 'post':
-          return <PostCard post={item.post} onPress={handleNavigateToPost} />;
+          return <PostCard post={item.post} onPress={handleNavigateToPost} currentUserId={userProfile?.id} />;
         case 'user':
           return (
             <UserRow
@@ -999,6 +1006,8 @@ const styles = StyleSheet.create({
   carePreview: { fontSize: 13, lineHeight: 18, marginBottom: spacing.xs },
   interestBadge: { backgroundColor: RED, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: spacing.xs, shadowColor: RED, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.30, shadowRadius: 4, elevation: 2 },
   interestBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  respondedBadge: { backgroundColor: '#0984E320', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start', marginTop: 6 },
+  respondedBadgeText: { color: '#0984E3', fontSize: 11, fontWeight: '700' },
   takenBadge: { backgroundColor: '#63727220', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start' as const, marginBottom: 6 },
   takenBadgeText: { color: '#636E72', fontSize: 12, fontWeight: '600' },
   detailsBtn: { marginTop: spacing.sm, borderWidth: 1.5, borderColor: '#FF2D55', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16, alignSelf: 'flex-start' },

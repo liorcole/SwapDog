@@ -464,7 +464,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
           styles.commitCard,
           { backgroundColor: colors.surface, borderLeftColor: accentColor, ...shadow.sm },
         ]}
-        onPress={() => handleCommitmentTap(post)}
+        onPress={() => { setShowPopup(false); navigation.navigate('PostDetail', { postId: post.id }); }}
         accessibilityRole="button"
         accessibilityLabel={`${roleLabel}: ${post.dogName} with ${otherName}`}
       >

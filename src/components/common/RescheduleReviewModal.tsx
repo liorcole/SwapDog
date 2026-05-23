@@ -130,19 +130,19 @@ const RescheduleReviewModal: React.FC<Props> = ({
             ) : null}
 
             {/* Action buttons */}
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#00B894' }]} onPress={handleAccept}>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: RED }]} onPress={handleAccept}>
               <Text style={styles.actionBtnText}>Accept New Dates</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: RED }]} onPress={handleReject}>
-              <Text style={styles.actionBtnText}>Decline</Text>
+            <TouchableOpacity style={[styles.actionBtn, styles.grayBtn]} onPress={handleReject}>
+              <Text style={[styles.actionBtnText, styles.grayBtnText]}>Decline</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: 'transparent', borderWidth: 2, borderColor: colors.text }]}
+              style={[styles.actionBtn, styles.grayBtn]}
               onPress={() => setShowPropose(!showPropose)}
             >
-              <Text style={[styles.actionBtnText, { color: colors.text }]}>
+              <Text style={[styles.actionBtnText, styles.grayBtnText]}>
                 {showPropose ? 'Cancel Proposal' : 'Propose Different Dates'}
               </Text>
             </TouchableOpacity>
@@ -179,7 +179,7 @@ const RescheduleReviewModal: React.FC<Props> = ({
             )}
 
             {/* Note input — always visible */}
-            <View style={[styles.noteInput, { borderColor: colors.textSecondary }]}>
+            <View style={[styles.noteInput, styles.grayBtn, { borderColor: 'rgba(150,150,150,0.25)' }]}>
               <TextInput
                 style={[styles.noteInputField, { color: colors.text }]}
                 placeholder="Add a note (optional)"
@@ -212,6 +212,8 @@ const styles = StyleSheet.create({
   noteLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
   noteText: { fontSize: 15 },
   actionBtn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center', marginBottom: spacing.sm },
+  grayBtn: { backgroundColor: 'rgba(150,150,150,0.12)' },
+  grayBtnText: { color: '#999', fontWeight: '500' },
   actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   proposeSection: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, marginBottom: spacing.sm },
   proposeLabel: { fontSize: 14, fontWeight: '600', marginBottom: spacing.sm, textAlign: 'center' },

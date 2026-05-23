@@ -245,6 +245,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [isJustApproved, setIsJustApproved] = useState(false);
 
   // Photo carousel state
   const [allPhotos, setAllPhotos] = useState<string[]>([]);
@@ -412,6 +413,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           try {
             await approveHelper(post.id, helperId);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setIsJustApproved(true);
             setPost((prev) => prev ? { ...prev, status: 'claimed', claimedBy: helperId } : prev);
             try {
               const hasPermission = await requestNotificationPermissions();
@@ -690,6 +692,32 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         {/* ── Photo Carousel (swipeable, all dog photos) ── */}
         <PhotoCarouselSection photos={allPhotos} onPhotoPress={handlePhotoPress} />
 
+        {/* ── Reschedule / Cancel banner (owner, claimed post) ── */}
+        {isOwner && post.status === 'claimed' && !isJustApproved && (
+          <View style={[styles.rescheduleBanner, { backgroundColor: '#3D2E00', borderColor: '#FFD700' }]}>
+            <Text style={{ color: '#FFD700', fontSize: 15, fontWeight: '600', marginBottom: 8 }}>
+              Plans changed?
+            </Text>
+            <Text style={{ color: '#FFD700', fontSize: 13, marginBottom: 12 }}>
+              Reschedule or cancel this booking
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#FFD700', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                onPress={() => setShowRescheduleModal(true)}
+              >
+                <Text style={{ color: '#3D2E00', fontWeight: '700', fontSize: 14 }}>Reschedule</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#FF4444', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                onPress={handleCancelClaimed}
+              >
+                <Text style={{ color: '#FF4444', fontWeight: '700', fontSize: 14 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* ── Interested Helpers (owner only) ── */}
         {isOwner && respondents.length > 0 && (
           <View style={styles.helpersSection}>
@@ -761,32 +789,6 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         )}
 
-
-        {/* ── Reschedule / Cancel banner (owner, claimed post) ── */}
-        {isOwner && post.status === 'claimed' && (
-          <View style={[styles.rescheduleBanner, { backgroundColor: '#3D2E00', borderColor: '#FFD700' }]}>
-            <Text style={{ color: '#FFD700', fontSize: 15, fontWeight: '600', marginBottom: 8 }}>
-              Plans changed?
-            </Text>
-            <Text style={{ color: '#FFD700', fontSize: 13, marginBottom: 12 }}>
-              Reschedule or cancel this booking
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity
-                style={{ flex: 1, backgroundColor: '#FFD700', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
-                onPress={() => setShowRescheduleModal(true)}
-              >
-                <Text style={{ color: '#3D2E00', fontWeight: '700', fontSize: 14 }}>Reschedule</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 1, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#FF4444', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
-                onPress={handleCancelClaimed}
-              >
-                <Text style={{ color: '#FF4444', fontWeight: '700', fontSize: 14 }}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* ── Owner (clickable → full profile) ── */}
         <TouchableOpacity
@@ -1041,7 +1043,7 @@ const styles = StyleSheet.create({
   careDetails: { fontSize: 14, lineHeight: 22 },
 
   // Interested Helpers RED section
-  helpersSection: { borderRadius: borderRadius.lg, marginBottom: spacing.md, marginHorizontal: spacing.md, overflow: 'hidden', borderWidth: 2, borderColor: RED, backgroundColor: 'rgba(255,45,85,0.06)', shadowColor: RED, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 6, elevation: 4 },
+  helpersSection: { borderRadius: borderRadius.lg, marginBottom: spacing.md, marginHorizontal: spacing.md, marginTop: spacing.lg, overflow: 'hidden', borderWidth: 2, borderColor: RED, backgroundColor: 'rgba(255,45,85,0.06)', shadowColor: RED, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 6, elevation: 4 },
   helpersSectionHeader: { backgroundColor: RED, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   helpersSectionTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   rescheduleBanner: { marginHorizontal: spacing.md, marginTop: spacing.sm, borderWidth: 1.5, borderRadius: borderRadius.lg, padding: spacing.md },

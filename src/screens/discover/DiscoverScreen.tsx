@@ -133,14 +133,15 @@ const RadiusSelector: React.FC<RadiusSelectorProps> = memo(({ radiusMiles, onSel
             style={[
               styles.radiusChip,
               {
-                backgroundColor: active ? colors.primary : colors.surface,
-                borderColor: active ? colors.primary : colors.border,
+                backgroundColor: 'transparent',
+                borderColor: active ? '#FFFFFF' : colors.border,
+                borderWidth: active ? 2 : 1.5,
               },
             ]}
             accessibilityLabel={`Set radius to ${r} mile${r > 1 ? 's' : ''}`}
             accessibilityState={{ selected: active }}
           >
-            <Text style={[styles.radiusChipText, { color: active ? '#FFFFFF' : colors.textSecondary }]}>
+            <Text style={[styles.radiusChipText, { color: active ? '#FFFFFF' : colors.textSecondary, fontWeight: active ? '700' : '600' }]}>
               {r} mi
             </Text>
           </TouchableOpacity>
@@ -148,7 +149,7 @@ const RadiusSelector: React.FC<RadiusSelectorProps> = memo(({ radiusMiles, onSel
       })}
       {/* Live radius display when not on a preset */}
       {activePreset === null && (
-        <View style={[styles.radiusChip, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+        <View style={[styles.radiusChip, { backgroundColor: 'transparent', borderColor: '#FFFFFF', borderWidth: 2 }]}>
           <Text style={[styles.radiusChipText, { color: '#FFFFFF' }]}>
             {radiusMiles < 10 ? radiusMiles.toFixed(1) : Math.round(radiusMiles).toString()} mi
           </Text>

@@ -23,11 +23,11 @@ export interface PointsHistoryEntry {
 
 /** Icon per event type */
 export const pointsEventIcon: Record<PointsEventType, string> = {
-  sitting: '🐾',
-  referral: '👥',
-  bonus: '⭐',
-  deduction: '💸',
-  other: '🐾',
+  sitting: 'S',
+  referral: 'R',
+  bonus: 'B',
+  deduction: 'D',
+  other: 'P',
 };
 
 const parseEntry = (id: string, data: Record<string, unknown>): PointsHistoryEntry => ({

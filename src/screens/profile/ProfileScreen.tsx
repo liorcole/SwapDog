@@ -335,7 +335,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           accessibilityRole="button"
         >
           <Text style={[styles.pointsBadgeText, { color: colors.primary }]}>
-            🐾 {(userProfile?.points ?? 0).toFixed(1)} points {'>'}
+            {(userProfile?.points ?? 0).toFixed(1)} points {'>'}
           </Text>
         </TouchableOpacity>
 

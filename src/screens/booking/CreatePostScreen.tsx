@@ -714,7 +714,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                 <Switch
                   value={offerPoints}
                   onValueChange={(v) => {
-                    if (!v && !offerMoney) return;
                     setOfferPoints(v);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
@@ -733,7 +732,6 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                   value={offerMoney}
                   onValueChange={(v) => {
                     setOfferMoney(v);
-                    if (v && !offerPoints) setOfferPoints(true);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   trackColor={{ false: colors.border, true: colors.primary }}
@@ -822,7 +820,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
             <TouchableOpacity
               style={[styles.submitBtn, { backgroundColor: colors.primary, opacity: submitting ? 0.7 : 1 }]}
               onPress={validateAndSubmit}
-              disabled={submitting}
+              disabled={submitting || (offerPoints && parseInt(pointsOffered, 10) > 0 && parseInt(pointsOffered, 10) > (userProfile?.points ?? 0))}
               accessibilityLabel={submitting ? 'Posting...' : 'Post Request'}
               accessibilityRole="button"
             >

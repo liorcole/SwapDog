@@ -256,5 +256,6 @@ export interface Review {
   swapRequestId: string;
   rating: number;
   comment?: string;
+  reviewRole?: 'owner' | 'sitter';
   createdAt: Date;
 }

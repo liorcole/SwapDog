@@ -17,6 +17,7 @@ const parseReview = (id: string, data: Record<string, unknown>): Review => ({
   swapRequestId: data.swapRequestId as string,
   rating: data.rating as number,
   comment: data.comment as string | undefined,
+  reviewRole: (data.reviewRole as 'owner' | 'sitter' | undefined) ?? undefined,
   createdAt: toDate(data.createdAt as Parameters<typeof toDate>[0]),
 });
 
@@ -24,10 +25,21 @@ export const useReviews = () => {
   const createReview = async (
     data: Omit<Review, 'id' | 'createdAt'>
   ): Promise<string> => {
-    const ref = await addDoc(collection(db, 'reviews'), {
+    const payload = {
       ...data,
       createdAt: serverTimestamp(),
-    });
+    };
+    const ref = await addDoc(collection(db, 'reviews'), payload);
+    // Backup: write to reviews_backup collection for disaster recovery
+    try {
+      await addDoc(collection(db, 'reviews_backup'), {
+        ...payload,
+        originalId: ref.id,
+        backedUpAt: serverTimestamp(),
+      });
+    } catch {
+      // Non-fatal — primary write succeeded
+    }
     return ref.id;
   };
 

@@ -61,6 +61,16 @@ type RadiusMiles = (typeof RADIUS_OPTIONS)[number];
 
 const RED = '#FF2D55';
 
+const getCareTypeLabel = (t: string): string => {
+  switch (t) {
+    case 'overnight': return 'Overnight Stay';
+    case 'daySitting': return 'Day Sitting';
+    case 'feeding': return 'Feeding Visit';
+    case 'dogWalking': return 'Dog Walking';
+    default: return t;
+  }
+};
+
 type Props = {
   navigation: NativeStackNavigationProp<DiscoverStackParamList, 'Discover'>;
 };
@@ -167,7 +177,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
 
   const compensationLabel = (): string => {
     if (post.compensationType === 'points') {
-      return `🐾 ${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
+      return `${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
     }
     if (post.totalPayment && post.paymentAmount && post.totalUnits && post.paymentRate) {
       const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';
@@ -181,7 +191,7 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
 
   return (
     <TouchableOpacity
-      style={[styles.postCard, { backgroundColor: colors.surface, ...shadow.sm }]}
+      style={[styles.postCard, { backgroundColor: colors.surface, ...shadow.sm, opacity: post.status !== 'open' ? 0.5 : 1 }]}
       onPress={handlePostPress}
       accessibilityRole="button"
       accessibilityLabel={`${post.posterName}'s post for ${post.dogName}`}
@@ -237,6 +247,11 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
           </View>
         )}
 
+        {post.status !== 'open' && (
+          <View style={styles.takenBadge}>
+            <Text style={styles.takenBadgeText}>✓ Sitter Found</Text>
+          </View>
+        )}
         <View style={styles.detailsBtn}>
           <Text style={styles.detailsBtnText}>See Full Details</Text>
         </View>
@@ -704,7 +719,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
     const items: FeedItem[] = [];
 
     // Section 1: Posts
-    items.push({ kind: 'section_header', id: 'header_posts', title: '🐾 Active Posts Nearby', count: displayPosts.length, isPosts: true });
+    items.push({ kind: 'section_header', id: 'header_posts', title: 'Active Posts Nearby', count: displayPosts.length, isPosts: true });
     if (displayPosts.length === 0) {
       items.push({ kind: 'empty', id: 'empty_posts', text: 'No active posts in your area right now' });
     } else {
@@ -976,6 +991,8 @@ const styles = StyleSheet.create({
   carePreview: { fontSize: 13, lineHeight: 18, marginBottom: spacing.xs },
   interestBadge: { backgroundColor: RED, borderRadius: borderRadius.full, paddingHorizontal: spacing.sm, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: spacing.xs, shadowColor: RED, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.30, shadowRadius: 4, elevation: 2 },
   interestBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  takenBadge: { backgroundColor: '#63727220', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start' as const, marginBottom: 6 },
+  takenBadgeText: { color: '#636E72', fontSize: 12, fontWeight: '600' },
   detailsBtn: { marginTop: spacing.sm, borderWidth: 1.5, borderColor: '#FF2D55', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16, alignSelf: 'flex-start' },
   detailsBtnText: { fontSize: 13, fontWeight: '700', color: '#FF2D55' },
 

@@ -32,7 +32,8 @@ export type DiscoverStackParamList = {
 export type RequestsStackParamList = {
   Requests: undefined;
   WriteReview: { swapRequestId: string; revieweeId: string 
-  UserDetail: { userId: string };};
+  UserDetail: { userId: string 
+  DogDetail: { dogId: string };};};
   /** Full detail view for a public area post */
   PostDetail: { postId: string };
   /** Create a new public post */

@@ -34,6 +34,7 @@ const WriteReviewScreen: React.FC<Props> = ({ navigation, route }) => {
         swapRequestId: route.params?.swapRequestId ?? '',
         rating,
         comment: comment.trim() || undefined,
+        reviewRole: route.params?.reviewRole ?? undefined,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Review submitted!', 'Thanks for your feedback', [
@@ -53,7 +54,7 @@ const WriteReviewScreen: React.FC<Props> = ({ navigation, route }) => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.title, { color: colors.text }]}>How was your swap?</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{route.params?.reviewRole === 'sitter' ? 'Rate the Pet Sitter' : route.params?.reviewRole === 'owner' ? 'Rate the Pet Owner' : 'How was your experience?'}</Text>
       <Text style={[styles.sub, { color: colors.textSecondary }]}>Your review helps the community</Text>
       <View style={styles.ratingContainer} accessibilityRole="adjustable" accessibilityLabel={`Selected rating: ${rating} of 5 stars`}>
         <StarRating rating={rating} onRate={setRating} size={40} />

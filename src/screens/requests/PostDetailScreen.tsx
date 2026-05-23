@@ -238,7 +238,7 @@ const FullscreenPhotoModal: React.FC<FullscreenModalProps> = ({ photos, initialI
 const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { user, userProfile } = useAuthContext();
-  const { getAreaPosts, getMyPosts, addResponder, approveHelper, saveOwnerReminderIds, respondToCounter } = useSwaps();
+  const { getAreaPosts, getMyPosts, addResponder, approveHelper, saveOwnerReminderIds, respondToCounter, cancelPost } = useSwaps();
   const { getOrCreateConversation, sendMessage } = useMessaging();
 
   const [post, setPost] = useState<SwapPost | null>(null);
@@ -255,6 +255,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [counterMode, setCounterMode] = useState(false);
   const [counterPointsInput, setCounterPointsInput] = useState('');
+  const [counterMoneyInput, setCounterMoneyInput] = useState('');
   const [counterSubmitting, setCounterSubmitting] = useState(false);
 
   const postId = route.params?.postId;
@@ -346,7 +347,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       const convId = await getOrCreateConversation(user.uid, post.posterId, post.id);
 
       const introText = counterPoints !== undefined
-        ? `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'd like to counter-offer at ${counterPoints} points — let me know if that works!`
+        ? `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'd like to counter-offer at ${counterPoints} points${counterMoneyInput && parseFloat(counterMoneyInput) > 0 ? ` + $${counterMoneyInput}` : ''} — let me know if that works!`
         : `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'll take the job for the offered ${post.pointsOffered ?? post.pointsCost} points!`;
       await sendMessage(convId, user.uid, introText);
 
@@ -511,19 +512,19 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const compensationLabel = () => {
     if (post.compensationType === 'points') {
       const pts = post.pointsOffered ?? post.pointsCost;
-      return `🐾 ${pts} point${pts !== 1 ? 's' : ''} offered`;
+      return `${pts} point${pts !== 1 ? 's' : ''} offered`;
     }
     if (post.totalPayment && post.paymentAmount && post.paymentRate) {
       const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';
-      if (post.careType === 'feeding') return `💰 $${post.paymentAmount} per visit`;
+      if (post.careType === 'feeding') return `$${post.paymentAmount} per visit`;
       const unitLabel = post.paymentRate === 'per_hour'
         ? `${post.totalUnits} hr${post.totalUnits !== 1 ? 's' : ''}`
         : `${post.totalUnits} day${post.totalUnits !== 1 ? 's' : ''}`;
-      return `💰 $${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
+      return `$${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
     }
     return post.compensationType === 'either'
-      ? `🐾 ${post.pointsCost.toFixed(1)} pts or 💰 payment`
-      : '💰 Payment offered';
+      ? `${post.pointsCost.toFixed(1)} pts or payment`
+      : 'Payment offered';
   };
 
   const offeredPoints = post.pointsOffered ?? post.pointsCost;
@@ -585,11 +586,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             ) : (
               <>
                 <Text style={[styles.counterInputLabel, { color: colors.text }]}>
-                  Your counter offer (points):
+                  Counter with points:
                 </Text>
                 <View style={styles.counterInputRow}>
                   <TextInput
-                    style={[styles.counterInput, { borderColor: RED, backgroundColor: colors.background, color: colors.text }]}
+                    style={[styles.counterInput, { borderColor: '#FFFFFF', backgroundColor: colors.background, color: colors.text }]}
                     placeholder={String(offeredPoints)}
                     placeholderTextColor={colors.textSecondary}
                     value={counterPointsInput}
@@ -601,20 +602,37 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                   <Text style={[styles.counterInputUnit, { color: colors.textSecondary }]}>pts</Text>
                 </View>
 
+                <Text style={[styles.counterInputLabel, { color: colors.text, marginTop: 8 }]}>
+                  Counter with money (optional):
+                </Text>
+                <View style={styles.counterInputRow}>
+                  <Text style={[styles.counterInputUnit, { color: colors.text }]}>$</Text>
+                  <TextInput
+                    style={[styles.counterInput, { borderColor: '#FFFFFF', backgroundColor: colors.background, color: colors.text }]}
+                    placeholder="0"
+                    placeholderTextColor={colors.textSecondary}
+                    value={counterMoneyInput}
+                    onChangeText={setCounterMoneyInput}
+                    keyboardType="decimal-pad"
+                    accessibilityLabel="Counter offer money"
+                  />
+                </View>
+
                 <TouchableOpacity
                   style={[styles.helpModalAcceptBtn, { backgroundColor: RED, opacity: counterSubmitting ? 0.7 : 1 }]}
                   onPress={() => {
                     const pts = parseInt(counterPointsInput, 10);
-                    if (isNaN(pts) || pts < 1) {
-                      Alert.alert('Invalid', 'Please enter a valid points amount');
+                    const money = parseFloat(counterMoneyInput);
+                    if ((isNaN(pts) || pts < 1) && (isNaN(money) || money <= 0)) {
+                      Alert.alert('Invalid', 'Enter points or money for your counter offer');
                       return;
                     }
-                    handleAcceptOrCounter(pts);
+                    handleAcceptOrCounter(isNaN(pts) ? 0 : pts);
                   }}
                   disabled={counterSubmitting}
                 >
                   <Text style={styles.helpModalBtnText}>
-                    {counterSubmitting ? 'Sending...' : `Send Counter: ${counterPointsInput || '?'} pts`}
+                    {counterSubmitting ? 'Sending...' : 'Send Counter Offer'}
                   </Text>
                 </TouchableOpacity>
 
@@ -638,19 +656,16 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
       >
-        {/* ── Photo Carousel ── */}
+        {/* ── Photo Carousel (swipeable, all dog photos) ── */}
         <PhotoCarouselSection photos={allPhotos} onPhotoPress={handlePhotoPress} />
 
-        {/* ── Care Type Banner ── */}
-        {post.careType && (
-          <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{getCareTypeIcon(post.careType)} {getCareTypeLabel(post.careType)}</Text>
-            <Text style={[styles.careDetails, { color: colors.text }]}>{getScheduleInfo(post)}</Text>
-          </View>
-        )}
-
-        {/* ── Poster info ── */}
-        <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
+        {/* ── Owner (clickable → full profile) ── */}
+        <TouchableOpacity
+          style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}
+          onPress={() => navigation.navigate('UserDetail', { userId: post.posterId })}
+          accessibilityLabel={`View ${post.posterName}'s profile`}
+          accessibilityRole="button"
+        >
           <View style={styles.posterRow}>
             {post.posterPhotoURL ? (
               <Image source={{ uri: post.posterPhotoURL }} style={[styles.posterAvatar, { borderColor: colors.border }]} />
@@ -674,16 +689,22 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               </Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
-        {/* ── Dog info ── */}
-        <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>🐶 Dog{post.dogIds && post.dogIds.length > 1 ? 's' : ''}</Text>
+        {/* ── Dog (clickable → DogDetail) ── */}
+        <TouchableOpacity
+          style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}
+          onPress={() => {
+            const dogId = post.dogId ?? (post.dogIds && post.dogIds.length > 0 ? post.dogIds[0] : undefined);
+            if (dogId) navigation.navigate('DogDetail', { dogId });
+          }}
+          accessibilityLabel={`View ${dogDisplayName}'s profile`}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Dog{post.dogIds && post.dogIds.length > 1 ? 's' : ''}</Text>
           <View style={styles.dogRow}>
             {allPhotos.length > 0 ? (
-              <TouchableOpacity onPress={() => handlePhotoPress(0)}>
-                <Image source={{ uri: allPhotos[0] }} style={[styles.dogThumb, { borderColor: colors.border }]} />
-              </TouchableOpacity>
+              <Image source={{ uri: allPhotos[0] }} style={[styles.dogThumb, { borderColor: colors.border }]} />
             ) : (
               <View style={[styles.dogThumbPlaceholder, { backgroundColor: colors.primary + '22' }]}>
                 <Text style={styles.dogThumbEmoji}>🐕</Text>
@@ -693,37 +714,37 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               <Text style={[styles.dogName, { color: colors.text }]}>{dogDisplayName}</Text>
               {dogDisplayBreed && <Text style={[styles.dogBreed, { color: colors.textSecondary }]}>{dogDisplayBreed}</Text>}
             </View>
+            <Text style={{ color: '#999', fontSize: 20 }}>›</Text>
           </View>
+        </TouchableOpacity>
+
+        {/* ── Care Details (type → date → description) ── */}
+        <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Care Details</Text>
+          {post.careType && (
+            <Text style={[styles.careDetailLine, { color: colors.text }]}>
+              Type: {getCareTypeLabel(post.careType)}
+            </Text>
+          )}
+          <Text style={[styles.careDetailLine, { color: colors.text }]}>
+            Date: {post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+          </Text>
+          {post.careDetails ? (
+            <Text style={[styles.careDetails, { color: colors.text, marginTop: 8 }]}>{post.careDetails}</Text>
+          ) : null}
         </View>
 
-        {/* ── Schedule (for non-care-type posts or fallback) ── */}
-        {!post.careType && (
-          <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>📅 Dates</Text>
-            <Text style={[styles.dates, { color: colors.text }]}>
-              {post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} –{' '}
-              {post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-            </Text>
-          </View>
-        )}
-
-        {/* ── Compensation ── */}
+        {/* ── Compensation (LAST before helpers) ── */}
         <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>💰 Compensation</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Compensation</Text>
           <Text style={[styles.compText, { color: colors.text }]}>{compensationLabel()}</Text>
           {(post.compensationType === 'payment' || post.compensationType === 'either') && (
             <View style={[styles.offAppNote, { backgroundColor: '#FFF9E6', borderColor: '#F0C040' }]}>
               <Text style={[styles.offAppNoteText, { color: '#7A6000' }]}>
-                💰 All payments are arranged and made outside of WatchDog. We do not process payments.
+                All payments are arranged and made outside of WatchDog. We do not process payments.
               </Text>
             </View>
           )}
-        </View>
-
-        {/* ── Care Details ── */}
-        <View style={[styles.section, { backgroundColor: colors.surface, ...shadow.sm }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Care Details</Text>
-          <Text style={[styles.careDetails, { color: colors.text }]}>{post.careDetails}</Text>
         </View>
 
         {/* ── Interested Helpers (owner only) ── */}
@@ -853,6 +874,39 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             </Text>
           </View>
         )}
+
+        {/* ── Delete Post (owner only) ── */}
+        {isOwner && post.status === 'open' && (
+          <TouchableOpacity
+            style={styles.deletePostBtn}
+            onPress={() => {
+              Alert.alert(
+                'Delete Post',
+                'Are you sure you want to delete this post? This cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        await cancelPost(post.id);
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        navigation.goBack();
+                      } catch (err) {
+                        Alert.alert('Error', err instanceof Error ? err.message : 'Failed to delete');
+                      }
+                    },
+                  },
+                ],
+              );
+            }}
+            accessibilityLabel="Delete this post"
+            accessibilityRole="button"
+          >
+            <Text style={styles.deletePostBtnText}>Delete Post</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </>
   );
@@ -946,6 +1000,7 @@ const styles = StyleSheet.create({
   offAppNoteText: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
 
   // Care details
+  careDetailLine: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
   careDetails: { fontSize: 14, lineHeight: 22 },
 
   // Interested Helpers RED section
@@ -988,6 +1043,8 @@ const styles = StyleSheet.create({
   // Owner note
   ownerNote: { borderWidth: 1, borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center', marginHorizontal: spacing.md },
   ownerNoteText: { fontSize: 14 },
+  deletePostBtn: { backgroundColor: '#FF3B3020', borderWidth: 1.5, borderColor: '#FF3B30', borderRadius: 12, padding: 14, alignItems: 'center' as const, marginHorizontal: 16, marginTop: 16 },
+  deletePostBtnText: { color: '#FF3B30', fontSize: 16, fontWeight: '700' },
 
   // "I Can Help" modal
   helpModalOverlay: { flex: 1, justifyContent: 'flex-end' },

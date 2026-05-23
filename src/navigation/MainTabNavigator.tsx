@@ -289,7 +289,7 @@ const MainTabNavigator: React.FC = () => {
             shownAcceptanceIds.current.add(change.doc.id);
             const dogDisplay = data.dogNames && data.dogNames.length > 1
               ? (data.dogNames as string[]).join(' & ') : (data.dogName as string ?? 'the dog');
-            setCelebrationQueue((prev) => [...prev, { title: "You're Booked!", subtitle: "You've been chosen to watch " + dogDisplay + ' for ' + (data.posterName ?? 'the owner') + '!', emoji: '\U0001F436' }]);
+            setCelebrationQueue((prev) => [...prev, { title: "You're Booked!", subtitle: "You've been chosen to watch " + dogDisplay + '!', emoji: '\U0001F436' }]);
             break;
           }
         }
@@ -309,7 +309,7 @@ const MainTabNavigator: React.FC = () => {
       const postRef = doc(db, 'swapPosts', reschedulePost.id);
       if (action === 'accept') {
         // Accept: move proposed dates to actual dates, clear reschedule fields
-        setCelebrationQueue((prev) => [...prev, { title: 'Dates Updated!', subtitle: 'New dates confirmed for ' + reschedulePost.dogName + ". You're all set!", emoji: '\U0001F4C5' }]);
+        setCelebrationQueue((prev) => [...prev, { title: 'Dates Updated!', subtitle: smartDate(reschedulePost.rescheduleProposedStart!) + ' \u2013 ' + smartDate(reschedulePost.rescheduleProposedEnd!) + ' confirmed for ' + reschedulePost.dogName + "!", emoji: '\U0001F4C5' }]);
         await updateDoc(postRef, {
           startDate: reschedulePost.rescheduleProposedStart,
           endDate: reschedulePost.rescheduleProposedEnd,

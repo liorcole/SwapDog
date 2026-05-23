@@ -172,86 +172,50 @@ const PostCard: React.FC<PostCardProps> = memo(({ post, onPress }) => {
   const { colors } = useTheme();
   const startStr = post.startDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const endStr = post.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  const isPayment = post.compensationType === 'payment' || post.compensationType === 'either';
-  const interestedCount = post.respondedBy?.length ?? 0;
 
-  const compensationLabel = (): string => {
-    if (post.compensationType === 'points') {
-      return `${post.pointsCost.toFixed(1)} pt${post.pointsCost !== 1 ? 's' : ''}`;
-    }
-    if (post.totalPayment && post.paymentAmount && post.totalUnits && post.paymentRate) {
-      const rateLabel = post.paymentRate === 'per_hour' ? '/hr' : '/day';
-      const unitLabel = post.paymentRate === 'per_hour'
-        ? `${post.totalUnits} hr${post.totalUnits !== 1 ? 's' : ''}`
-        : `${post.totalUnits} day${post.totalUnits !== 1 ? 's' : ''}`;
-      return `$${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
-    }
-    return 'Payment offered';
-  };
+  const careLabel = post.careType
+    ? post.careType.charAt(0).toUpperCase() + post.careType.slice(1)
+    : 'Pet Care';
 
   return (
     <TouchableOpacity
       style={[styles.postCard, { backgroundColor: colors.surface, ...shadow.sm, opacity: post.status !== 'open' ? 0.5 : 1 }]}
       onPress={handlePostPress}
       accessibilityRole="button"
-      accessibilityLabel={`${post.posterName}'s post for ${post.dogName}`}
+      accessibilityLabel={`Post for ${post.dogName}`}
     >
       {/* Red left accent */}
       <View style={styles.postCardAccent} />
 
       <View style={styles.postCardInner}>
+        {/* Dog photo + name row */}
         <View style={styles.cardHeader}>
-          {post.posterPhotoURL ? (
-            <Image source={{ uri: post.posterPhotoURL }} style={[styles.avatarSmall, { borderColor: colors.border }]} />
+          {post.dogPhotoURL ? (
+            <Image source={{ uri: post.dogPhotoURL }} style={[styles.dogThumbLead, { borderColor: colors.border }]} />
           ) : (
-            <View style={[styles.avatarPlaceholder, { backgroundColor: RED + '22' }]}>
-              <Text style={styles.avatarEmoji}>U</Text>
+            <View style={[styles.dogThumbLeadPlaceholder, { backgroundColor: RED + '12' }]}>
+              <Text style={{ fontSize: 22 }}>🐶</Text>
             </View>
           )}
           <View style={styles.headerInfo}>
-            <Text style={[styles.posterName, { color: colors.text }]}>{post.posterName}</Text>
+            <Text style={[styles.dogLine, { color: colors.text, marginBottom: 0 }]}>
+              {post.dogName}{post.dogBreed ? ` · ${post.dogBreed}` : ''}
+            </Text>
             <Text style={[styles.dateRange, { color: colors.textSecondary }]}>{startStr} – {endStr}</Text>
           </View>
-          {post.dogPhotoURL ? (
-            <Image source={{ uri: post.dogPhotoURL }} style={[styles.dogThumbSmall, { borderColor: colors.border }]} />
-          ) : (
-            <View style={[styles.dogThumbPlaceholder, { backgroundColor: RED + '15' }]}>
-              <Text style={styles.dogThumbEmoji}>D</Text>
-            </View>
-          )}
         </View>
 
-        <Text style={[styles.dogLine, { color: colors.text }]}>
-          {post.dogName}{post.dogBreed ? ` · ${post.dogBreed}` : ''}
+        {/* Care type */}
+        <Text style={[styles.carePreview, { color: colors.textSecondary }]}>
+          {careLabel}
         </Text>
-
-        <Text style={[styles.compInline, { color: isPayment ? '#00B894' : colors.textSecondary }]}>
-          {compensationLabel()}
-        </Text>
-
-        {isPayment && (
-          <Text style={[styles.offAppInline, { color: colors.textSecondary }]}>
-            Payments made outside WatchDog
-          </Text>
-        )}
-
-        <Text style={[styles.carePreview, { color: colors.textSecondary }]} numberOfLines={2}>
-          {post.careDetails}
-        </Text>
-
-        {interestedCount > 0 && (
-          <View style={styles.interestBadge}>
-            <Text style={styles.interestBadgeText}>
-              {interestedCount} helper{interestedCount !== 1 ? 's' : ''} interested
-            </Text>
-          </View>
-        )}
 
         {post.status !== 'open' && (
           <View style={styles.takenBadge}>
-            <Text style={styles.takenBadgeText}>✓ Sitter Found</Text>
+            <Text style={styles.takenBadgeText}>Sitter Found</Text>
           </View>
         )}
+
         <View style={styles.detailsBtn}>
           <Text style={styles.detailsBtnText}>See Full Details</Text>
         </View>
@@ -985,6 +949,8 @@ const styles = StyleSheet.create({
   dogThumbSmall: { width: 44, height: 44, borderRadius: borderRadius.sm, borderWidth: 1 },
   dogThumbPlaceholder: { width: 44, height: 44, borderRadius: borderRadius.sm, alignItems: 'center', justifyContent: 'center' },
   dogThumbEmoji: { fontSize: 20 },
+  dogThumbLead: { width: 48, height: 48, borderRadius: 24, borderWidth: 1.5 },
+  dogThumbLeadPlaceholder: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   dogLine: { fontSize: 14, fontWeight: '600', marginBottom: spacing.xs },
   compInline: { fontSize: 13, fontWeight: '600', marginBottom: spacing.xs },
   offAppInline: { fontSize: 11, marginBottom: spacing.xs },

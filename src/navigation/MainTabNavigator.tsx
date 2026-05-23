@@ -64,7 +64,7 @@ const DiscoverNavigator: React.FC = () => {
       <DiscoverStack.Screen
         name="Discover"
         component={DiscoverScreen}
-        options={{ title: '🐾 Discover', headerShown: true }}
+        options={{ title: 'Discover', headerShown: true }}
       />
       <DiscoverStack.Screen name="UserDetail" component={UserDetailScreen} options={{ title: 'Profile' }} />
       <DiscoverStack.Screen name="DogDetail" component={DogDetailScreen} options={{ title: 'Dog Profile' }} />

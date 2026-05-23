@@ -530,11 +530,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       return `$${post.totalPayment} total ($${post.paymentAmount}${rateLabel} × ${unitLabel})`;
     }
     return post.compensationType === 'either'
-      ? `${post.pointsCost.toFixed(1)} pts or payment`
+      ? `${(post.pointsCost ?? 0).toFixed(1)} pts or payment`
       : 'Payment offered';
   };
 
-  const offeredPoints = post.pointsOffered ?? post.pointsCost;
+  const offeredPoints = post.pointsOffered ?? post.pointsCost ?? 0;
 
   return (
     <>
@@ -932,7 +932,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                               style={[styles.counterDeclineBtn, { borderColor: colors.error }]}
                               onPress={() => handleCounterResponse(r.userId, r.userName, false)}
                             >
-                              <Text style={[styles.counterDeclineBtnText, { color: colors.error }]}>Decline ❌</Text>
+                              <Text style={[styles.counterDeclineBtnText, { color: colors.error }]}>Decline</Text>
                             </TouchableOpacity>
                           </View>
                         )}

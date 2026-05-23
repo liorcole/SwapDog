@@ -309,7 +309,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           {userProfile?.displayName ?? 'User'}
         </Text>
         {userProfile?.locationName && (
-          <Text style={[styles.location, { color: colors.textSecondary }]}>{'\ud83d\udccd'} {userProfile.locationName}</Text>
+          <Text style={[styles.location, { color: colors.textSecondary }]}>{userProfile.locationName}</Text>
         )}
         {userProfile?.instagramHandle ? (
           <TouchableOpacity

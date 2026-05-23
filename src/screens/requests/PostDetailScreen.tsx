@@ -34,7 +34,7 @@ import { db } from '../../config/firebase';
 import { RequestsStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import ConfettiCelebration from '../../components/common/ConfettiCelebration';
+import ConfettiCelebration, { CelebrationItem } from '../../components/common/ConfettiCelebration';
 import { smartDate } from '../../utils/dateHelpers';
 import { useSwaps } from '../../hooks/useSwaps';
 import { useUsers } from '../../hooks/useUsers';
@@ -247,9 +247,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [claiming, setClaiming] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [isJustApproved, setIsJustApproved] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [celebrationTitle, setCelebrationTitle] = useState('');
-  const [celebrationSubtitle, setCelebrationSubtitle] = useState('');
+  const [celebrationQueue, setCelebrationQueue] = useState<CelebrationItem[]>([]);
 
   // Photo carousel state
   const [allPhotos, setAllPhotos] = useState<string[]>([]);
@@ -417,9 +415,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           try {
             await approveHelper(post.id, helperId);
             setIsJustApproved(true);
-            setCelebrationTitle('Booking Confirmed!');
-            setCelebrationSubtitle(helperName + ' is now your sitter for ' + (post.dogNames && post.dogNames.length > 1 ? post.dogNames.join(' & ') : post.dogName) + '!');
-            setShowCelebration(true);
+            setCelebrationQueue([{ title: 'Booking Confirmed!', subtitle: helperName + ' is now your sitter for ' + (post.dogNames && post.dogNames.length > 1 ? post.dogNames.join(' & ') : post.dogName) + '!', emoji: '🐶' }]);
             setPost((prev) => prev ? { ...prev, status: 'claimed', claimedBy: helperId } : prev);
             try {
               const hasPermission = await requestNotificationPermissions();
@@ -629,11 +625,8 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {/* ── Confetti Celebration ── */}
       <ConfettiCelebration
-        visible={showCelebration}
-        onDismiss={() => setShowCelebration(false)}
-        title={celebrationTitle}
-        subtitle={celebrationSubtitle}
-        emoji={'🐶'}
+        queue={celebrationQueue}
+        onDismissAll={() => setCelebrationQueue([])}
       />
 
       {/* ── Reschedule Modal ── */}

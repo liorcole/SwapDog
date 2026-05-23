@@ -16,7 +16,7 @@ import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, 
 import { db } from '../config/firebase';
 import { smartDate } from '../utils/dateHelpers';
 import RescheduleReviewModal from '../components/common/RescheduleReviewModal';
-import ConfettiCelebration from '../components/common/ConfettiCelebration';
+import ConfettiCelebration, { CelebrationItem } from '../components/common/ConfettiCelebration';
 import { SwapPost } from '../models/types';
 import AppHeader from '../components/common/AppHeader';
 
@@ -218,10 +218,7 @@ const MainTabNavigator: React.FC = () => {
 
   // ── Reschedule popup for sitter (on app open) ──────────────────────────────
   const [reschedulePost, setReschedulePost] = useState<SwapPost | null>(null);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [celebrationTitle, setCelebrationTitle] = useState('');
-  const [celebrationSubtitle, setCelebrationSubtitle] = useState('');
-  const [celebrationEmoji, setCelebrationEmoji] = useState('\U0001F389');
+  const [celebrationQueue, setCelebrationQueue] = useState<CelebrationItem[]>([]);
   const [showReschedulePopup, setShowReschedulePopup] = useState(false);
   const dismissedPostIds = useRef<Set<string>>(new Set());
 
@@ -290,13 +287,9 @@ const MainTabNavigator: React.FC = () => {
           const isRecent = (Date.now() - updatedAt.getTime()) < 60000;
           if (isRecent && data.posterId !== user.uid) {
             shownAcceptanceIds.current.add(change.doc.id);
-            setCelebrationTitle('You\'re Booked!');
             const dogDisplay = data.dogNames && data.dogNames.length > 1
-              ? data.dogNames.join(' & ')
-              : (data.dogName ?? 'their dog');
-            setCelebrationSubtitle('You\'ve been chosen to watch ' + dogDisplay + ' for ' + (data.posterName ?? 'the owner') + '!');
-            setCelebrationEmoji('\U0001F436');
-            setShowCelebration(true);
+              ? (data.dogNames as string[]).join(' & ') : (data.dogName as string ?? 'the dog');
+            setCelebrationQueue((prev) => [...prev, { title: "You're Booked!", subtitle: "You've been chosen to watch " + dogDisplay + ' for ' + (data.posterName ?? 'the owner') + '!', emoji: '\U0001F436' }]);
             break;
           }
         }
@@ -316,9 +309,7 @@ const MainTabNavigator: React.FC = () => {
       const postRef = doc(db, 'swapPosts', reschedulePost.id);
       if (action === 'accept') {
         // Accept: move proposed dates to actual dates, clear reschedule fields
-        setCelebrationTitle('Dates Updated!');
-        setCelebrationSubtitle('New dates confirmed for ' + reschedulePost.dogName + '. You\'re all set!');
-        setCelebrationEmoji('\U0001F4C5');
+        setCelebrationQueue((prev) => [...prev, { title: 'Dates Updated!', subtitle: 'New dates confirmed for ' + reschedulePost.dogName + ". You're all set!", emoji: '\U0001F4C5' }]);
         await updateDoc(postRef, {
           startDate: reschedulePost.rescheduleProposedStart,
           endDate: reschedulePost.rescheduleProposedEnd,
@@ -438,11 +429,8 @@ const MainTabNavigator: React.FC = () => {
         />
       )}
     <ConfettiCelebration
-        visible={showCelebration}
-        onDismiss={() => setShowCelebration(false)}
-        title={celebrationTitle}
-        subtitle={celebrationSubtitle}
-        emoji={celebrationEmoji}
+        queue={celebrationQueue}
+        onDismissAll={() => setCelebrationQueue([])}
       />
     <Tab.Navigator
       screenOptions={{

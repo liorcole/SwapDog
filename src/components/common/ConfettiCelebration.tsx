@@ -19,19 +19,23 @@ interface Piece {
   size: number;
 }
 
-interface Props {
-  visible: boolean;
-  onDismiss: () => void;
+export interface CelebrationItem {
   title: string;
   subtitle?: string;
   emoji?: string;
 }
 
-const ConfettiCelebration: React.FC<Props> = ({ visible, onDismiss, title, subtitle, emoji = '\U0001F389' }) => {
+interface Props {
+  queue: CelebrationItem[];
+  onDismissAll: () => void;
+}
+
+const ConfettiCelebration: React.FC<Props> = ({ queue, onDismissAll }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [pieces] = useState<Piece[]>(() =>
     Array.from({ length: CONFETTI_COUNT }, () => ({
-      x: new Animated.Value(Math.random() * W),
-      y: new Animated.Value(-50 - Math.random() * 200),
+      x: new Animated.Value(W / 2),
+      y: new Animated.Value(-50),
       rotate: new Animated.Value(0),
       opacity: new Animated.Value(1),
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
@@ -41,6 +45,9 @@ const ConfettiCelebration: React.FC<Props> = ({ visible, onDismiss, title, subti
   );
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const bgOpacity = useRef(new Animated.Value(0)).current;
+
+  const current = queue[currentIndex];
+  const visible = queue.length > 0 && !!current;
 
   useEffect(() => {
     if (!visible) return;
@@ -53,18 +60,21 @@ const ConfettiCelebration: React.FC<Props> = ({ visible, onDismiss, title, subti
     scaleAnim.setValue(0);
     Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }).start();
 
-    // Animate confetti pieces
+    // Animate confetti — all start from top center, fan out
+    const centerX = W / 2;
     const anims = pieces.map((p) => {
-      p.y.setValue(-50 - Math.random() * 200);
-      p.x.setValue(Math.random() * W);
+      // Start clustered at top center with small random spread
+      p.y.setValue(-20 - Math.random() * 80);
+      p.x.setValue(centerX - 30 + Math.random() * 60);
       p.rotate.setValue(0);
       p.opacity.setValue(1);
 
-      const duration = 2000 + Math.random() * 1500;
-      const drift = (Math.random() - 0.5) * 150;
+      const duration = 2500 + Math.random() * 1500;
+      // Fan out: each piece drifts to a random X across the full width
+      const targetX = Math.random() * W;
       return Animated.parallel([
         Animated.timing(p.y, { toValue: H + 50, duration, useNativeDriver: true }),
-        Animated.timing(p.x, { toValue: Math.random() * W + drift, duration, useNativeDriver: true }),
+        Animated.timing(p.x, { toValue: targetX, duration, useNativeDriver: true }),
         Animated.timing(p.rotate, { toValue: 3 + Math.random() * 5, duration, useNativeDriver: true }),
         Animated.sequence([
           Animated.delay(duration * 0.7),
@@ -72,19 +82,24 @@ const ConfettiCelebration: React.FC<Props> = ({ visible, onDismiss, title, subti
         ]),
       ]);
     });
-    Animated.stagger(30, anims).start();
+    Animated.stagger(20, anims).start();
 
-    // Auto-dismiss after 4s
-    const timer = setTimeout(() => {
-      handleDismiss();
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [visible]);
+    // NO auto-dismiss — stays until user taps
+  }, [visible, currentIndex]);
 
   const handleDismiss = () => {
-    Animated.timing(bgOpacity, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
-      onDismiss();
-    });
+    if (currentIndex < queue.length - 1) {
+      // More celebrations in queue — show next
+      Animated.timing(scaleAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+        setCurrentIndex((i) => i + 1);
+      });
+    } else {
+      // Last one — fade out and dismiss all
+      Animated.timing(bgOpacity, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
+        setCurrentIndex(0);
+        onDismissAll();
+      });
+    }
   };
 
   if (!visible) return null;
@@ -118,9 +133,14 @@ const ConfettiCelebration: React.FC<Props> = ({ visible, onDismiss, title, subti
 
         {/* Card */}
         <Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
-          <Text style={styles.cardEmoji}>{emoji}</Text>
-          <Text style={styles.cardTitle}>{title}</Text>
-          {subtitle ? <Text style={styles.cardSubtitle}>{subtitle}</Text> : null}
+          <Text style={styles.cardEmoji}>{current.emoji || '\U0001F389'}</Text>
+          <Text style={styles.cardTitle}>{current.title}</Text>
+          {current.subtitle ? <Text style={styles.cardSubtitle}>{current.subtitle}</Text> : null}
+          {queue.length > 1 && (
+            <Text style={styles.queueHint}>
+              {currentIndex + 1} of {queue.length} — tap to continue
+            </Text>
+          )}
         </Animated.View>
       </TouchableOpacity>
     </Modal>
@@ -146,6 +166,7 @@ const styles = StyleSheet.create({
   cardEmoji: { fontSize: 56, marginBottom: 12 },
   cardTitle: { fontSize: 24, fontWeight: '800', color: '#fff', textAlign: 'center', marginBottom: 8 },
   cardSubtitle: { fontSize: 16, color: 'rgba(255,255,255,0.7)', textAlign: 'center', lineHeight: 22 },
+  queueHint: { fontSize: 12, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 16 },
 });
 
 export default ConfettiCelebration;

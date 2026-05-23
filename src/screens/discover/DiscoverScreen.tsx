@@ -31,6 +31,7 @@ import * as Haptics from 'expo-haptics';
 import { DiscoverStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import AvatarImage from '../../components/common/AvatarImage';
 import { useUsers } from '../../hooks/useUsers';
 import { useDiscoverLocation } from '../../hooks/useDiscoverLocation';
 import { useSwaps } from '../../hooks/useSwaps';
@@ -249,10 +250,11 @@ const UserRow: React.FC<UserRowProps> = memo(({ user, distanceMiles, dogCount, o
       accessibilityRole="button"
       accessibilityHint="Opens this user's full profile"
     >
-      <Image
-        source={user.photoURL && user.photoURL.length > 0 ? { uri: user.photoURL } : require('../../../assets/icon.png')}
+      <AvatarImage
+        photoURL={user.photoURL}
+        displayName={user.displayName}
+        size={52}
         style={styles.avatar}
-        accessibilityLabel={`${user.displayName}'s profile photo`}
       />
       <View style={styles.userInfo}>
         <Text style={[styles.userName, { color: colors.text }]}>{user.displayName}</Text>

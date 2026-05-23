@@ -12,6 +12,7 @@ import { auth } from '../../config/firebase';
 import { ProfileStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import AvatarImage from '../../components/common/AvatarImage';
 import { useAuth } from '../../hooks/useAuth';
 import { useDogs } from '../../hooks/useDogs';
 import { getReferralCount } from '../../hooks/useReferrals';
@@ -294,17 +295,13 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        {userProfile?.photoURL && userProfile.photoURL.length > 0 ? (
-          <Image
-            source={{ uri: userProfile.photoURL }}
-            style={styles.avatar}
-            accessibilityLabel="Your profile photo"
-          />
-        ) : (
-          <View style={[styles.avatar, { backgroundColor: ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#98D8C8','#F7DC6F'][(userProfile?.displayName?.length ?? 0) % 8], alignItems: 'center', justifyContent: 'center' }]}>
-            <Text style={{ fontSize: 36 }}>🐶</Text>
-          </View>
-        )}
+        <AvatarImage
+          photoURL={userProfile?.photoURL}
+          displayName={userProfile?.displayName}
+          size={90}
+          style={styles.avatar}
+          emojiSize={36}
+        />
         <Text style={[styles.name, { color: colors.text }]} accessibilityRole="header">
           {userProfile?.displayName ?? 'User'}
         </Text>

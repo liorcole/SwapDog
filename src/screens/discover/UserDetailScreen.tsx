@@ -5,6 +5,7 @@ import { RouteProp } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { DiscoverStackParamList } from '../../navigation/types';
 import { useTheme } from '../../contexts/ThemeContext';
+import AvatarImage from '../../components/common/AvatarImage';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useUsers } from '../../hooks/useUsers';
 import { useDogs } from '../../hooks/useDogs';
@@ -122,10 +123,12 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface, ...shadow.sm }]}>
-        <Image
-          source={user.photoURL && user.photoURL.length > 0 ? { uri: user.photoURL } : require('../../../assets/icon.png')}
+        <AvatarImage
+          photoURL={user.photoURL}
+          displayName={user.displayName}
+          size={90}
           style={styles.avatar}
-          accessibilityLabel={`${user.displayName}'s profile photo`}
+          emojiSize={36}
         />
         <Text style={[styles.name, { color: colors.text }]} accessibilityRole="header">{user.displayName}</Text>
         {user.locationName && (

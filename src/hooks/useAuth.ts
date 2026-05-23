@@ -61,7 +61,7 @@ export const useAuth = () => {
       referredBy: referredBy ?? null,
       referralCodeUsed: usedCode ?? null,
       referralCode: newReferralCode,
-      points: 0,
+      points: 5,
       accountStatus: 'pending_approval',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

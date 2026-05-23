@@ -255,6 +255,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [helpModalVisible, setHelpModalVisible] = useState(false);
   const [counterMode, setCounterMode] = useState(false);
   const [counterPointsInput, setCounterPointsInput] = useState('');
+  const [counterType, setCounterType] = useState<'points' | 'money'>('points');
   const [counterMoneyInput, setCounterMoneyInput] = useState('');
   const [counterSubmitting, setCounterSubmitting] = useState(false);
 
@@ -316,6 +317,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   // ── "I Can Help" flow ─────────────────────────────────────────────────────
 
   const handleHelpButtonPress = () => {
+    setCounterType(post?.compensationType === 'payment' ? 'money' : 'points');
     if (!user || !post) return;
     if (user.uid === post.posterId) {
       Alert.alert("That's your post!", "You can't respond to your own request.");
@@ -347,7 +349,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       const convId = await getOrCreateConversation(user.uid, post.posterId, post.id);
 
       const introText = counterPoints !== undefined
-        ? `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'd like to counter-offer at ${counterPoints} points${counterMoneyInput && parseFloat(counterMoneyInput) > 0 ? ` + $${counterMoneyInput}` : ''} — let me know if that works!`
+        ? `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'd like to counter-offer at ${counterType === 'money' ? `$${counterMoneyInput}` : `${counterPoints} points`} — let me know if that works!\n\n📋 Review Counter`
         : `🐾 Hey! I'd love to help with ${dogDisplayName} from ${startStr} to ${endStr}. I'll take the job for the offered ${post.pointsOffered ?? post.pointsCost} points!`;
       await sendMessage(convId, user.uid, introText);
 
@@ -585,49 +587,70 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               </>
             ) : (
               <>
-                <Text style={[styles.counterInputLabel, { color: colors.text }]}>
-                  Counter with points:
-                </Text>
-                <View style={styles.counterInputRow}>
-                  <TextInput
-                    style={[styles.counterInput, { borderColor: '#FFFFFF', backgroundColor: colors.background, color: colors.text }]}
-                    placeholder={String(offeredPoints)}
-                    placeholderTextColor={colors.textSecondary}
-                    value={counterPointsInput}
-                    onChangeText={(t) => setCounterPointsInput(t.replace(/[^0-9]/g, ''))}
-                    keyboardType="number-pad"
-                    autoFocus
-                    accessibilityLabel="Counter offer points"
-                  />
-                  <Text style={[styles.counterInputUnit, { color: colors.textSecondary }]}>pts</Text>
-                </View>
-
-                <Text style={[styles.counterInputLabel, { color: colors.text, marginTop: 8 }]}>
-                  Counter with money (optional):
-                </Text>
-                <View style={styles.counterInputRow}>
-                  <Text style={[styles.counterInputUnit, { color: colors.text }]}>$</Text>
-                  <TextInput
-                    style={[styles.counterInput, { borderColor: '#FFFFFF', backgroundColor: colors.background, color: colors.text }]}
-                    placeholder="0"
-                    placeholderTextColor={colors.textSecondary}
-                    value={counterMoneyInput}
-                    onChangeText={setCounterMoneyInput}
-                    keyboardType="decimal-pad"
-                    accessibilityLabel="Counter offer money"
-                  />
-                </View>
+                {counterType === 'points' ? (
+                  <>
+                    <Text style={[styles.counterInputLabel, { color: colors.text }]}>
+                      Your counter offer (points):
+                    </Text>
+                    <View style={styles.counterInputRow}>
+                      <TextInput
+                        style={[styles.counterInput, { borderColor: '#FFFFFF', backgroundColor: colors.background, color: colors.text }]}
+                        placeholder={String(offeredPoints)}
+                        placeholderTextColor={colors.textSecondary}
+                        value={counterPointsInput}
+                        onChangeText={(t) => setCounterPointsInput(t.replace(/[^0-9]/g, ''))}
+                        keyboardType="number-pad"
+                        autoFocus
+                        accessibilityLabel="Counter offer points"
+                      />
+                      <Text style={[styles.counterInputUnit, { color: colors.textSecondary }]}>pts</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setCounterType('money')} style={{ marginTop: 4, marginBottom: 8 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Want to counter with money instead?</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.counterInputLabel, { color: colors.text }]}>
+                      Your counter offer ($):
+                    </Text>
+                    <View style={styles.counterInputRow}>
+                      <Text style={[styles.counterInputUnit, { color: colors.text }]}>$</Text>
+                      <TextInput
+                        style={[styles.counterInput, { borderColor: '#FFFFFF', backgroundColor: colors.background, color: colors.text }]}
+                        placeholder="0"
+                        placeholderTextColor={colors.textSecondary}
+                        value={counterMoneyInput}
+                        onChangeText={setCounterMoneyInput}
+                        keyboardType="decimal-pad"
+                        autoFocus
+                        accessibilityLabel="Counter offer money"
+                      />
+                    </View>
+                    <TouchableOpacity onPress={() => setCounterType('points')} style={{ marginTop: 4, marginBottom: 8 }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Want to counter with points instead?</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
 
                 <TouchableOpacity
                   style={[styles.helpModalAcceptBtn, { backgroundColor: RED, opacity: counterSubmitting ? 0.7 : 1 }]}
                   onPress={() => {
-                    const pts = parseInt(counterPointsInput, 10);
-                    const money = parseFloat(counterMoneyInput);
-                    if ((isNaN(pts) || pts < 1) && (isNaN(money) || money <= 0)) {
-                      Alert.alert('Invalid', 'Enter points or money for your counter offer');
-                      return;
+                    if (counterType === 'points') {
+                      const pts = parseInt(counterPointsInput, 10);
+                      if (isNaN(pts) || pts < 1) {
+                        Alert.alert('Invalid', 'Please enter a valid points amount');
+                        return;
+                      }
+                      handleAcceptOrCounter(pts);
+                    } else {
+                      const money = parseFloat(counterMoneyInput);
+                      if (isNaN(money) || money <= 0) {
+                        Alert.alert('Invalid', 'Please enter a valid dollar amount');
+                        return;
+                      }
+                      handleAcceptOrCounter(0);
                     }
-                    handleAcceptOrCounter(isNaN(pts) ? 0 : pts);
                   }}
                   disabled={counterSubmitting}
                 >
@@ -836,6 +859,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                       >
                         <Text style={styles.approveBtnText}>{isApproving ? '…' : 'Approve'}</Text>
                       </TouchableOpacity>
+                    )}
+                    {post.status === 'open' && !isApproved && hasCounter && counterStatus === 'pending' && (
+                      <View style={[styles.approveBtn, { backgroundColor: '#FDCB6E' }]}>  
+                        <Text style={[styles.approveBtnText, { color: '#000' }]}>Review Counter</Text>
+                      </View>
                     )}
                   </View>
                 </View>

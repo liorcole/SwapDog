@@ -33,8 +33,7 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Hide the React Navigation header — we render our own in the component body
   useEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
+  // Header configured in handleBack effect above
 
   // Mark conversation as read when the user opens the chat
   useEffect(() => {
@@ -67,13 +66,28 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      // Cross-tab navigation: came from RequestsStack "I Can Help" flow.
-      // Navigate to the ConversationsList screen in the MessagesTab.
+      // Cross-tab navigation: came from another stack.
+      // Navigate to the ConversationsList in MessagesTab.
       (navigation as any).getParent()?.navigate('MessagesTab', {
         screen: 'ConversationsList',
       });
     }
   };
+
+  // Also handle swipe-back gesture by ensuring header is properly set
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: 'Chat',
+      headerStyle: { backgroundColor: colors.background },
+      headerTintColor: colors.text,
+      headerLeft: () => (
+        <TouchableOpacity onPress={handleBack} style={{ paddingRight: 8 }}>
+          <Text style={{ color: colors.primary, fontSize: 17 }}>{'‹ Messages'}</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, colors]);
 
   return (
     <KeyboardAvoidingView

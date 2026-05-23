@@ -715,6 +715,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                   value={offerPoints}
                   onValueChange={(v) => {
                     setOfferPoints(v);
+                    if (v) setOfferMoney(false);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   trackColor={{ false: colors.border, true: colors.primary }}
@@ -732,6 +733,7 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
                   value={offerMoney}
                   onValueChange={(v) => {
                     setOfferMoney(v);
+                    if (v) setOfferPoints(false);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   trackColor={{ false: colors.border, true: colors.primary }}

@@ -527,6 +527,10 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
             const isToday = isSameDay(date, today);
             const hasAny = dots.red || dots.teal;
 
+            // Commitment scheduled: filled circle (red=owner, teal=sitter)
+            // Selected/clicked: bold number + dot underneath
+            const commitColor = dots.red ? RED : dots.teal ? TEAL : null;
+
             return (
               <TouchableOpacity
                 key={idx}
@@ -536,30 +540,34 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
               >
-                <View
-                  style={[
+                {hasAny && !isSelected ? (
+                  /* Commitment: filled circle */
+                  <View style={[styles.calDayCircle, { backgroundColor: commitColor ?? RED }]}>
+                    <Text style={[styles.calDayNum, { color: '#fff', fontWeight: '700' }]}>
+                      {date.getDate()}
+                    </Text>
+                  </View>
+                ) : (
+                  /* Normal or selected */
+                  <View style={[
                     styles.calDayCircle,
-                    isSelected && { backgroundColor: colors.primary },
                     !isSelected && isToday
                       ? { borderWidth: 1.5, borderColor: colors.primary }
                       : undefined,
-                  ]}
-                >
-                  <Text
-                    style={[
+                  ]}>
+                    <Text style={[
                       styles.calDayNum,
-                      { color: isSelected ? '#fff' : colors.text },
+                      { color: isSelected ? colors.text : colors.text },
+                      isSelected && { fontSize: 20, fontWeight: '800' },
                       !isSelected && isToday ? { color: colors.primary, fontWeight: '700' } : undefined,
-                    ]}
-                  >
-                    {date.getDate()}
-                  </Text>
-                </View>
-                {hasAny && (
-                  <View style={styles.calDots}>
-                    {dots.red ? <View style={[styles.calDot, { backgroundColor: RED }]} /> : null}
-                    {dots.teal ? <View style={[styles.calDot, { backgroundColor: TEAL }]} /> : null}
+                    ]}>
+                      {date.getDate()}
+                    </Text>
                   </View>
+                )}
+                {/* Selected: dot underneath */}
+                {isSelected && (
+                  <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.textSecondary, marginTop: 2 }} />
                 )}
               </TouchableOpacity>
             );

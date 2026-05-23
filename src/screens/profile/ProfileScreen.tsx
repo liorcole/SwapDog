@@ -310,13 +310,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         {userProfile?.locationName && (
           <Text style={[styles.location, { color: colors.textSecondary }]}>{'\ud83d\udccd'} {userProfile.locationName}</Text>
         )}
-        {userProfile?.rating !== undefined && (
-          <View style={styles.ratingRow}>
-            <StarRating rating={Math.round(userProfile.rating)} />
-            <Text style={[styles.ratingCount, { color: colors.textSecondary }]}>({userProfile.reviewCount ?? 0})</Text>
-          </View>
-        )}
-        {userProfile?.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{userProfile.bio}</Text>}
         {userProfile?.instagramHandle ? (
           <TouchableOpacity
             onPress={() => Linking.openURL(`https://instagram.com/${userProfile.instagramHandle}`)}
@@ -326,6 +319,14 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
             <Text style={[styles.instagramHandle, { color: colors.primary }]}>@{userProfile.instagramHandle}</Text>
           </TouchableOpacity>
         ) : null}
+        {userProfile?.rating !== undefined && (
+          <View style={styles.ratingRow}>
+            <StarRating rating={Math.round(userProfile.rating)} />
+            <Text style={[styles.ratingCount, { color: colors.textSecondary }]}>({userProfile.reviewCount ?? 0})</Text>
+          </View>
+        )}
+        {userProfile?.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{userProfile.bio}</Text>}
+
 
         {/* SUB-TASK 3: Points badge — tappable → PointsHistory */}
         <TouchableOpacity
@@ -503,21 +504,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         )}
       </View>
 
-      {/* Admin Panel — only visible to admin */}
-      {userProfile?.isAdmin === true && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Admin</Text>
-          <TouchableOpacity
-            style={[styles.prefRow, { backgroundColor: '#3D2E00', borderWidth: 1.5, borderColor: '#FFD700' }]}
-            onPress={handleAdminPanel}
-            accessibilityLabel="Open Admin Panel"
-            accessibilityRole="button"
-          >
-            <Text style={[styles.prefLabel, { color: '#FFD700' }]}>{'\ud83d\udc51'} Admin Panel</Text>
-            <Text style={[styles.prefChevron, { color: '#FFD700' }]}>{'>'}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+
 
       <TouchableOpacity
         style={[styles.signOutBtn, { backgroundColor: colors.error }]}

@@ -571,7 +571,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         { latitude: location.coords.latitude, longitude: location.coords.longitude },
         radiusMiles,
       );
-      const filtered = posts.filter((p) => p.posterId !== userProfile?.id);
+      const filtered = posts; // Include own posts in feed
       setAreaPosts(filtered);
       lastPostsRef.current = filtered;
     } catch { /* silent */ }

@@ -187,8 +187,10 @@ const WELCOME_TEXT =
   'Welcome to WatchDog! 🐾\n\n' +
   "We're so happy to have you in the family! You're now part of a trusted " +
   "community of dog lovers who look out for each other's pups.\n\n" +
+  "We've given you 5 points to get started — use them to post your first " +
+  "pet sitting request or save them up!\n\n" +
   'If you ever need help or have questions, reach out to us at david@joinwatchdog.com.\n\n' +
-  'Happy swapping! 🐕';
+  'Happy watching! 🐕';
 
 /**
  * Creates a welcome conversation from WatchDog Team the first time a user

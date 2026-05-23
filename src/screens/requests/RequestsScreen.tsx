@@ -565,31 +565,47 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
               >
-                {hasAny && !isSelected ? (
-                  /* Commitment: filled circle */
-                  <Animated.View style={[styles.calDayCircle, { backgroundColor: flashDate && date.getDate() === flashDate.getDate() && date.getMonth() === flashDate.getMonth() ? flashColorAnim.interpolate({ inputRange: [0, 1], outputRange: [commitColor ?? RED, '#FF0000'] }) : (commitColor ?? RED) }, flashDate && date.getDate() === flashDate.getDate() && date.getMonth() === flashDate.getMonth() ? { transform: [{ scale: flashAnim }] } : undefined]}>
-                    <Text style={[styles.calDayNum, { color: '#fff', fontWeight: '700' }]}>
-                      {date.getDate()}
-                    </Text>
-                  </Animated.View>
-                ) : (
-                  /* Normal or selected */
-                  <View style={[
-                    styles.calDayCircle,
-                    !isSelected && isToday
-                      ? { borderWidth: 1.5, borderColor: colors.primary }
-                      : undefined,
-                  ]}>
-                    <Text style={[
-                      styles.calDayNum,
-                      { color: isSelected ? colors.text : colors.text },
-                      isSelected && { fontSize: 20, fontWeight: '800' },
-                      !isSelected && isToday ? { color: colors.primary, fontWeight: '700' } : undefined,
+                {(() => {
+                  const isFlashing = flashDate && date.getDate() === flashDate.getDate() && date.getMonth() === flashDate.getMonth() && date.getFullYear() === flashDate.getFullYear();
+                  if (isFlashing) {
+                    // Flashing: animated circle — always wins, even if selected
+                    return (
+                      <Animated.View style={[styles.calDayCircle, { backgroundColor: flashColorAnim.interpolate({ inputRange: [0, 1], outputRange: [commitColor ?? RED, '#FF0000'] }), overflow: 'visible' }, { transform: [{ scale: flashAnim }] }]}>
+                        <Text style={[styles.calDayNum, { color: '#fff', fontWeight: '800' }]}>
+                          {date.getDate()}
+                        </Text>
+                      </Animated.View>
+                    );
+                  }
+                  if (hasAny && !isSelected) {
+                    // Commitment dot: filled circle (static)
+                    return (
+                      <View style={[styles.calDayCircle, { backgroundColor: commitColor ?? RED }]}>
+                        <Text style={[styles.calDayNum, { color: '#fff', fontWeight: '700' }]}>
+                          {date.getDate()}
+                        </Text>
+                      </View>
+                    );
+                  }
+                  // Normal or selected
+                  return (
+                    <View style={[
+                      styles.calDayCircle,
+                      !isSelected && isToday
+                        ? { borderWidth: 1.5, borderColor: colors.primary }
+                        : undefined,
                     ]}>
-                      {date.getDate()}
-                    </Text>
-                  </View>
-                )}
+                      <Text style={[
+                        styles.calDayNum,
+                        { color: isSelected ? colors.text : colors.text },
+                        isSelected && { fontSize: 20, fontWeight: '800' },
+                        !isSelected && isToday ? { color: colors.primary, fontWeight: '700' } : undefined,
+                      ]}>
+                        {date.getDate()}
+                      </Text>
+                    </View>
+                  );
+                })()}
                 {/* Selected: dot underneath */}
                 {isSelected && (
                   <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.textSecondary, marginTop: 2 }} />

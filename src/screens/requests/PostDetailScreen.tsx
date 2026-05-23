@@ -444,6 +444,19 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   // ── Reschedule: propose new dates to sitter ──────────────────────────────
   const handleReschedule = async () => {
     if (!post || !user) return;
+
+    // ── Date validation ──
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    if (rescheduleStart < todayStart) {
+      Alert.alert('Invalid dates', 'Start date cannot be in the past.');
+      return;
+    }
+    if (rescheduleEnd <= rescheduleStart) {
+      Alert.alert('Invalid dates', 'End date must be after the start date.');
+      return;
+    }
+
     try {
       const sitterId = post.claimedBy;
       if (!sitterId) {

@@ -216,8 +216,16 @@ const CreatePostScreen: React.FC<Props> = ({ navigation }) => {
     if (!careType) {
       Alert.alert('Required', 'Please select a type of care'); return;
     }
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    if (startDate < todayStart) {
+      Alert.alert('Invalid dates', 'Start date cannot be in the past.'); return;
+    }
     if (careType === 'overnight' && endDate <= startDate) {
-      Alert.alert('Invalid dates', 'End date must be after start date'); return;
+      Alert.alert('Invalid dates', 'End date must be after start date.'); return;
+    }
+    if (careType === 'overnight' && endDate < todayStart) {
+      Alert.alert('Invalid dates', 'End date cannot be in the past.'); return;
     }
     if (careDetails.trim().length < MIN_CARE_DETAILS) {
       Alert.alert('Care Details Required', `Please provide at least ${MIN_CARE_DETAILS} characters`);

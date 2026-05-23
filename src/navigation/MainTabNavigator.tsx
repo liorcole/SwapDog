@@ -16,6 +16,7 @@ import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, 
 import { db } from '../config/firebase';
 import { smartDate } from '../utils/dateHelpers';
 import RescheduleReviewModal from '../components/common/RescheduleReviewModal';
+import ConfettiCelebration from '../components/common/ConfettiCelebration';
 import { SwapPost } from '../models/types';
 import AppHeader from '../components/common/AppHeader';
 
@@ -217,6 +218,10 @@ const MainTabNavigator: React.FC = () => {
 
   // ── Reschedule popup for sitter (on app open) ──────────────────────────────
   const [reschedulePost, setReschedulePost] = useState<SwapPost | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationTitle, setCelebrationTitle] = useState('');
+  const [celebrationSubtitle, setCelebrationSubtitle] = useState('');
+  const [celebrationEmoji, setCelebrationEmoji] = useState('\U0001F389');
   const [showReschedulePopup, setShowReschedulePopup] = useState(false);
   const dismissedPostIds = useRef<Set<string>>(new Set());
 
@@ -267,6 +272,39 @@ const MainTabNavigator: React.FC = () => {
     return unsub;
   }, [user]);
 
+  // ── Sitter acceptance celebration (when owner approves this user as sitter) ──
+  const shownAcceptanceIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'swapPosts'),
+      where('claimedBy', '==', user.uid),
+      where('status', '==', 'claimed')
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      for (const change of snap.docChanges()) {
+        if (change.type === 'added' && !shownAcceptanceIds.current.has(change.doc.id)) {
+          const data = change.doc.data();
+          // Only show if the post was recently updated (within last 60s) to avoid showing on app cold start
+          const updatedAt = data.updatedAt?.toDate?.() ?? new Date(0);
+          const isRecent = (Date.now() - updatedAt.getTime()) < 60000;
+          if (isRecent && data.posterId !== user.uid) {
+            shownAcceptanceIds.current.add(change.doc.id);
+            setCelebrationTitle('You\'re Booked!');
+            const dogDisplay = data.dogNames && data.dogNames.length > 1
+              ? data.dogNames.join(' & ')
+              : (data.dogName ?? 'their dog');
+            setCelebrationSubtitle('You\'ve been chosen to watch ' + dogDisplay + ' for ' + (data.posterName ?? 'the owner') + '!');
+            setCelebrationEmoji('\U0001F436');
+            setShowCelebration(true);
+            break;
+          }
+        }
+      }
+    });
+    return unsub;
+  }, [user]);
+
   const handleRescheduleRespond = async (
     action: 'accept' | 'reject' | 'propose',
     note?: string,
@@ -278,6 +316,9 @@ const MainTabNavigator: React.FC = () => {
       const postRef = doc(db, 'swapPosts', reschedulePost.id);
       if (action === 'accept') {
         // Accept: move proposed dates to actual dates, clear reschedule fields
+        setCelebrationTitle('Dates Updated!');
+        setCelebrationSubtitle('New dates confirmed for ' + reschedulePost.dogName + '. You\'re all set!');
+        setCelebrationEmoji('\U0001F4C5');
         await updateDoc(postRef, {
           startDate: reschedulePost.rescheduleProposedStart,
           endDate: reschedulePost.rescheduleProposedEnd,
@@ -396,6 +437,13 @@ const MainTabNavigator: React.FC = () => {
           onRespond={handleRescheduleRespond}
         />
       )}
+    <ConfettiCelebration
+        visible={showCelebration}
+        onDismiss={() => setShowCelebration(false)}
+        title={celebrationTitle}
+        subtitle={celebrationSubtitle}
+        emoji={celebrationEmoji}
+      />
     <Tab.Navigator
       screenOptions={{
         headerShown: false,

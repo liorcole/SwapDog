@@ -34,6 +34,7 @@ import { db } from '../../config/firebase';
 import { RequestsStackParamList } from '../../navigation/types';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import ConfettiCelebration from '../../components/common/ConfettiCelebration';
 import { smartDate } from '../../utils/dateHelpers';
 import { useSwaps } from '../../hooks/useSwaps';
 import { useUsers } from '../../hooks/useUsers';
@@ -246,6 +247,9 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [claiming, setClaiming] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [isJustApproved, setIsJustApproved] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationTitle, setCelebrationTitle] = useState('');
+  const [celebrationSubtitle, setCelebrationSubtitle] = useState('');
 
   // Photo carousel state
   const [allPhotos, setAllPhotos] = useState<string[]>([]);
@@ -412,8 +416,10 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           setApprovingId(helperId);
           try {
             await approveHelper(post.id, helperId);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setIsJustApproved(true);
+            setCelebrationTitle('Booking Confirmed!');
+            setCelebrationSubtitle(helperName + ' is now your sitter for ' + (post.dogNames && post.dogNames.length > 1 ? post.dogNames.join(' & ') : post.dogName) + '!');
+            setShowCelebration(true);
             setPost((prev) => prev ? { ...prev, status: 'claimed', claimedBy: helperId } : prev);
             try {
               const hasPermission = await requestNotificationPermissions();
@@ -621,7 +627,16 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       </Modal>
 
 
-        {/* ── Reschedule Modal ── */}
+        {/* ── Confetti Celebration ── */}
+      <ConfettiCelebration
+        visible={showCelebration}
+        onDismiss={() => setShowCelebration(false)}
+        title={celebrationTitle}
+        subtitle={celebrationSubtitle}
+        emoji={'🐶'}
+      />
+
+      {/* ── Reschedule Modal ── */}
         <Modal visible={showRescheduleModal} transparent animationType="slide">
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0} style={{ flex: 1 }}>
             <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>

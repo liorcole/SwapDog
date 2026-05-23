@@ -36,6 +36,15 @@ function buildPostMessage(post: SwapPost): string {
   );
 }
 
+
+/** Extract clean Instagram handle from any format (handle, @handle, full URL) */
+const cleanIgHandle = (raw: string): string => {
+  const s = raw.trim();
+  const urlMatch = s.match(/instagram\.com\/([a-zA-Z0-9_.]+)/);
+  if (urlMatch) return urlMatch[1];
+  return s.replace(/^@/, '');
+};
+
 const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { userProfile: me } = useAuthContext();
@@ -144,10 +153,10 @@ const UserDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         {user.bio && <Text style={[styles.bio, { color: colors.textSecondary }]}>{user.bio}</Text>}
         {user.instagramHandle ? (
           <TouchableOpacity
-            onPress={() => { const h = user.instagramHandle ?? ''; const url = h.startsWith('http') ? h : `https://www.instagram.com/${h.replace('@', '')}/`; Linking.openURL(url); }}
+            onPress={() => { const h = cleanIgHandle(user.instagramHandle ?? ''); Linking.openURL('https://www.instagram.com/' + h + '/'); }}
             style={styles.igRow}
           >
-            <Text style={[styles.igHandle, { color: colors.primary }]}>@{user.instagramHandle}</Text>
+            <Text style={[styles.igHandle, { color: colors.primary }]}>@{cleanIgHandle(user.instagramHandle ?? '')}</Text>
           </TouchableOpacity>
         ) : null}
         <Text style={[styles.pointsBadge, { color: colors.textSecondary }]}>

@@ -17,6 +17,15 @@ type Props = {
   navigation: NativeStackNavigationProp<OnboardingStackParamList, 'ProfileSetup'>;
 };
 
+
+/** Extract clean Instagram handle from any format (handle, @handle, full URL) */
+const cleanIgHandle = (raw: string): string => {
+  const s = raw.trim();
+  const urlMatch = s.match(/instagram\.com\/([a-zA-Z0-9_.]+)/);
+  if (urlMatch) return urlMatch[1];
+  return s.replace(/^@/, '');
+};
+
 const ProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user } = useAuthContext();
@@ -47,7 +56,7 @@ const ProfileSetupScreen: React.FC<Props> = ({ navigation }) => {
         email: user.email,
         displayName: displayName.trim(),
         bio: bio.trim(),
-        instagramHandle: instagramHandle.trim().replace(/^@/, '') || '',
+        instagramHandle: cleanIgHandle(instagramHandle) || '',
         photoURL,
         isOnboarded: false,
         createdAt: serverTimestamp(),

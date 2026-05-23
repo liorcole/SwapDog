@@ -10,6 +10,15 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useUsers } from '../../hooks/useUsers';
 import { spacing, borderRadius, typography } from '../../config/theme';
 
+
+/** Extract clean Instagram handle from any format (handle, @handle, full URL) */
+const cleanIgHandle = (raw: string): string => {
+  const s = raw.trim();
+  const urlMatch = s.match(/instagram\.com\/([a-zA-Z0-9_.]+)/);
+  if (urlMatch) return urlMatch[1];
+  return s.replace(/^@/, '');
+};
+
 const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ navigation }) => {
   const { colors } = useTheme();
   const { user, userProfile, refreshUserProfile } = useAuthContext();
@@ -37,7 +46,7 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
     if (!user) return;
     setLoading(true);
     try {
-      await updateUser(user.uid, { displayName: displayName.trim(), bio: bio.trim(), instagramHandle: instagramHandle.trim().replace(/^@/, '') || '', photoURL });
+      await updateUser(user.uid, { displayName: displayName.trim(), bio: bio.trim(), instagramHandle: cleanIgHandle(instagramHandle) || '', photoURL });
       await refreshUserProfile();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.goBack();

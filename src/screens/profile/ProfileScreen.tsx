@@ -310,11 +310,11 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         )}
         {userProfile?.instagramHandle ? (
           <TouchableOpacity
-            onPress={() => { const h = userProfile.instagramHandle ?? ''; const url = h.startsWith('http') ? h : `https://www.instagram.com/${h.replace('@', '')}/`; Linking.openURL(url); }}
+            onPress={() => { const h = cleanIgHandle(userProfile.instagramHandle ?? ''); Linking.openURL('https://www.instagram.com/' + h + '/'); }}
             accessibilityLabel={`Instagram: ${userProfile.instagramHandle}`}
             accessibilityRole="link"
           >
-            <Text style={[styles.instagramHandle, { color: colors.primary }]}>@{userProfile.instagramHandle}</Text>
+            <Text style={[styles.instagramHandle, { color: colors.primary }]}>@{cleanIgHandle(userProfile.instagramHandle ?? '')}</Text>
           </TouchableOpacity>
         ) : null}
         <View style={styles.ratingRow}>

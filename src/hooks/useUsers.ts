@@ -39,6 +39,7 @@ const parseUser = (id: string, data: Record<string, unknown>): User => ({
   vettingScheduledAt: data.vettingScheduledAt
     ? toDate(data.vettingScheduledAt as Parameters<typeof toDate>[0])
     : undefined,
+  instagramHandle: data.instagramHandle as string | undefined,
 });
 
 export const useUsers = () => {

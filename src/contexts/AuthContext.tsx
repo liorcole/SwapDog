@@ -74,6 +74,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           conductAgreedAt: data.conductAgreedAt ? toDate(data.conductAgreedAt) : undefined,
           contractSignedAt: data.contractSignedAt ? toDate(data.contractSignedAt) : undefined,
           vettingScheduledAt: data.vettingScheduledAt ? toDate(data.vettingScheduledAt) : undefined,
+          instagramHandle: data.instagramHandle,
           isAdmin: docSnap.id === ADMIN_UID || data.role === 'admin',
         };
       }

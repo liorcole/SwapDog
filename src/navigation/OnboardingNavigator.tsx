@@ -18,8 +18,8 @@ const OnboardingNavigator: React.FC = () => {
     >
       <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} />
       <Stack.Screen name="AddDog" component={AddDogScreen} />
-      <Stack.Screen name="Paywall" component={PaywallScreen} />
       <Stack.Screen name="LocationSetup" component={LocationSetupScreen} />
+      <Stack.Screen name="Paywall" component={PaywallScreen} />
     </Stack.Navigator>
   );
 };

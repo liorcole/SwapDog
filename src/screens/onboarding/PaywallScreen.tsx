@@ -4,6 +4,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { usePlacement } from 'expo-superwall';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuthContext } from '../../contexts/AuthContext';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 import { OnboardingStackParamList } from '../../navigation/types';
 
 const RED = '#FF2D55';
@@ -14,6 +17,7 @@ type Props = {
 
 const PaywallScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
+  const { user, refreshUserProfile } = useAuthContext();
   const { registerPlacement, state: placementState } = usePlacement({
     onPresent: (info) => console.log('[Superwall] Paywall presented:', info),
     onDismiss: (info, result) => {
@@ -22,10 +26,19 @@ const PaywallScreen: React.FC<Props> = ({ navigation }) => {
       // (Superwall handles gating — if gated, feature() runs only on purchase)
     },
     onError: (err) => console.error('[Superwall] Error:', err),
-    onSkip: (reason) => {
+    onSkip: async (reason) => {
       console.log('[Superwall] Paywall skipped:', reason);
-      // If skipped (e.g. already subscribed), continue onboarding
-      navigation.navigate('LocationSetup');
+      // Skipped = already subscribed. Activate account.
+      if (user) {
+        await updateDoc(doc(db, 'users', user.uid), {
+          isOnboarded: true,
+          accountStatus: 'active',
+          conductAgreedAt: serverTimestamp(),
+          contractSignedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        await refreshUserProfile();
+      }
     },
   });
 
@@ -33,24 +46,30 @@ const PaywallScreen: React.FC<Props> = ({ navigation }) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await registerPlacement({
       placement: 'campaign_trigger',
-      feature: () => {
-        // This runs if user subscribed or is already subscribed
-        navigation.navigate('LocationSetup');
+      feature: async () => {
+        // Subscribed! Activate account — skip approval/waiting/contract
+        if (user) {
+          await updateDoc(doc(db, 'users', user.uid), {
+            isOnboarded: true,
+            accountStatus: 'active',
+            conductAgreedAt: serverTimestamp(),
+            contractSignedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          await refreshUserProfile();
+        }
       },
     });
   };
 
-  const handleSkip = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate('LocationSetup');
-  };
+
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={styles.emoji}>🐾</Text>
-      <Text style={[styles.title, { color: colors.text }]}>Join WatchDog</Text>
+      <Text style={[styles.title, { color: colors.text }]}>Subscribe to WatchDog</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Get full access to the WatchDog community
+        Subscribe to get started
       </Text>
 
       <View style={[styles.featureList, { backgroundColor: colors.surface }]}>
@@ -77,9 +96,7 @@ const PaywallScreen: React.FC<Props> = ({ navigation }) => {
         <Text style={styles.subscribeBtnText}>Continue</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={handleSkip} style={styles.skipBtn}>
-        <Text style={[styles.skipText, { color: colors.textSecondary }]}>Maybe later</Text>
-      </TouchableOpacity>
+      {/* No skip — subscription is required */}
 
       <Text style={[styles.legal, { color: colors.textSecondary }]}>
         Payment will be charged to your Apple ID account at confirmation of purchase.
@@ -100,8 +117,6 @@ const styles = StyleSheet.create({
   featureText: { fontSize: 15, flex: 1 },
   subscribeBtn: { width: '100%', paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
   subscribeBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  skipBtn: { paddingVertical: 12 },
-  skipText: { fontSize: 14 },
   legal: { fontSize: 10, textAlign: 'center', marginTop: 16, paddingHorizontal: 20, lineHeight: 14 },
 });
 

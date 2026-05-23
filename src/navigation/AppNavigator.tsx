@@ -6,10 +6,8 @@ import { RootStackParamList } from './types';
 import { useAuthContext } from '../contexts/AuthContext';
 import AuthNavigator from './AuthNavigator';
 import OnboardingNavigator from './OnboardingNavigator';
-import ApprovalNavigator from './ApprovalNavigator';
 import MainTabNavigator from './MainTabNavigator';
 import ConductStandardsScreen from '../screens/onboarding/ConductStandardsScreen';
-import WaitingApprovalScreen from '../screens/onboarding/WaitingApprovalScreen';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { requestNotificationPermissions } from '../services/ReminderService';
 import { sendWelcomeMessageIfNeeded } from '../hooks/useMessaging';
@@ -91,12 +89,6 @@ const AppNavigator: React.FC = () => {
         <Stack.Screen name="ConductStandards">
           {() => <ConductStandardsScreen />}
         </Stack.Screen>
-      ) : (accountStatus === 'pending_vetting' || accountStatus === 'pending_approval') ? (
-        // ── Conduct agreed, awaiting admin review ─────────────────────────
-        <Stack.Screen name="WaitingApproval" component={WaitingApprovalScreen} />
-      ) : accountStatus === 'active' && !contractSigned ? (
-        // ── Approved! Show celebration → contract signing ──────────────────
-        <Stack.Screen name="ApprovalFlow" component={ApprovalNavigator} />
       ) : (
         // ── Active + contract signed → full app access ─────────────────────
         <Stack.Screen name="Main" component={MainTabNavigator} />

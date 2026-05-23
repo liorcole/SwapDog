@@ -51,6 +51,7 @@ const LocationSetupScreen: React.FC<Props> = () => {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await refreshUserProfile();
+      navigation.navigate('Paywall');
     } catch (error: unknown) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to get location');
     } finally {
@@ -63,10 +64,9 @@ const LocationSetupScreen: React.FC<Props> = () => {
     setLoading(true);
     try {
       await updateDoc(doc(db, 'users', user.uid), {
-        isOnboarded: true,
         updatedAt: serverTimestamp(),
       });
-      await refreshUserProfile();
+      navigation.navigate('Paywall');
     } catch (error: unknown) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Failed to complete setup');
     } finally {

@@ -670,6 +670,77 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         {/* ── Photo Carousel (swipeable, all dog photos) ── */}
         <PhotoCarouselSection photos={allPhotos} onPhotoPress={handlePhotoPress} />
 
+        {/* ── Interested Helpers (owner only) ── */}
+        {isOwner && respondents.length > 0 && (
+          <View style={styles.helpersSection}>
+            <View style={styles.helpersSectionHeader}>
+              <Text style={styles.helpersSectionTitle}>
+                Interested Helpers ({respondents.length})
+              </Text>
+              {post.status === 'claimed' && (
+                <View style={styles.claimedBadge}>
+                  <Text style={styles.claimedBadgeText}>APPROVED</Text>
+                </View>
+              )}
+            </View>
+
+            {respondents.map((r) => {
+              const isApproved = post.claimedBy === r.userId;
+              const isApproving = approvingId === r.userId;
+
+
+              return (
+                <View key={r.userId} style={styles.helperRow}>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('UserDetail', { userId: r.userId })}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View ${r.userName}'s profile`}
+                    style={styles.helperAvatarTouchable}
+                  >
+                    {r.userPhotoURL ? (
+                      <Image source={{ uri: r.userPhotoURL }} style={styles.helperAvatar} />
+                    ) : (
+                      <View style={styles.helperAvatarPlaceholder}>
+                        <Text style={styles.helperAvatarEmoji}></Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.helperInfo}
+                    onPress={() => navigation.navigate('UserDetail', { userId: r.userId })}
+                    accessibilityLabel={`View ${r.userName}'s profile`}
+                  >
+                    <Text style={styles.helperName}>{r.userName}</Text>
+
+                    {isApproved ? (
+                      <Text style={styles.helperApprovedLabel}>Approved sitter</Text>
+                    ) : (
+                      <Text style={styles.helperAcceptedPts}>
+                        Interested · {offeredPoints} pts
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <View style={styles.helperActions}>
+                    {post.status === 'open' && !isApproved && (
+                      <TouchableOpacity
+                        style={[styles.approveBtn, isApproving && styles.approveBtnDisabled]}
+                        onPress={() => handleApprove(r.userId, r.userName)}
+                        disabled={isApproving}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Approve ${r.userName}`}
+                      >
+                        <Text style={styles.approveBtnText}>{isApproving ? '…' : 'Approve'}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
 
         {/* ── Reschedule / Cancel banner (owner, claimed post) ── */}
         {isOwner && post.status === 'claimed' && (
@@ -789,77 +860,6 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             </View>
           )}
         </View>
-
-        {/* ── Interested Helpers (owner only) ── */}
-        {isOwner && respondents.length > 0 && (
-          <View style={styles.helpersSection}>
-            <View style={styles.helpersSectionHeader}>
-              <Text style={styles.helpersSectionTitle}>
-                Interested Helpers ({respondents.length})
-              </Text>
-              {post.status === 'claimed' && (
-                <View style={styles.claimedBadge}>
-                  <Text style={styles.claimedBadgeText}>APPROVED</Text>
-                </View>
-              )}
-            </View>
-
-            {respondents.map((r) => {
-              const isApproved = post.claimedBy === r.userId;
-              const isApproving = approvingId === r.userId;
-
-
-              return (
-                <View key={r.userId} style={styles.helperRow}>
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate('UserDetail', { userId: r.userId })}
-                    accessibilityRole="button"
-                    accessibilityLabel={`View ${r.userName}'s profile`}
-                    style={styles.helperAvatarTouchable}
-                  >
-                    {r.userPhotoURL ? (
-                      <Image source={{ uri: r.userPhotoURL }} style={styles.helperAvatar} />
-                    ) : (
-                      <View style={styles.helperAvatarPlaceholder}>
-                        <Text style={styles.helperAvatarEmoji}></Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.helperInfo}
-                    onPress={() => navigation.navigate('UserDetail', { userId: r.userId })}
-                    accessibilityLabel={`View ${r.userName}'s profile`}
-                  >
-                    <Text style={styles.helperName}>{r.userName}</Text>
-
-                    {isApproved ? (
-                      <Text style={styles.helperApprovedLabel}>Approved sitter</Text>
-                    ) : (
-                      <Text style={styles.helperAcceptedPts}>
-                        Interested · {offeredPoints} pts
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-
-                  <View style={styles.helperActions}>
-                    {post.status === 'open' && !isApproved && (
-                      <TouchableOpacity
-                        style={[styles.approveBtn, isApproving && styles.approveBtnDisabled]}
-                        onPress={() => handleApprove(r.userId, r.userName)}
-                        disabled={isApproving}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Approve ${r.userName}`}
-                      >
-                        <Text style={styles.approveBtnText}>{isApproving ? '…' : 'Approve'}</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
 
         {/* ── I Can Help button ── */}
         {!isOwner && post.status === 'open' && (() => {

@@ -450,12 +450,11 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         Alert.alert('Error', 'No sitter assigned to this booking.');
         return;
       }
-      // Update the post with proposed new dates and set status back to open
+      // Update the post with proposed new dates and set status to reschedulePending
       await updateDoc(doc(db, 'swapPosts', post.id), {
         startDate: rescheduleStart,
         endDate: rescheduleEnd,
-        status: 'open',
-        claimedBy: null,
+        status: 'reschedulePending',
         updatedAt: serverTimestamp(),
       });
       // Notify the sitter via chat
@@ -466,7 +465,7 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       await sendMessage(convId, user.uid, `I need to reschedule. Would ${startStr} – ${endStr} work instead?${note}`);
       setShowRescheduleModal(false);
       setRescheduleNote('');
-      setPost((prev) => prev ? { ...prev, status: 'open', claimedBy: undefined } : prev);
+      setPost((prev) => prev ? { ...prev, status: 'reschedulePending' as any } : prev);
       Alert.alert('Sent', 'Your reschedule request has been sent to the sitter.');
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not send reschedule request');
@@ -709,9 +708,9 @@ const PostDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                 Posted {smartDate(post.createdAt)}
               </Text>
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: post.status === 'open' ? '#00B89420' : '#63727220' }]}>
-              <Text style={[styles.statusBadgeText, { color: post.status === 'open' ? '#00B894' : '#636E72' }]}>
-                {post.status.toUpperCase()}
+            <View style={[styles.statusBadge, { backgroundColor: post.status === 'open' ? '#00B89420' : post.status === 'reschedulePending' ? '#F39C1225' : '#63727220' }]}>
+              <Text style={[styles.statusBadgeText, { color: post.status === 'open' ? '#00B894' : post.status === 'reschedulePending' ? '#F39C12' : '#636E72' }]}>
+                {post.status === 'reschedulePending' ? 'RESCHEDULE PENDING' : post.status.toUpperCase()}
               </Text>
             </View>
           </View>

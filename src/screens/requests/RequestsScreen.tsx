@@ -297,6 +297,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
       claimed: '#FDCB6E',
       completed: '#4ECDC4',
       cancelled: '#636E72',
+      reschedulePending: '#F39C12',
     };
 
     return (
@@ -306,17 +307,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
         accessibilityRole="button"
         accessibilityLabel={`Your post for ${item.dogName}`}
       >
-        {isOpen && (
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation(); handleCancel(item.id); }}
-            style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(255,59,48,0.15)', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityLabel={`Delete post for ${item.dogName}`}
-            accessibilityRole="button"
-          >
-            <Text style={{ color: '#FF3B30', fontSize: 14, fontWeight: '600' }}>✕</Text>
-          </TouchableOpacity>
-        )}
+
         {interestedCount > 0 && (
           <View style={styles.interestTopLeft}>
             <Text style={styles.interestBadgeText}>
@@ -340,7 +331,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusColor[item.status] + '25' }]}>
             <Text style={[styles.statusBadgeText, { color: statusColor[item.status] }]}>
-              {item.status.toUpperCase()}
+              {item.status === 'reschedulePending' ? 'RESCHEDULE PENDING' : item.status.toUpperCase()}
             </Text>
           </View>
         </View>
@@ -359,16 +350,7 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
 
 
 
-        {isOpen && (
-          <TouchableOpacity
-            style={[styles.cancelBtn, { borderColor: colors.error }]}
-            onPress={() => handleCancel(item.id)}
-            accessibilityLabel="Cancel post"
-            accessibilityRole="button"
-          >
-            <Text style={[styles.cancelBtnText, { color: colors.error }]}>Cancel Post</Text>
-          </TouchableOpacity>
-        )}
+
       </TouchableOpacity>
     );
   };

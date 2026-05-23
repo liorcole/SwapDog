@@ -783,7 +783,7 @@ const DiscoverScreen: React.FC<Props> = ({ navigation }) => {
         {broadcastSending ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.broadcastBtnText}>📢 Share My Post Nearby ({nearbyUsers.length})</Text>
+          <Text style={styles.broadcastBtnText}>Share My Post Nearby</Text>
         )}
       </TouchableOpacity>
     );
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
   listLoadingContainer: { flex: 1, paddingTop: spacing.md },
   list: { padding: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.xl * 2 },
 
-  broadcastBtn: { marginBottom: spacing.md, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  broadcastBtn: { marginTop: spacing.lg, marginBottom: spacing.md, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
   broadcastBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   // Section headers

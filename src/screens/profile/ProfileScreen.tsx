@@ -26,6 +26,17 @@ type Props = {
   navigation: NativeStackNavigationProp<ProfileStackParamList, 'Profile'>;
 };
 
+const cleanIgHandle = (raw: string): string => {
+  let h = raw.trim();
+  // Strip full URL
+  h = h.replace(/^https?:\/\/(www\.)?instagram\.com\//i, '');
+  // Strip leading @
+  h = h.replace(/^@/, '');
+  // Remove trailing slash
+  h = h.replace(/\/$/, '');
+  return h;
+};
+
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
   const { userProfile, user } = useAuthContext();

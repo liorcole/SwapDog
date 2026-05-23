@@ -46,11 +46,11 @@ const TEAL = '#2DD4BF';
 // ── Care type helpers (Wave 19B) ──────────────────────────────────────────────
 function getCareTypeIcon(careType?: string): string {
   switch (careType) {
-    case 'overnight': return 'Overnight sitting';
-    case 'daySitting': return 'Daytime sitting';
-    case 'feeding': return 'Feeding';
-    case 'dogWalking': return 'Walk';
-    default: return t;
+    case 'overnight': return '🌙';
+    case 'daySitting': return '☀️';
+    case 'feeding': return '🍽️';
+    case 'dogWalking': return '🦮';
+    default: return '🐾';
   }
 }
 

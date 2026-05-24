@@ -84,6 +84,8 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
         value={displayName}
         onChangeText={setDisplayName}
         accessibilityLabel="Display name"
+          returnKeyType="next"
+          blurOnSubmit={false}
       />
       <TextInput
         style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -104,6 +106,7 @@ const EditProfileScreen: React.FC<{ navigation: { goBack: () => void } }> = ({ n
         autoCapitalize="none"
         autoCorrect={false}
         accessibilityLabel="Instagram handle, optional"
+          returnKeyType="done"
       />
       <Text style={[styles.fieldHint, { color: colors.textSecondary }]}>Visible on your profile</Text>
       <TouchableOpacity

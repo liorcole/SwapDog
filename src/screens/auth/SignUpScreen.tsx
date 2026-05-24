@@ -70,6 +70,8 @@ const SignUpScreen: React.FC<Props> = ({ navigation, route }) => {
           keyboardType="email-address"
           autoCapitalize="none"
           accessibilityLabel="Email address"
+          returnKeyType="next"
+          blurOnSubmit={false}
           accessibilityRole="none"
         />
         <TextInput
@@ -80,6 +82,8 @@ const SignUpScreen: React.FC<Props> = ({ navigation, route }) => {
           onChangeText={setPassword}
           secureTextEntry
           accessibilityLabel="Password, minimum 6 characters"
+          returnKeyType="next"
+          blurOnSubmit={false}
           accessibilityRole="none"
         />
         <TextInput
@@ -90,6 +94,8 @@ const SignUpScreen: React.FC<Props> = ({ navigation, route }) => {
           onChangeText={setConfirm}
           secureTextEntry
           accessibilityLabel="Confirm password"
+          returnKeyType="done"
+          onSubmitEditing={handleSignUp}
           accessibilityRole="none"
         />
 

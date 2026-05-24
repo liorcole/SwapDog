@@ -592,7 +592,19 @@ const RequestsScreen: React.FC<Props> = ({ navigation }) => {
                     );
                   }
                   if (hasAny) {
-                    // Commitment dot: filled circle — shows whether selected or not
+                    // Both red + teal on same day: split circle 50/50 vertical
+                    if (dots.red && dots.teal) {
+                      return (
+                        <View style={[styles.calDayCircle, { overflow: 'hidden' }]}>
+                          <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '50%', backgroundColor: RED }} />
+                          <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '50%', backgroundColor: TEAL }} />
+                          <Text style={[styles.calDayNum, { color: '#fff', fontWeight: isSelected ? '800' : '700', fontSize: isSelected ? 18 : 14 }]}>
+                            {date.getDate()}
+                          </Text>
+                        </View>
+                      );
+                    }
+                    // Single color: red = your dog, teal = you're watching
                     return (
                       <View style={[styles.calDayCircle, { backgroundColor: commitColor ?? RED }]}>
                         <Text style={[styles.calDayNum, { color: '#fff', fontWeight: isSelected ? '800' : '700', fontSize: isSelected ? 18 : 14 }]}>

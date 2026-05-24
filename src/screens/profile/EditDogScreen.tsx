@@ -215,6 +215,8 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
         placeholder="Dog name"
         placeholderTextColor={colors.textSecondary}
         accessibilityLabel="Dog name"
+          returnKeyType="next"
+          blurOnSubmit={false}
       />
       <TextInput
         style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -223,6 +225,7 @@ const EditDogScreen: React.FC<Props> = ({ navigation, route }) => {
         placeholder="Breed"
         placeholderTextColor={colors.textSecondary}
         accessibilityLabel="Dog breed"
+          returnKeyType="done"
       />
 
       {/* Age pickers */}

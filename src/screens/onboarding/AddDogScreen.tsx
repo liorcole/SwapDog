@@ -253,6 +253,8 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
         value={form.name}
         onChangeText={(v) => set('name', v)}
         accessibilityLabel="Dog's name"
+          returnKeyType="next"
+          blurOnSubmit={false}
       />
       <TextInput
         style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -261,6 +263,7 @@ const AddDogScreen: React.FC<Props> = ({ navigation }) => {
         value={form.breed}
         onChangeText={(v) => set('breed', v)}
         accessibilityLabel="Dog's breed"
+          returnKeyType="done"
       />
 
       {/* Age pickers */}

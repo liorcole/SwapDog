@@ -76,6 +76,8 @@ const SignInScreen: React.FC<Props> = ({ navigation }) => {
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
+          returnKeyType="next"
+          blurOnSubmit={false}
           accessibilityLabel="Email address"
           accessibilityRole="none"
         />
@@ -87,6 +89,8 @@ const SignInScreen: React.FC<Props> = ({ navigation }) => {
           onChangeText={setPassword}
           secureTextEntry
           autoComplete="password"
+          returnKeyType="done"
+          onSubmitEditing={handleSignIn}
           accessibilityLabel="Password"
           accessibilityRole="none"
         />

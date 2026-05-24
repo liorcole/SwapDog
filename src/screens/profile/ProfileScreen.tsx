@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Alert,
-  ActivityIndicator, Linking,
+  ActivityIndicator, Linking, Keyboard,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -39,7 +39,7 @@ const cleanIgHandle = (raw: string): string => {
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const { colors } = useTheme();
-  const { userProfile, user } = useAuthContext();
+  const { userProfile, user, refreshUserProfile } = useAuthContext();
   const { signOut } = useAuth();
   const { getDogsByOwner, updateDog, deleteDog } = useDogs();
   const [dogs, setDogs] = useState<Dog[]>([]);
@@ -56,6 +56,32 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const refreshDogs = () => {
     if (!user) return;
     getDogsByOwner(user.uid).then(setDogs);
+  };
+
+  const handleChangeProfilePhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const uri = result.assets[0].uri;
+      if (!user) return;
+      const downloadURL = await uploadPhotoToStorage(uri, `users/${user.uid}/profile`);
+      if (!downloadURL) {
+        Alert.alert('Error', 'Failed to upload photo.');
+        return;
+      }
+      const { updateDoc, doc, serverTimestamp } = await import('firebase/firestore');
+      const { db } = await import('../../config/firebase');
+      await updateDoc(doc(db, 'users', user.uid), { photoURL: downloadURL, updatedAt: serverTimestamp() });
+      await refreshUserProfile();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to update photo.');
+    }
   };
 
   // Re-fetch dogs every time the screen comes into focus (e.g. after adding a dog)
@@ -312,6 +338,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           size={90}
           style={styles.avatar}
           emojiSize={36}
+          onPress={handleChangeProfilePhoto}
         />
         <Text style={[styles.name, { color: colors.text }]} accessibilityRole="header">
           {userProfile?.displayName ?? 'User'}

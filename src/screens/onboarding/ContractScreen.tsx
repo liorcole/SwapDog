@@ -215,6 +215,7 @@ const ContractScreen: React.FC<ContractScreenProps> = ({
               onChangeText={setFullName}
               editable={reachedBottom}
               accessibilityLabel="Full legal name for digital signature"
+              returnKeyType="done"
             />
 
             <Text style={[styles.dateText, { color: colors.textSecondary }]}>

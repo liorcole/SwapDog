@@ -254,6 +254,9 @@ const ChatScreen: React.FC<Props> = ({ navigation, route }) => {
           onChangeText={setText}
           multiline
           maxLength={1000}
+          returnKeyType="send"
+          blurOnSubmit={true}
+          onSubmitEditing={handleSend}
           accessibilityLabel="Message input"
           accessibilityRole="none"
         />

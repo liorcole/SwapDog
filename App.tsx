@@ -51,7 +51,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <SuperwallProvider apiKeys={{ ios: SUPERWALL_IOS_KEY }}>
+      <SuperwallProvider apiKeys={{ ios: SUPERWALL_IOS_KEY }} onConfigurationError={(error) => console.error("[Superwall] Config failed:", error)}>
         <SafeAreaProvider>
           <ThemeProvider>
             <AuthProvider>
